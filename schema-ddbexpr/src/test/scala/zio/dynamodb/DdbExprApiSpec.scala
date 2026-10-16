@@ -113,10 +113,10 @@ object DdbExprApiSpec extends ZIOSpecDefault {
             .withRetryPolicy(RetryPolicy.NoRetry)
             .withoutItemOnConditionFailure
         assert(q)(
-          isSubtype[DynamoDBQuery.Map[_, _]](
-            hasField[DynamoDBQuery.Map[_, _], DynamoDBQuery[_, _]](
-              "query",
-              _.query,
+          isSubtype[WriteNode[_, _]](
+            hasField[WriteNode[_, _], DynamoDBQuery[_, _]](
+              "write",
+              _.write,
               isSubtype[DynamoDBQuery.PutItem](
                 hasField[DynamoDBQuery.PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
                   hasField[DynamoDBQuery.PutItem, ReturnItemCollectionMetrics](

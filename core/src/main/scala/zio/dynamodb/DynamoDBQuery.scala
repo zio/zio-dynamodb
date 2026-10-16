@@ -87,6 +87,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.withConditionReturningItemOnFailure(conditionExpression),
           zippable
         )
+      case w: WriteNode[_, _]               =>
+        w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].withConditionReturningItemOnFailure(conditionExpression)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.withConditionReturningItemOnFailure(conditionExpression), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -114,6 +116,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.withCondition(conditionExpression), right.withCondition(conditionExpression), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].withCondition(conditionExpression)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.withCondition(conditionExpression), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.withCondition(conditionExpression))
       case p: DynamoDBQuery.PutItem         =>
@@ -145,6 +148,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case DynamoDBQuery.ZipPar(left, right, zippable) =>
         DynamoDBQuery.ZipPar(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+      case w: WriteNode[_, _]                          => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].whereKey(keyConditionExpression)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.whereKey(keyConditionExpression), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
 
@@ -169,6 +173,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.returnValuesOnConditionCheckFailure(rv),
           zippable
         )
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].returnValuesOnConditionCheckFailure(rv)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.returnValuesOnConditionCheckFailure(rv), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -191,10 +196,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                    => self
     }
 
-  final def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
+  def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {
       case zp @ ZipPar(left, right, zippable)     =>
         ZipPar(left.withRetryPolicy(policy), right.withRetryPolicy(policy), zippable)
+      case w: WriteNode[_, _]                     => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].withRetryPolicy(policy)
       case map @ DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.withRetryPolicy(policy), mapper)
       case ab @ DynamoDBQuery.Absolve(query)      =>
@@ -220,6 +226,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.withResponseRetryPolicy(policy), right.withResponseRetryPolicy(policy), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].withResponseRetryPolicy(policy)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.withResponseRetryPolicy(policy), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -243,6 +250,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.filter(filterExpression.asInstanceOf[FilterExpression[zp.Right]]),
           zippable
         )
+      case w: WriteNode[_, _]                     => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].filter(filterExpression)(ev)
       case map @ DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
       case ab @ DynamoDBQuery.Absolve(query)      =>
@@ -265,6 +273,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def indexName(indexName: String): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)    => ZipPar(left.indexName(indexName), right.indexName(indexName), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].indexName(indexName)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.indexName(indexName), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.indexName(indexName))
       case q: DynamoDBQuery.Scan            =>
@@ -274,10 +283,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                => self
     }
 
-  final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
+  def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)        =>
         ZipPar(left.capacity(capacity), right.capacity(capacity), zippable)
+      case w: WriteNode[_, _]                   => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].capacity(capacity)
       case DynamoDBQuery.Map(query, mapper)     =>
         DynamoDBQuery.Map(query.capacity(capacity), mapper)
       case DynamoDBQuery.Absolve(query)         =>
@@ -309,6 +319,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.consistency(consistency), right.consistency(consistency), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].consistency(consistency)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.consistency(consistency), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -326,6 +337,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.returns(returnValues), right.returns(returnValues), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].returns(returnValues)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.returns(returnValues), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -339,10 +351,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                => self
     }
 
-  final def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
+  def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].metrics(itemMetrics)
       case DynamoDBQuery.Map(query, mapper) =>
         DynamoDBQuery.Map(query.metrics(itemMetrics), mapper)
       case DynamoDBQuery.Absolve(query)     =>
@@ -362,6 +375,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case DynamoDBQuery.ZipPar(left, right, zippable) =>
         DynamoDBQuery.ZipPar(left.startKey(exclusiveStartKey), right.startKey(exclusiveStartKey), zippable)
+      case w: WriteNode[_, _]                          => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].startKey(exclusiveStartKey)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.startKey(exclusiveStartKey), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.startKey(exclusiveStartKey))
       case s: DynamoDBQuery.Scan                       =>
@@ -374,6 +388,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
     self match {
       case q: DynamoDBQuery.Query           => q.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].sortOrder(ascending)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.sortOrder(ascending), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.sortOrder(ascending))
       case _                                => self
@@ -381,6 +396,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   def segment(index: Int, total: Int): DynamoDBQuery[In, Out] =
     self match {
+      case w: WriteNode[_, _]               => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].segment(index, total)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.segment(index, total), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.segment(index, total))
       case s: DynamoDBQuery.Scan            =>
@@ -403,6 +419,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit),
           zippable
         )
+      case w: WriteNode[_, _]                          =>
+        w.asMap
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+          .gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit)
       case DynamoDBQuery.Map(query, mapper)            =>
         DynamoDBQuery.Map(query.gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit), mapper)
       case DynamoDBQuery.Absolve(query)                =>
@@ -431,6 +451,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.gsi(indexName, keySchema, projection),
           zippable
         )
+      case w: WriteNode[_, _]                          => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].gsi(indexName, keySchema, projection)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.gsi(indexName, keySchema, projection), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.gsi(indexName, keySchema, projection))
       case s: DynamoDBQuery.CreateTable                =>
@@ -457,6 +478,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           right.lsi(indexName, keySchema, projection),
           zippable
         )
+      case w: WriteNode[_, _]                          => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].lsi(indexName, keySchema, projection)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.lsi(indexName, keySchema, projection), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.lsi(indexName, keySchema, projection))
       case s: DynamoDBQuery.CreateTable                =>
@@ -479,6 +501,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case DynamoDBQuery.ZipPar(left, right, zippable) =>
         DynamoDBQuery.ZipPar(left.select(select), right.select(select), zippable)
+      case w: WriteNode[_, _]                          => w.asMap.asInstanceOf[DynamoDBQuery[In, Out]].select(select)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.select(select), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.select(select))
       case s: DynamoDBQuery.Scan                       => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -931,4 +954,91 @@ object DynamoDBQuery {
       returnValuesOnConditionCheckFailure = Some(ReturnValuesOnConditionCheckFailure.AllOld)
     )
 
+}
+
+// -- Write builders -----------------------------------------------------
+// The write builders are themselves DynamoDBQuery cases: `write` is the put / update / delete node
+// and `finish` maps its raw result, so a builder runs exactly like `Map(write, finish)` without
+// allocating one. The concrete builders (Low-Level here in core, High-Level in schema-ddbexpr)
+// extend WriteBuilder / ConditionalWriteBuilder; nothing here depends on them.
+sealed abstract class WriteNode[In, Out] private[dynamodb] (
+  private[dynamodb] val write: DynamoDBQuery[In, Option[Item]],
+  private[dynamodb] val finish: Option[Item] => Out
+) extends DynamoDBQuery[In, Out] {
+
+  // For the general DynamoDBQuery modifiers, reached only when a builder is nested (e.g. in zipPar).
+  private[dynamodb] def asMap: DynamoDBQuery[In, Out] = DynamoDBQuery.Map(write, finish)
+}
+
+/**
+ * A put / update / delete that executes to `Out` - `Unit` unless `.returning` asks for the item
+ * DynamoDB sends back, which is then decoded to `Returned`. `.where` makes it a
+ * [[ConditionalWriteBuilder]]. Itself a [[DynamoDBQuery]], so it runs, composes (`zipPar`,
+ * `transactWriteItems`) and takes the general modifiers directly; the concrete builders override
+ * `capacity` / `metrics` / `withRetryPolicy` to keep the builder, so they compose with `.where` /
+ * `.returning` in any order.
+ */
+abstract class WriteBuilder[In, Out, Returned] private[dynamodb] (
+  write0: DynamoDBQuery[In, Option[Item]],
+  finish0: Option[Item] => Out
+) extends WriteNode[In, Out](write0, finish0) {
+
+  /**
+   * Makes the write conditional. A failed condition fails the effect with
+   * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` holds the item as it was -
+   * `ReturnValuesOnConditionCheckFailure.AllOld` is sent by default (no read capacity is consumed;
+   * only the failure response is larger). Turn it off with
+   * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]].
+   */
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
+
+  /** Returns the item DynamoDB sends back: `None` when there was none. */
+  def returning(rv: ReturnValues): WriteBuilder[In, Returned, Returned]
+
+  def toQuery: DynamoDBQuery[In, Out] = this
+
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
+    interpreter.run(this)
+}
+
+private[dynamodb] object WriteBuilder {
+  val discard: Option[Item] => Unit = _ => ()
+
+  def conditional[In](
+    write: DynamoDBQuery[In, Option[Item]],
+    ce: ConditionExpression[_]
+  ): DynamoDBQuery[In, Option[Item]] =
+    write.withConditionReturningItemOnFailure(ce)
+
+  def withoutItemOnConditionFailure[In](write: DynamoDBQuery[In, Option[Item]]): DynamoDBQuery[In, Option[Item]] =
+    write.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.None)
+}
+
+/**
+ * A write with a condition. A failed condition fails the effect with
+ * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` is the item as it was (returned by
+ * default - see [[withoutItemOnConditionFailure]]); every other failure is the underlying AWS SDK
+ * exception.
+ */
+abstract class ConditionalWriteBuilder[In, Out, Returned] private[dynamodb] (
+  write0: DynamoDBQuery[In, Option[Item]],
+  finish0: Option[Item] => Out
+) extends WriteNode[In, Out](write0, finish0) {
+
+  /** Replaces the condition. */
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
+
+  /**
+   * Stops a failed condition from returning the existing item (`ConditionFailed.item` is then
+   * `None`): for very large items or frequently failing conditions, where the larger failure
+   * response isn't wanted.
+   */
+  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Returned]
+
+  def returning(rv: ReturnValues): ConditionalWriteBuilder[In, Returned, Returned]
+
+  def toQuery: DynamoDBQuery[In, Out] = this
+
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
+    interpreter.run(this)
 }

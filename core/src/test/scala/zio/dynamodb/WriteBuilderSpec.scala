@@ -85,6 +85,39 @@ object WriteBuilderSpec extends ZIOSpecDefault {
           .contains(ReturnValuesOnConditionCheckFailure.None)
       )
     },
+    test("a builder is itself the query - no wrapper is allocated") {
+      assertTrue(put.toQuery eq put)
+    },
+    test("general modifiers reach builders nested in zipPar, and the pair still runs") {
+      val pair: DynamoDBQuery[Any, Unit]                            =
+        (put zipPar DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "b")))
+          .capacity(total)
+          .withRetryPolicy(RetryPolicy.NoRetry)
+      def node(q: DynamoDBQuery[_, _]): Option[DynamoDBQuery[_, _]] = q match {
+        case w: WriteNode[_, _] => Some(w.write)
+        case _                  => None
+      }
+      val (left, right)                                             = pair match {
+        case DynamoDBQuery.ZipPar(l, r, _) => (node(l), node(r))
+        case _                             => (None, None)
+      }
+      assert(left)(
+        isSome(
+          isSubtype[PutItem](
+            hasField[PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
+              hasField[PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
+          )
+        )
+      ) &&
+      assert(right)(
+        isSome(
+          isSubtype[DynamoDBQuery.DeleteItem](
+            hasField[DynamoDBQuery.DeleteItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total))
+          )
+        )
+      ) &&
+      assertTrue(DummyIOInterpreter.run(pair).unsafeRun() == (()))
+    },
     test("toQuery maps the raw result through finish") {
       assertTrue(DummyIOInterpreter.run(put.toQuery).unsafeRun() == (()))
     }

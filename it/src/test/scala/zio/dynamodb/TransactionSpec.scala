@@ -22,7 +22,6 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.TransactionError
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ schemaExprToDdbExpr, OpticUpdateOps }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._

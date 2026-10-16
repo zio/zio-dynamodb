@@ -116,7 +116,7 @@ final class QueryBuilder[From] private[ddbexpr] (
  * Returned by [[DdbExprApiSyntax.put]] / [[DdbExprApiSyntax.update]] / [[DdbExprApiSyntax.deleteFrom]]:
  * a [[zio.dynamodb.WriteBuilder]] whose `.returning` decodes the returned item with the table's codec
  * (`Left` when it doesn't decode), and whose `.where` also accepts [[DdbExpr]] / `SchemaExpr`
- * conditions. Converts implicitly to the underlying [[DynamoDBQuery]] (e.g. for `transactWriteItems`).
+ * conditions.
  */
 final class TableWriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
@@ -373,13 +373,6 @@ trait DdbExprApiSyntax {
   implicit def queryBuilderToQuery[From](
     b: QueryBuilder[From]
   ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
-
-  implicit def writeBuilderToQuery[From, Out](b: TableWriteBuilder[From, Out]): DynamoDBQuery[From, Out] = b.toQuery
-
-  implicit def conditionalWriteBuilderToQuery[From, Out](
-    b: ConditionalTableWriteBuilder[From, Out]
-  ): DynamoDBQuery[From, Out] =
-    b.toQuery
 
 }
 
