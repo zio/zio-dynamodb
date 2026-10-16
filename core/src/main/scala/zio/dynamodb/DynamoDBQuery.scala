@@ -71,9 +71,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, C] =
     (self zipPar that).map(f.tupled)
 
+  // Same default as a write builder's `.where`: a failed condition returns the existing item.
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
-    withCondition(conditionExpression)
+    withConditionReturningItemOnFailure(conditionExpression)
   }
 
   // A write builder's `.where`: the condition plus the item-on-failure default, in a single copy.

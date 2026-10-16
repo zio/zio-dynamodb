@@ -30,6 +30,32 @@ object WriteBuilderSpec extends ZIOSpecDefault {
   private val size: ReturnItemCollectionMetrics   = ReturnItemCollectionMetrics.Size
   private val allOld: ReturnValues                = ReturnValues.AllOld
 
+  // The write node under any Map / builder wrapping.
+  @scala.annotation.tailrec
+  private def leaf(q: DynamoDBQuery[_, _]): DynamoDBQuery[_, _] = q match {
+    case DynamoDBQuery.Map(inner, _) => leaf(inner)
+    case w: WriteNode[_, _]          => leaf(w.write)
+    case other                       => other
+  }
+
+  private val leafHasItemOnFailure: Assertion[DynamoDBQuery[_, _]] =
+    hasField[DynamoDBQuery[_, _], DynamoDBQuery[_, _]](
+      "leaf",
+      leaf,
+      isSubtype[PutItem](
+        hasField[PutItem, Option[ConditionExpression[_]]](
+          "conditionExpression",
+          _.conditionExpression,
+          isSome(anything)
+        ) &&
+          hasField[PutItem, Option[ReturnValuesOnConditionCheckFailure]](
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            isSome(equalTo(ReturnValuesOnConditionCheckFailure.AllOld))
+          )
+      )
+    )
+
   def spec = suite("WriteBuilder")(
     test(".where sets the condition and returns the existing item on failure by default") {
       assert(put.where(condition).write)(
@@ -118,6 +144,23 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       ) &&
       assertTrue(DummyIOInterpreter.run(pair).unsafeRun() == (()))
     },
+    suite(".where on a composed write keeps the item-on-failure default")(
+      test("after .map") {
+        assert(put.map(identity).where(condition))(leafHasItemOnFailure)
+      },
+      test("after .toQuery") {
+        assert(put.toQuery.where(condition))(leafHasItemOnFailure)
+      },
+      test("on both sides of a zipPar") {
+        val pair = (put zipPar DynamoDBQuery.putItem("t", Item("id" -> "b"))).where(condition)
+        assert(pair)(
+          isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]]("left", _.left, leafHasItemOnFailure) &&
+              hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]]("right", _.right, leafHasItemOnFailure)
+          )
+        )
+      }
+    ),
     test("toQuery maps the raw result through finish") {
       assertTrue(DummyIOInterpreter.run(put.toQuery).unsafeRun() == (()))
     }
