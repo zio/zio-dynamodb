@@ -96,6 +96,32 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
       // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
     ),
+    suite("write modifiers")(
+      test("capacity / metrics / withRetryPolicy compose in any order with .where / .returning") {
+        val total: ReturnConsumedCapacity                                                       = ReturnConsumedCapacity.Total
+        val q: DynamoDBQuery[Task, Option[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
+          DdbExprApi
+            .put(tasks, Task("t1", 1, Priority.Low))
+            .capacity(total)
+            .returning(ReturnValues.AllOld)
+            .metrics(ReturnItemCollectionMetrics.Size)
+            .where(Task.score > 0)
+            .withRetryPolicy(RetryPolicy.NoRetry)
+            .withoutItemOnConditionFailure
+        assert(q)(
+          isSubtype[DynamoDBQuery.Map[_, _]](
+            hasField[DynamoDBQuery.Map[_, _], DynamoDBQuery[_, _]](
+              "query",
+              _.query,
+              isSubtype[DynamoDBQuery.PutItem](
+                hasField[DynamoDBQuery.PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
+                  hasField[DynamoDBQuery.PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
+              )
+            )
+          )
+        ) && assertTrue(run(q).isEmpty)
+      }
+    ),
     suite("transactWriteItems")(
       test("rejects a write with .returning: a transaction returns no items") {
         val q = DynamoDBQuery.transactWriteItems(

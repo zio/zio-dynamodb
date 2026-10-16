@@ -65,6 +65,11 @@ final class Table[From] private (
   private[ddbexpr] lazy val exprCtx: ExprCtx =
     new ExprCtx(config, new ProjectionResolver(schema.deriving(config.toResolverDeriver).derive))
 
+  // Decodes the item a `.returning` write gets back; held here so building a write allocates no closure.
+  private[ddbexpr] lazy val decodeReturned
+    : Option[Item] => Option[Either[DynamoDBError.ItemError.DecodingError, From]] =
+    BuilderSupport.decodeReturned(this)
+
   /**
    * Returns a copy of this table whose codec derives with `configure` applied to the
    * default [[DynamoDBCodecDeriverConfig]]. Replaces any configuration previously
