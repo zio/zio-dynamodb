@@ -23,8 +23,7 @@ import zio.test._
 
 object WriteBuilderSpec extends ZIOSpecDefault {
 
-  private val put: WriteBuilder[Any, Unit, Option[Item]] =
-    new ItemWriteBuilder(DynamoDBQuery.putItem("t", Item("id" -> "a")), WriteBuilder.discard)
+  private val put: ItemWriteBuilder[Any, Unit, WriteOp.Put] = DynamoDBQuery.putItem("t", Item("id" -> "a"))
 
   private val condition: ConditionExpression[Any] = $("v") === 0
   private val total: ReturnConsumedCapacity       = ReturnConsumedCapacity.Total
@@ -60,8 +59,8 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       )
     },
     test(".returning sets ReturnValues and makes the returned item the result") {
-      val returning: WriteBuilder[Any, Option[Item], Option[Item]] = put.returning(allOld)
-      val item                                                     = Some(Item("id" -> "a"))
+      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(allOld)
+      val item                                                        = Some(Item("id" -> "a"))
       assert(returning.write)(
         isSubtype[PutItem](hasField[PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)))
       ) &&
@@ -76,6 +75,14 @@ object WriteBuilderSpec extends ZIOSpecDefault {
             hasField[PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)) &&
             hasField[PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
         )
+      )
+    },
+    test("conditionCheck returns the existing item on failure by default; withoutItemOnConditionFailure turns it off") {
+      val check = DynamoDBQuery.conditionCheck("t", PrimaryKey("id" -> "a"))(condition)
+      assertTrue(
+        check.returnValuesOnConditionCheckFailure.contains(ReturnValuesOnConditionCheckFailure.AllOld),
+        check.withoutItemOnConditionFailure.returnValuesOnConditionCheckFailure
+          .contains(ReturnValuesOnConditionCheckFailure.None)
       )
     },
     test("toQuery maps the raw result through finish") {

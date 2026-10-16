@@ -42,12 +42,12 @@ object Lists {
 
   val item: Item = Item("id" -> "o1", "items" -> List("widget", "gadget"))
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, item)
 
-  val appendQuery: DynamoDBQuery[Any, Option[Item]] =
+  val appendQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(appendOne)
 
-  val removeQuery: DynamoDBQuery[Any, Option[Item]] =
+  val removeQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(removeFirst)
 }

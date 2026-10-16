@@ -459,7 +459,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     else
       Some(
         TransactionError.TransactionValidationError(
-          "transactWriteItems returns no items, so ReturnValues (.returning / .returns) is not supported " +
+          "transactWriteItems returns no items, so ReturnValues (.returning) is not supported " +
             s"inside a transaction; got it on: ${withReturnValues.mkString(", ")}"
         )
       )

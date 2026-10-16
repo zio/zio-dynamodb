@@ -76,6 +76,39 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     withCondition(conditionExpression)
   }
 
+  // A write builder's `.where`: the condition plus the item-on-failure default, in a single copy.
+  private[dynamodb] def withConditionReturningItemOnFailure(
+    conditionExpression: ConditionExpression[_]
+  ): DynamoDBQuery[In, Out] =
+    self match {
+      case ZipPar(left, right, zippable)    =>
+        ZipPar(
+          left.withConditionReturningItemOnFailure(conditionExpression),
+          right.withConditionReturningItemOnFailure(conditionExpression),
+          zippable
+        )
+      case DynamoDBQuery.Map(query, mapper) =>
+        DynamoDBQuery.Map(query.withConditionReturningItemOnFailure(conditionExpression), mapper)
+      case DynamoDBQuery.Absolve(query)     =>
+        DynamoDBQuery.Absolve(query.withConditionReturningItemOnFailure(conditionExpression))
+      case p: DynamoDBQuery.PutItem         =>
+        p.copy(
+          conditionExpression = Some(conditionExpression),
+          returnValuesOnConditionCheckFailure = DynamoDBQuery.itemOnFailure
+        ).asInstanceOf[DynamoDBQuery[In, Out]]
+      case u: DynamoDBQuery.UpdateItem      =>
+        u.copy(
+          conditionExpression = Some(conditionExpression),
+          returnValuesOnConditionCheckFailure = DynamoDBQuery.itemOnFailure
+        ).asInstanceOf[DynamoDBQuery[In, Out]]
+      case d: DynamoDBQuery.DeleteItem      =>
+        d.copy(
+          conditionExpression = Some(conditionExpression),
+          returnValuesOnConditionCheckFailure = DynamoDBQuery.itemOnFailure
+        ).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                => withCondition(conditionExpression)
+    }
+
   // `where` without the CanWhere check, for builders that already know they hold a write.
   private[dynamodb] def withCondition(conditionExpression: ConditionExpression[_]): DynamoDBQuery[In, Out] =
     self match {
@@ -126,12 +159,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
     }
 
-  /**
-   * Applies to any write with a `.where` condition — standalone `putItem`/`updateItem`/
-   * `deleteItem` as well as actions inside `transactWriteItems` — and to `conditionCheck`, not
-   * only the latter. With `AllOld`, a failed condition returns the item as it was.
-   */
-  final def returnValuesOnConditionCheckFailure(
+  private[dynamodb] final def returnValuesOnConditionCheckFailure(
     rv: ReturnValuesOnConditionCheckFailure
   ): DynamoDBQuery[In, Out] =
     self match {
@@ -294,7 +322,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                => self
     }
 
-  final def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
+  private[dynamodb] final def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)    =>
         ZipPar(left.returns(returnValues), right.returns(returnValues), zippable)
@@ -468,6 +496,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
  * docs site for the full Low-Level/High-Level/AWS-SDK operation matrix.
  */
 object DynamoDBQuery {
+
+  private[dynamodb] val itemOnFailure: Option[ReturnValuesOnConditionCheckFailure] = Some(
+    ReturnValuesOnConditionCheckFailure.AllOld
+  )
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
@@ -504,9 +536,11 @@ object DynamoDBQuery {
       batch + body(a).asInstanceOf[GetItem]
     }
 
-  def batchWriteItem[In, A, B](values: Iterable[A])(body: A => Write[In, B]): DynamoDBQuery.BatchWriteItem =
+  def batchWriteItem[A](values: Iterable[A])(
+    body: A => ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]
+  ): DynamoDBQuery.BatchWriteItem =
     values.foldLeft(BatchWriteItem()) { (batch, a) =>
-      batch + body(a).asInstanceOf[Write[Any, B]]
+      batch + body(a)
     }
 
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
@@ -564,7 +598,15 @@ object DynamoDBQuery {
     conditionExpression: ConditionExpression[_],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     returnValuesOnConditionCheckFailure: Option[ReturnValuesOnConditionCheckFailure] = None
-  ) extends Constructor[Any, Unit]
+  ) extends Constructor[Any, Unit] {
+
+    /**
+     * A failed check returns the item as it was on its `CancellationReason` by default; this turns
+     * that off (for very large items or frequently failing checks).
+     */
+    def withoutItemOnConditionFailure: ConditionCheck =
+      copy(returnValuesOnConditionCheckFailure = Some(ReturnValuesOnConditionCheckFailure.None))
+  }
 
   private[dynamodb] final case class TransactGetItems(
     getItems: Chunk[GetItem],
@@ -728,7 +770,15 @@ object DynamoDBQuery {
     // `retryPolicy`, which governs the effect-level loop. See `.withResponseRetryPolicy`.
     responseRetryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Batch.WriteResult] { self =>
-    def +[A](writeItem: Write[Any, A]): BatchWriteItem =
+    // Only a plain put / delete builder is accepted (no condition, no ReturnValues - a batch supports
+    // neither), and those always hold a PutItem / DeleteItem node, so the cast to Write is safe.
+    def +(writeItem: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]): BatchWriteItem =
+      add(writeItem.write.asInstanceOf[Write[Any, Option[Item]]])
+
+    def addAll(entries: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]*): BatchWriteItem =
+      entries.foldLeft(self)(_ + _)
+
+    private def add(writeItem: Write[Any, Option[Item]]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>
           val write = Put(putItem.item)
@@ -754,10 +804,6 @@ object DynamoDBQuery {
           )
       }
 
-    def addAll[A](entries: Write[Any, A]*): BatchWriteItem =
-      entries.foldLeft(self) { case (batch, write) =>
-        batch + write
-      }
   }
 
   private[dynamodb] object BatchWriteItem {
@@ -771,16 +817,8 @@ object DynamoDBQuery {
 
   }
 
-  def putItem(
-    tableName: String,
-    item: Item,
-    conditionExpression: Option[ConditionExpression[_]] = None,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
-    retryPolicy: Option[RetryPolicy] = None
-  ): Write[Any, Option[Item]] =
-    PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues, retryPolicy)
+  def putItem(tableName: String, item: Item): ItemWriteBuilder[Any, Unit, WriteOp.Put] =
+    new ItemWriteBuilder(PutItem(tableName, item), WriteBuilder.discard)
 
   /**
    * Never retries automatically, unlike every other operation — `action` may be a delta
@@ -788,20 +826,16 @@ object DynamoDBQuery {
    * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
    * `.withRetryPolicy(...)` only when `action` is idempotent (`.set`/`.remove`/`.deleteFromSet`).
    */
-  def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
-    UpdateItem(tableName, key, UpdateExpression(action))
+  def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): ItemWriteBuilder[A, Unit, WriteOp.Update] =
+    new ItemWriteBuilder(UpdateItem(tableName, key, UpdateExpression(action)), WriteBuilder.discard)
 
   /** @see the other `updateItem` overload — same retry caveat applies to `updateExpression`. */
   def updateItem(
     tableName: String,
     key: PrimaryKey,
-    updateExpression: UpdateExpression[_],
-    conditionExpression: Option[ConditionExpression[_]] = None,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None
-  ): DynamoDBQuery[Any, Option[Item]] =
-    UpdateItem(tableName, key, updateExpression, conditionExpression, capacity, itemMetrics, returnValues)
+    updateExpression: UpdateExpression[_]
+  ): ItemWriteBuilder[Any, Unit, WriteOp.Update] =
+    new ItemWriteBuilder(UpdateItem(tableName, key, updateExpression), WriteBuilder.discard)
 
   def getItem(
     tableName: String,
@@ -810,16 +844,8 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(tableName, key, projections.toList)
 
-  def deleteItem(
-    tableName: String,
-    key: PrimaryKey,
-    conditionExpression: Option[ConditionExpression[_]] = None,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None,
-    retryPolicy: Option[RetryPolicy] = None
-  ): Write[Any, Option[Item]] =
-    DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues, retryPolicy)
+  def deleteItem(tableName: String, key: PrimaryKey): ItemWriteBuilder[Any, Unit, WriteOp.Delete] =
+    new ItemWriteBuilder(DeleteItem(tableName, key), WriteBuilder.discard)
 
   def createTable(
     tableName: String,
@@ -898,6 +924,11 @@ object DynamoDBQuery {
     tableName: String,
     primaryKey: PrimaryKey
   )(conditionExpression: ConditionExpression[_]): ConditionCheck =
-    ConditionCheck(tableName, primaryKey, conditionExpression)
+    ConditionCheck(
+      tableName,
+      primaryKey,
+      conditionExpression,
+      returnValuesOnConditionCheckFailure = Some(ReturnValuesOnConditionCheckFailure.AllOld)
+    )
 
 }

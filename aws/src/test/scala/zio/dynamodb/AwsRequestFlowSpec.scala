@@ -225,7 +225,7 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       var captured: PutItemRequest = null
       val interp                   =
         new DummyIOInterpreter(stub(onPutItem = req => { captured = req; PutItemResponse.builder().build() }))
-      interp.run(DynamoDBQuery.putItem(table, item).returns(ReturnValues.AllOld)).unsafeRun()
+      interp.run(DynamoDBQuery.putItem(table, item).returning(ReturnValues.AllOld)).unsafeRun()
       assertTrue(captured.returnValues() == AwsReturnValue.ALL_OLD)
     },
     test("putItem no returns set produces returnValues NONE in the request") {
@@ -240,7 +240,7 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       val interp                      = new DummyIOInterpreter(stub(onDeleteItem = req => {
         captured = req; DeleteItemResponse.builder().build()
       }))
-      interp.run(DynamoDBQuery.deleteItem(table, pk).returns(ReturnValues.AllOld)).unsafeRun()
+      interp.run(DynamoDBQuery.deleteItem(table, pk).returning(ReturnValues.AllOld)).unsafeRun()
       assertTrue(captured.returnValues() == AwsReturnValue.ALL_OLD)
     }
   )

@@ -260,7 +260,7 @@ object MiscSpec extends ZIOSpecDefault {
       )
     },
     test("filter on putItem fails with a message suggesting '.where'") {
-      val q                           = DynamoDBQuery.putItem("t", Item("id" -> "1"))
+      val q                           = DynamoDBQuery.PutItem("t", Item("id" -> "1"))
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val result                      = q.filter(filt)
       assert(result)(
@@ -359,7 +359,7 @@ object MiscSpec extends ZIOSpecDefault {
     },
     test("where on Absolve propagates condition") {
       val inner                          = DynamoDBQuery.putItem("t", Item("id" -> "1"))
-      val absolve                        = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Option[Item]]))
+      val absolve                        = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Unit]))
       val cond: ConditionExpression[Any] = ProjectionExpression.$("id") === "1"
       val result                         = absolve.where(cond)
       assertTrue(result != null)

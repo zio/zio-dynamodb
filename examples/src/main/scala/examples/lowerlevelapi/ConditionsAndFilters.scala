@@ -36,17 +36,17 @@ object ConditionsAndFilters {
   val negated: ConditionExpression[Any]    = !isActive
 
   // Intended usage: .where on a write operation, with a combined (&&) condition.
-  val putWithCondition: DynamoDBQuery[Any, Option[Item]] =
+  val putWithCondition: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, Item("id" -> "a1", "active" -> true, "balance" -> 100)).where(combined)
 
   // Intended usage: .filter on a read operation, with an either (||) condition.
   val scanWithFilter = DynamoDBQuery.scan(table, limit = 20).filter(either)
 
   // .where with a negated (!) condition.
-  val deleteWithNegatedCondition: DynamoDBQuery[Any, Option[Item]] =
+  val deleteWithNegatedCondition: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.deleteItem(table, key).where(negated)
 
   // Compiles despite being the wrong operation for .filter — caught at run time instead.
-  val naivelyMisusedFilter: DynamoDBQuery[Any, Option[Item]] =
+  val naivelyMisusedFilter: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, Item("id" -> "a1", "active" -> true, "balance" -> 100)).filter(isActive)
 }

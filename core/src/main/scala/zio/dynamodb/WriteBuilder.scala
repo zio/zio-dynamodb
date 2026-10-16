@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.language.implicitConversions
+
 /**
  * A put / update / delete that executes to `Out` - `Unit` unless `.returning` asks for the item
  * DynamoDB sends back, which is then decoded to `Returned`. `.where` makes it a
@@ -56,7 +58,7 @@ private[dynamodb] object WriteBuilder {
     write: DynamoDBQuery[In, Option[Item]],
     ce: ConditionExpression[_]
   ): DynamoDBQuery[In, Option[Item]] =
-    write.withCondition(ce).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+    write.withConditionReturningItemOnFailure(ce)
 
   def withoutItemOnConditionFailure[In](write: DynamoDBQuery[In, Option[Item]]): DynamoDBQuery[In, Option[Item]] =
     write.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.None)
@@ -95,41 +97,69 @@ abstract class ConditionalWriteBuilder[In, Out, Returned] private[dynamodb] (
     interpreter.run(toQuery)
 }
 
-// The Low-Level implementations: the returned item stays a raw `Item`.
-private[dynamodb] final class ItemWriteBuilder[In, Out](
+/**
+ * Which operation a write builder holds, as a phantom type: `Put` and `Delete` can go in
+ * `batchWriteItem` (DynamoDB batches have no update), `Update` can't.
+ */
+sealed trait WriteOp
+
+object WriteOp {
+  sealed trait Batchable extends WriteOp
+  sealed trait Put       extends Batchable
+  sealed trait Delete    extends Batchable
+  sealed trait Update    extends WriteOp
+}
+
+/**
+ * The Low-Level write builder returned by `putItem` / `updateItem` / `deleteItem`: `.returning` gives
+ * back the raw `Item`. Converts implicitly to [[DynamoDBQuery]] (for `.execute`, `zipPar`,
+ * `transactWriteItems`); a plain put or delete also goes in `batchWriteItem`.
+ */
+final class ItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]     =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]     =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
-  def returning(rv: ReturnValues): WriteBuilder[In, Option[Item], Option[Item]]              =
+  def returning(rv: ReturnValues): ItemWriteBuilder[In, Option[Item], Op]              =
     new ItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
-  def capacity(capacity: ReturnConsumedCapacity): WriteBuilder[In, Out, Option[Item]]        =
+  def capacity(capacity: ReturnConsumedCapacity): ItemWriteBuilder[In, Out, Op]        =
     new ItemWriteBuilder(write.capacity(capacity), finish)
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): WriteBuilder[In, Out, Option[Item]] =
+  def metrics(itemMetrics: ReturnItemCollectionMetrics): ItemWriteBuilder[In, Out, Op] =
     new ItemWriteBuilder(write.metrics(itemMetrics), finish)
-  def withRetryPolicy(policy: RetryPolicy): WriteBuilder[In, Out, Option[Item]]              =
+  def withRetryPolicy(policy: RetryPolicy): ItemWriteBuilder[In, Out, Op]              =
     new ItemWriteBuilder(write.withRetryPolicy(policy), finish)
 }
 
-private[dynamodb] object ItemWriteBuilder {
-  val raw: Option[Item] => Option[Item] = identity
+object ItemWriteBuilder {
+  private[dynamodb] val raw: Option[Item] => Option[Item] = identity
+
+  implicit def itemWriteBuilderToQuery[In, Out](b: ItemWriteBuilder[In, Out, _]): DynamoDBQuery[In, Out] =
+    b.toQuery
 }
 
-private[dynamodb] final class ConditionalItemWriteBuilder[In, Out](
+/** [[ItemWriteBuilder]] with a condition - see [[ConditionalWriteBuilder]]. */
+final class ConditionalItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends ConditionalWriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]                =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]                =
     new ConditionalItemWriteBuilder(write.withCondition(ce), finish)
-  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Option[Item]]                     =
+  def withoutItemOnConditionFailure: ConditionalItemWriteBuilder[In, Out, Op]                     =
     new ConditionalItemWriteBuilder(WriteBuilder.withoutItemOnConditionFailure(write), finish)
-  def returning(rv: ReturnValues): ConditionalWriteBuilder[In, Option[Item], Option[Item]]              =
+  def returning(rv: ReturnValues): ConditionalItemWriteBuilder[In, Option[Item], Op]              =
     new ConditionalItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
-  def capacity(capacity: ReturnConsumedCapacity): ConditionalWriteBuilder[In, Out, Option[Item]]        =
+  def capacity(capacity: ReturnConsumedCapacity): ConditionalItemWriteBuilder[In, Out, Op]        =
     new ConditionalItemWriteBuilder(write.capacity(capacity), finish)
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalWriteBuilder[In, Out, Option[Item]] =
+  def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalItemWriteBuilder[In, Out, Op] =
     new ConditionalItemWriteBuilder(write.metrics(itemMetrics), finish)
-  def withRetryPolicy(policy: RetryPolicy): ConditionalWriteBuilder[In, Out, Option[Item]]              =
+  def withRetryPolicy(policy: RetryPolicy): ConditionalItemWriteBuilder[In, Out, Op]              =
     new ConditionalItemWriteBuilder(write.withRetryPolicy(policy), finish)
+}
+
+object ConditionalItemWriteBuilder {
+  implicit def conditionalItemWriteBuilderToQuery[In, Out](
+    b: ConditionalItemWriteBuilder[In, Out, _]
+  ): DynamoDBQuery[In, Out] =
+    b.toQuery
 }

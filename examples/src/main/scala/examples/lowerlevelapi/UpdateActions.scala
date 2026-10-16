@@ -36,6 +36,6 @@ object UpdateActions {
   val removeFlag: RenderableAction[Any]       = $("suspended").remove
   val combined: Action[Any]                   = incrementBalance + removeFlag + addToCounter
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(combined)
 }

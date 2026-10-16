@@ -32,11 +32,11 @@ object RequestOptions {
   private val table = "orders"
   private val key   = PrimaryKey("id" -> "o1")
 
-  val putWithCapacity: DynamoDBQuery[Any, Option[Item]] =
+  val putWithCapacity: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, Item("id" -> "o1")).capacity(ReturnConsumedCapacity.Total)
 
   val updateWithReturnValues: DynamoDBQuery[Any, Option[Item]] =
-    DynamoDBQuery.updateItem(table, key)($("status").set("shipped")).returns(ReturnValues.AllNew)
+    DynamoDBQuery.updateItem(table, key)($("status").set("shipped")).returning(ReturnValues.AllNew)
 
   val strictlyConsistentGet: DynamoDBQuery[Any, Option[Item]] =
     DynamoDBQuery.getItem(table, key).consistency(ConsistencyMode.Strong)

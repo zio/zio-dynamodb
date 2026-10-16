@@ -42,10 +42,10 @@ object NestedPaths {
     "orders" -> List(Item("lineItems" -> List(Item("sku" -> "widget", "qty" -> 1))))
   )
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, item)
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(setQuantity)
 
   val scanQuery = DynamoDBQuery.scan(table, limit = 20).filter(firstOrderFirstLineItemSku)

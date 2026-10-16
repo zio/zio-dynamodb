@@ -251,6 +251,28 @@ object TransactionSpec extends DynamoDBLocalSpec {
 
   private val transactWriteErrorTests: Spec[DynamoDBEnv, Throwable] =
     suite("transactWriteItems error paths")(
+      test("conditionCheck.withoutItemOnConditionFailure: the cancellation reason carries no item") {
+        withSingleIdKeyTable { (table, interpreter) =>
+          for {
+            _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "locked", "status" -> "closed")))
+            result <- interpreter
+                        .run(
+                          DynamoDBQuery.transactWriteItems(
+                            DynamoDBQuery
+                              .conditionCheck(table, PrimaryKey("id" -> "locked"))($("status") === "open")
+                              .withoutItemOnConditionFailure
+                          )
+                        )
+                        .either
+          } yield assert(result)(
+            isLeft(
+              isSubtype[TransactionError.TransactionCancelled](
+                hasField("reasons(0).item", (tc: TransactionError.TransactionCancelled) => tc.reasons(0).item, isNone)
+              )
+            )
+          )
+        }
+      },
       test("failed condition check → error message contains TransactionCancelled and ConditionalCheckFailed") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
@@ -281,7 +303,7 @@ object TransactionSpec extends DynamoDBLocalSpec {
                   hasField(
                     "reasons(0).item",
                     (tc: TransactionError.TransactionCancelled) => tc.reasons(0).item,
-                    isNone
+                    isSome(anything) // conditionCheck returns the item on failure by default
                   ) &&
                   hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(1).code",
@@ -303,7 +325,6 @@ object TransactionSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery
                               .updateItem(table, PrimaryKey("id" -> "item"))($("v").set(1))
                               .where($("v") === 999) // impossible condition
-                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                         )
                         .either

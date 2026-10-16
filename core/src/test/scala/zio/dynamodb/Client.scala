@@ -22,9 +22,9 @@ import zio.dynamodb.ProjectionExpression.{ $, Unknown }
 // TODO: move this to examples module as rename to QueryExamples - include both HL and LL examples
 object Client {
   final case class Person(id: String, name: String)
-  val item: AttrMap                             = Item("id" -> "123", "name" -> "test")
-  val putItem: DynamoDBQuery[Any, Option[Item]] = DynamoDBQuery.putItem("my-table", item)
-  val putItemResult: DummyIO[Option[Item]]      = DummyIOInterpreter.run(putItem)
+  val item: AttrMap                     = Item("id" -> "123", "name" -> "test")
+  val putItem: DynamoDBQuery[Any, Unit] = DynamoDBQuery.putItem("my-table", item)
+  val putItemResult: DummyIO[Unit]      = DummyIOInterpreter.run(putItem)
 
   val people: List[Person]                              = List(Person("123", "test"))
   val batchWriteItems: DynamoDBQuery.BatchWriteItem     =
@@ -41,11 +41,11 @@ object Client {
   val getItem: DynamoDBQuery[Any, Option[Item]] = DynamoDBQuery.getItem("my-table", PrimaryKey("id" -> "123"))
   val getItemResult: DummyIO[Option[Item]]      = DummyIOInterpreter.run(getItem)
 
-  val updateItem: DynamoDBQuery[Any, Option[Item]] = DynamoDBQuery.updateItem("my-table", PrimaryKey("id" -> "123")) {
+  val updateItem: DynamoDBQuery[Any, Unit] = DynamoDBQuery.updateItem("my-table", PrimaryKey("id" -> "123")) {
     $("count").set(1)
   }
 
-  val xs: Chunk[DynamoDBQuery[Any, Option[Item]]] = Chunk(updateItem)
+  val xs: Chunk[DynamoDBQuery[Any, Unit]] = Chunk(updateItem)
 
   val peName: ProjectionExpression[Any, Unknown] = $("name")
 
