@@ -125,18 +125,18 @@ object InterpreterSpec extends ZIOSpecDefault {
         val q = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))
         assertTrue(eval(q).isEmpty)
       },
-      test("PutItem always returns None") {
+      test("putItem executes to Unit") {
         val q = DynamoDBQuery.putItem("t", Item("k" -> "v"))
-        assertTrue(eval(q).isEmpty)
+        assertTrue(eval(q) == (()))
       },
-      test("UpdateItem always returns None") {
+      test("updateItem executes to Unit") {
         val key = PrimaryKey("id" -> "1")
         val q   = DynamoDBQuery.updateItem("t", key)(ProjectionExpression.$("name").set("alice"))
-        assertTrue(eval(q).isEmpty)
+        assertTrue(eval(q) == (()))
       },
-      test("DeleteItem always returns None") {
+      test("deleteItem executes to Unit") {
         val q = DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1"))
-        assertTrue(eval(q).isEmpty)
+        assertTrue(eval(q) == (()))
       },
       test("Query returns empty page") {
         val page = eval(
@@ -187,9 +187,9 @@ object InterpreterSpec extends ZIOSpecDefault {
         val q = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "1"), ProjectionExpression.$("name"))
         assertTrue(eval(q).isEmpty)
       },
-      test("deleteItem with default params returns None") {
+      test("deleteItem with default params executes to Unit") {
         val q = DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1"))
-        assertTrue(eval(q).isEmpty)
+        assertTrue(eval(q) == (()))
       }
     ),
 

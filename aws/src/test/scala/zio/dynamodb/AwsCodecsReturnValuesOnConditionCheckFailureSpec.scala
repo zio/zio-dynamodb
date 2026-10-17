@@ -33,8 +33,8 @@ object AwsCodecsReturnValuesOnConditionCheckFailureSpec extends ZIOSpecDefault {
   def spec = suite("AwsCodecs returnValuesOnConditionCheckFailure wiring")(
     suite("toPutItemRequest")(
       test("AllOld → ALL_OLD") {
-        val q   = DynamoDBQuery.putItem(table, item).where($("v") === 1).returnValuesOnConditionCheckFailure(allOld)
-        val req = AwsCodecs.toPutItemRequest(q.asInstanceOf[DynamoDBQuery.PutItem])
+        val q   = DynamoDBQuery.putItem(table, item).where($("v") === 1)
+        val req = AwsCodecs.toPutItemRequest(q.write.asInstanceOf[DynamoDBQuery.PutItem])
         assertTrue(req.returnValuesOnConditionCheckFailure() == AwsReturnValuesOnConditionCheckFailure.ALL_OLD)
       },
       test("unset → not sent") {
@@ -47,8 +47,7 @@ object AwsCodecsReturnValuesOnConditionCheckFailureSpec extends ZIOSpecDefault {
         val q   = DynamoDBQuery
           .updateItem(table, pk)($("v").set(2))
           .where($("v") === 1)
-          .returnValuesOnConditionCheckFailure(allOld)
-        val req = AwsCodecs.toUpdateItemRequest(q.asInstanceOf[DynamoDBQuery.UpdateItem])
+        val req = AwsCodecs.toUpdateItemRequest(q.write.asInstanceOf[DynamoDBQuery.UpdateItem])
         assertTrue(req.returnValuesOnConditionCheckFailure() == AwsReturnValuesOnConditionCheckFailure.ALL_OLD)
       },
       test("unset → not sent") {
@@ -58,8 +57,8 @@ object AwsCodecsReturnValuesOnConditionCheckFailureSpec extends ZIOSpecDefault {
     ),
     suite("toDeleteItemRequest")(
       test("AllOld → ALL_OLD") {
-        val q   = DynamoDBQuery.deleteItem(table, pk).where($("v") === 1).returnValuesOnConditionCheckFailure(allOld)
-        val req = AwsCodecs.toDeleteItemRequest(q.asInstanceOf[DynamoDBQuery.DeleteItem])
+        val q   = DynamoDBQuery.deleteItem(table, pk).where($("v") === 1)
+        val req = AwsCodecs.toDeleteItemRequest(q.write.asInstanceOf[DynamoDBQuery.DeleteItem])
         assertTrue(req.returnValuesOnConditionCheckFailure() == AwsReturnValuesOnConditionCheckFailure.ALL_OLD)
       },
       test("unset → not sent") {

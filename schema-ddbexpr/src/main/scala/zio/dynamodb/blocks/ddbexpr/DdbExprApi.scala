@@ -21,7 +21,6 @@ import zio.blocks.schema.SchemaExpr
 import zio.dynamodb._
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
-import scala.annotation.implicitNotFound
 import scala.language.implicitConversions
 
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
@@ -113,23 +112,11 @@ final class QueryBuilder[From] private[ddbexpr] (
     interpreter.run(query)
 }
 
-// Never given: the builders declare `returns` / `returnValuesOnConditionCheckFailure` requiring
-// these so that a call resolves to the builder's own (uncallable) member instead of silently going
-// through the implicit conversion to DynamoDBQuery, which would contradict the builder's type.
-@implicitNotFound("use .returning(...) - .returns here would discard the returned item")
-sealed trait UseReturningInstead
-
-@implicitNotFound(
-  "conditional writes already return the existing item on failure - remove this call " +
-    "(or use .withoutItemOnConditionFailure after .where to turn it off)"
-)
-sealed trait ItemOnConditionFailureIsDefault
-
 /**
  * Returned by [[DdbExprApiSyntax.put]] / [[DdbExprApiSyntax.update]] / [[DdbExprApiSyntax.deleteFrom]]:
  * a [[zio.dynamodb.WriteBuilder]] whose `.returning` decodes the returned item with the table's codec
  * (`Left` when it doesn't decode), and whose `.where` also accepts [[DdbExpr]] / `SchemaExpr`
- * conditions. Converts implicitly to the underlying [[DynamoDBQuery]] (e.g. for `transactWriteItems`).
+ * conditions.
  */
 final class TableWriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
@@ -158,16 +145,6 @@ final class TableWriteBuilder[From, Out] private[ddbexpr] (
     new TableWriteBuilder(table, write.metrics(itemMetrics), finish)
   override def withRetryPolicy(policy: RetryPolicy): TableWriteBuilder[From, Out]              =
     new TableWriteBuilder(table, write.withRetryPolicy(policy), finish)
-
-  /** Does not compile: use [[returning]], which also changes the result type to the returned item. */
-  def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
-    sys.error(s"unreachable: $rv, $useReturningInstead")
-
-  /** Does not compile: a conditional write (`.where`) returns the existing item on failure by default. */
-  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure)(implicit
-    isDefault: ItemOnConditionFailureIsDefault
-  ): Nothing =
-    sys.error(s"unreachable: $rv, $isDefault")
 }
 
 /** A [[TableWriteBuilder]] with a condition - see [[ConditionalWriteBuilder]]. */
@@ -200,16 +177,6 @@ final class ConditionalTableWriteBuilder[From, Out] private[ddbexpr] (
     new ConditionalTableWriteBuilder(table, write.metrics(itemMetrics), finish)
   override def withRetryPolicy(policy: RetryPolicy): ConditionalTableWriteBuilder[From, Out]              =
     new ConditionalTableWriteBuilder(table, write.withRetryPolicy(policy), finish)
-
-  /** Does not compile: on by default here; use [[withoutItemOnConditionFailure]] to turn it off. */
-  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure)(implicit
-    isDefault: ItemOnConditionFailureIsDefault
-  ): Nothing =
-    sys.error(s"unreachable: $rv, $isDefault")
-
-  /** Does not compile: use [[returning]], which also changes the result type to the returned item. */
-  def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
-    sys.error(s"unreachable: $rv, $useReturningInstead")
 }
 
 /**
@@ -280,7 +247,7 @@ trait DdbExprApiSyntax {
     new TableWriteBuilder(
       table,
       table.encode(a) match {
-        case Right(encodedItem) => DynamoDBQuery.putItem(table.name, encodedItem)
+        case Right(encodedItem) => DynamoDBQuery.PutItem(table.name, encodedItem)
         case Left(err)          => DynamoDBQuery.fail(err)
       },
       WriteBuilder.discard
@@ -337,7 +304,7 @@ trait DdbExprApiSyntax {
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
-          DynamoDBQuery.updateItem(table.name, pkExpr.asAttrMap)(action)
+          DynamoDBQuery.UpdateItem(table.name, pkExpr.asAttrMap, UpdateExpression(action))
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
       },
@@ -351,7 +318,7 @@ trait DdbExprApiSyntax {
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
-          DynamoDBQuery.deleteItem(table.name, pkExpr.asAttrMap)
+          DynamoDBQuery.DeleteItem(table.name, pkExpr.asAttrMap)
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
       },
@@ -365,9 +332,8 @@ trait DdbExprApiSyntax {
    *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too, via
    *  [[DdbExprSyntax.schemaExprToDdbExpr]] — no second overload needed (and a second overload,
    *  curried the same way, is ambiguous under Scala 2.13 for a call site holding the condition
-   *  in a typed `val`). Returned directly as a [[DynamoDBQuery]] (not a builder) since there's
-   *  nothing further to attach; `.returnValuesOnConditionCheckFailure` is already a general
-   *  `DynamoDBQuery` method.
+   *  in a typed `val`). Returned directly as a [[DynamoDBQuery]]. A failed check returns the item
+   *  as it was on its cancellation reason by default.
    */
   def conditionCheck[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     condition: DdbExpr[From, Boolean]
@@ -407,13 +373,6 @@ trait DdbExprApiSyntax {
   implicit def queryBuilderToQuery[From](
     b: QueryBuilder[From]
   ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
-
-  implicit def writeBuilderToQuery[From, Out](b: TableWriteBuilder[From, Out]): DynamoDBQuery[From, Out] = b.toQuery
-
-  implicit def conditionalWriteBuilderToQuery[From, Out](
-    b: ConditionalTableWriteBuilder[From, Out]
-  ): DynamoDBQuery[From, Out] =
-    b.toQuery
 
 }
 

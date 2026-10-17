@@ -121,13 +121,13 @@ object AwsCodecsMetadataSpec extends ZIOSpecDefault {
     suite("toBatchWriteItemRequest — itemMetrics")(
       test("Size → SIZE") {
         val q   = DynamoDBQuery
-          .batchWriteItem(List(item))(i => DynamoDBQuery.PutItem(table, i))
+          .batchWriteItem(List(item))(i => DynamoDBQuery.putItem(table, i))
           .metrics(LibMetrics.Size)
         val req = AwsCodecs.toBatchWriteItemRequest(q.asInstanceOf[DynamoDBQuery.BatchWriteItem])
         assertTrue(req.returnItemCollectionMetrics() == AwsItemMetrics.SIZE)
       },
       test("None (default) → NONE") {
-        val q   = DynamoDBQuery.batchWriteItem(List(item))(i => DynamoDBQuery.PutItem(table, i))
+        val q   = DynamoDBQuery.batchWriteItem(List(item))(i => DynamoDBQuery.putItem(table, i))
         val req = AwsCodecs.toBatchWriteItemRequest(q)
         assertTrue(req.returnItemCollectionMetrics() == AwsItemMetrics.NONE)
       }

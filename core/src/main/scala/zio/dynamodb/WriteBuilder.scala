@@ -17,98 +17,35 @@
 package zio.dynamodb
 
 /**
- * A put / update / delete that executes to `Out` - `Unit` unless `.returning` asks for the item
- * DynamoDB sends back, which is then decoded to `Returned`. `.where` makes it a
- * [[ConditionalWriteBuilder]]. The general write modifiers (`capacity`, `metrics`,
- * `withRetryPolicy`) keep the builder, so they compose with `.where` / `.returning` in any order.
+ * Which operation a write builder holds, as a phantom type: `Put` and `Delete` can go in
+ * `batchWriteItem` (DynamoDB batches have no update), `Update` can't.
  */
-abstract class WriteBuilder[In, Out, Returned] private[dynamodb] (
-  private[dynamodb] val write: DynamoDBQuery[In, Option[Item]],
-  private[dynamodb] val finish: Option[Item] => Out
-) {
+sealed trait WriteOp
 
-  /**
-   * Makes the write conditional. A failed condition fails the effect with
-   * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` holds the item as it was -
-   * `ReturnValuesOnConditionCheckFailure.AllOld` is sent by default (no read capacity is consumed;
-   * only the failure response is larger). Turn it off with
-   * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]].
-   */
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
-
-  /** Returns the item DynamoDB sends back: `None` when there was none. */
-  def returning(rv: ReturnValues): WriteBuilder[In, Returned, Returned]
-
-  def capacity(capacity: ReturnConsumedCapacity): WriteBuilder[In, Out, Returned]
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): WriteBuilder[In, Out, Returned]
-  def withRetryPolicy(policy: RetryPolicy): WriteBuilder[In, Out, Returned]
-
-  def toQuery: DynamoDBQuery[In, Out] = write.map(finish)
-
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
-    interpreter.run(toQuery)
-}
-
-private[dynamodb] object WriteBuilder {
-  val discard: Option[Item] => Unit = _ => ()
-
-  def conditional[In](
-    write: DynamoDBQuery[In, Option[Item]],
-    ce: ConditionExpression[_]
-  ): DynamoDBQuery[In, Option[Item]] =
-    write.withCondition(ce).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
-
-  def withoutItemOnConditionFailure[In](write: DynamoDBQuery[In, Option[Item]]): DynamoDBQuery[In, Option[Item]] =
-    write.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.None)
+object WriteOp {
+  sealed trait Batchable extends WriteOp
+  sealed trait Put       extends Batchable
+  sealed trait Delete    extends Batchable
+  sealed trait Update    extends WriteOp
 }
 
 /**
- * A write with a condition. A failed condition fails the effect with
- * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` is the item as it was (returned by
- * default - see [[withoutItemOnConditionFailure]]); every other failure is the underlying AWS SDK
- * exception.
+ * The Low-Level write builder returned by `putItem` / `updateItem` / `deleteItem`: `.returning` gives
+ * back the raw `Item`. A plain put or delete also goes in `batchWriteItem`.
  */
-abstract class ConditionalWriteBuilder[In, Out, Returned] private[dynamodb] (
-  private[dynamodb] val write: DynamoDBQuery[In, Option[Item]],
-  private[dynamodb] val finish: Option[Item] => Out
-) {
-
-  /** Replaces the condition. */
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
-
-  /**
-   * Stops a failed condition from returning the existing item (`ConditionFailed.item` is then
-   * `None`): for very large items or frequently failing conditions, where the larger failure
-   * response isn't wanted.
-   */
-  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Returned]
-
-  def returning(rv: ReturnValues): ConditionalWriteBuilder[In, Returned, Returned]
-
-  def capacity(capacity: ReturnConsumedCapacity): ConditionalWriteBuilder[In, Out, Returned]
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalWriteBuilder[In, Out, Returned]
-  def withRetryPolicy(policy: RetryPolicy): ConditionalWriteBuilder[In, Out, Returned]
-
-  def toQuery: DynamoDBQuery[In, Out] = write.map(finish)
-
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
-    interpreter.run(toQuery)
-}
-
-// The Low-Level implementations: the returned item stays a raw `Item`.
-private[dynamodb] final class ItemWriteBuilder[In, Out](
+final class ItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]     =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]              =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
-  def returning(rv: ReturnValues): WriteBuilder[In, Option[Item], Option[Item]]              =
+  def returning(rv: ReturnValues): ItemWriteBuilder[In, Option[Item], Op]                       =
     new ItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
-  def capacity(capacity: ReturnConsumedCapacity): WriteBuilder[In, Out, Option[Item]]        =
+  override def capacity(capacity: ReturnConsumedCapacity): ItemWriteBuilder[In, Out, Op]        =
     new ItemWriteBuilder(write.capacity(capacity), finish)
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): WriteBuilder[In, Out, Option[Item]] =
+  override def metrics(itemMetrics: ReturnItemCollectionMetrics): ItemWriteBuilder[In, Out, Op] =
     new ItemWriteBuilder(write.metrics(itemMetrics), finish)
-  def withRetryPolicy(policy: RetryPolicy): WriteBuilder[In, Out, Option[Item]]              =
+  override def withRetryPolicy(policy: RetryPolicy): ItemWriteBuilder[In, Out, Op]              =
     new ItemWriteBuilder(write.withRetryPolicy(policy), finish)
 }
 
@@ -116,20 +53,21 @@ private[dynamodb] object ItemWriteBuilder {
   val raw: Option[Item] => Option[Item] = identity
 }
 
-private[dynamodb] final class ConditionalItemWriteBuilder[In, Out](
+/** [[ItemWriteBuilder]] with a condition - see [[ConditionalWriteBuilder]]. */
+final class ConditionalItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends ConditionalWriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]                =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]                         =
     new ConditionalItemWriteBuilder(write.withCondition(ce), finish)
-  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Option[Item]]                     =
+  def withoutItemOnConditionFailure: ConditionalItemWriteBuilder[In, Out, Op]                              =
     new ConditionalItemWriteBuilder(WriteBuilder.withoutItemOnConditionFailure(write), finish)
-  def returning(rv: ReturnValues): ConditionalWriteBuilder[In, Option[Item], Option[Item]]              =
+  def returning(rv: ReturnValues): ConditionalItemWriteBuilder[In, Option[Item], Op]                       =
     new ConditionalItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
-  def capacity(capacity: ReturnConsumedCapacity): ConditionalWriteBuilder[In, Out, Option[Item]]        =
+  override def capacity(capacity: ReturnConsumedCapacity): ConditionalItemWriteBuilder[In, Out, Op]        =
     new ConditionalItemWriteBuilder(write.capacity(capacity), finish)
-  def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalWriteBuilder[In, Out, Option[Item]] =
+  override def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalItemWriteBuilder[In, Out, Op] =
     new ConditionalItemWriteBuilder(write.metrics(itemMetrics), finish)
-  def withRetryPolicy(policy: RetryPolicy): ConditionalWriteBuilder[In, Out, Option[Item]]              =
+  override def withRetryPolicy(policy: RetryPolicy): ConditionalItemWriteBuilder[In, Out, Op]              =
     new ConditionalItemWriteBuilder(write.withRetryPolicy(policy), finish)
 }

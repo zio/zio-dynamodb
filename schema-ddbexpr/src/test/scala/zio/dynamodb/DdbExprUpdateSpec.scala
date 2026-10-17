@@ -19,7 +19,6 @@ package zio.dynamodb
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._

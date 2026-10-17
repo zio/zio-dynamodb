@@ -459,7 +459,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     else
       Some(
         TransactionError.TransactionValidationError(
-          "transactWriteItems returns no items, so ReturnValues (.returning / .returns) is not supported " +
+          "transactWriteItems returns no items, so ReturnValues (.returning) is not supported " +
             s"inside a transaction; got it on: ${withReturnValues.mkString(", ")}"
         )
       )
@@ -476,6 +476,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def unwrapMappedWriteItem(q: DynamoDBQuery[Any, Any]): Either[DynamoDBError, DynamoDBQuery[Any, Any]] =
     q match {
       case DynamoDBQuery.Map(inner, _)  => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case w: WriteNode[_, _]           => unwrapMappedWriteItem(w.write.asInstanceOf[DynamoDBQuery[Any, Any]])
       case DynamoDBQuery.Absolve(inner) => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
       case f: DynamoDBQuery.Fail        => Left(f.error())
       case other                        => Right(other)
@@ -559,6 +560,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         )
       case m: DynamoDBQuery.Map[_, _]          =>
         map(runAny(m.query))(m.mapper.asInstanceOf[Any => Any])
+      case w: WriteNode[_, _]                  =>
+        map(runAny(w.write))(w.finish.asInstanceOf[Any => Any])
       case DynamoDBQuery.Succeed(v)            => pure(v())
       case DynamoDBQuery.Fail(e)               => fail(e())
       case a: DynamoDBQuery.Absolve[_, _]      =>

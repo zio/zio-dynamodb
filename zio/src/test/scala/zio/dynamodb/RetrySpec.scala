@@ -666,6 +666,7 @@ object RetrySpec extends ZIOSpecDefault {
           query =
             DynamoDBQuery
               .updateItem("t", PrimaryKey("id" -> "alice"))(ProjectionExpression.$("name").set("bob"))
+              .returning(ReturnValues.AllNew)
               .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
           fiber  <- interp.run(query).fork
           _      <- TestClock.adjust(50.millis)
@@ -839,6 +840,7 @@ object RetrySpec extends ZIOSpecDefault {
           query =
             DynamoDBQuery
               .updateItem("t", PrimaryKey("id" -> "alice"))(ProjectionExpression.$("name").set("bob"))
+              .returning(ReturnValues.AllNew)
               .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
           fiber    <- interp.run(query).fork
           _        <- TestClock.adjust(50.millis)
@@ -940,8 +942,8 @@ object RetrySpec extends ZIOSpecDefault {
           query =
             DynamoDBQuery
               .batchWriteItem(writes) {
-                case Left(item) => DynamoDBQuery.PutItem("t", item)
-                case Right(key) => DynamoDBQuery.DeleteItem("t", key)
+                case Left(item) => DynamoDBQuery.putItem("t", item)
+                case Right(key) => DynamoDBQuery.deleteItem("t", key)
               }
               .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
           fiber         <- interp.run(query).fork
@@ -1119,7 +1121,7 @@ object RetrySpec extends ZIOSpecDefault {
           result   <- fiber.join
           gc       <- getCount.get
           pc       <- putCount.get
-        } yield assertTrue(gc == 2 && pc == 2 && result._1.contains(Item("id" -> "alice")))
+        } yield assertTrue(gc == 2 && pc == 2 && result.contains(Item("id" -> "alice")))
       }
     ),
 

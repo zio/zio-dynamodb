@@ -20,9 +20,10 @@ import zio.test._
 
 /**
  * Shapes the Low-Level API rejects at compile time, verified for real via `zio.test.typeCheck`:
- * a value with no `ToAttributeValue` instance, and a `CanWhere`/`CanFilter` violation once the
- * condition's own type parameter is pinned to a concrete type — see `ConditionsAndFilters.scala`
- * for the companion case where leaving it unpinned defeats the check instead.
+ * a value with no `ToAttributeValue` instance, a `CanWhere`/`CanFilter` violation once the
+ * condition's own type parameter is pinned to a concrete type (see `ConditionsAndFilters.scala`
+ * for the companion case where leaving it unpinned defeats the check instead), and the write
+ * shapes a batch can't take.
  */
 object CompileTimeRejectionsSpec extends ZIOSpecDefault {
 
@@ -60,6 +61,50 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         val pinned: ConditionExpression[Widget] = $("id") === "1"
         DynamoDBQuery.scan("t", limit = 10).where(pinned)
       """).map(result => assertTrue(result.isLeft))
+    },
+    test("batchWriteItem accepts plain putItem and deleteItem") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.batchWriteItem(List(1, 2)) { i =>
+          if (i == 1) DynamoDBQuery.putItem("t", Item("id" -> "1")) else DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "2"))
+        }
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("batchWriteItem rejects an updateItem (DynamoDB batches have no update)") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.batchWriteItem(List(1))(_ => DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)))
+      """).map(result => assertTrue(result.isLeft))
+    },
+    test("batchWriteItem rejects a conditional write (batches support no conditions)") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.batchWriteItem(List(1))(_ => DynamoDBQuery.putItem("t", Item("id" -> "1")).where($("v") === 0))
+      """).map(result => assertTrue(result.isLeft))
+    },
+    test("batchWriteItem rejects a write with .returning (batches return no items)") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.batchWriteItem(List(1))(_ => DynamoDBQuery.putItem("t", Item("id" -> "1")).returning(ReturnValues.AllOld))
+      """).map(result => assertTrue(result.isLeft))
+    },
+    test(".withoutItemOnConditionFailure needs a .where first") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).withoutItemOnConditionFailure
+      """).map(result => assertTrue(result.isLeft))
+    },
+    test("but .where(...).withoutItemOnConditionFailure compiles") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).where($("v") === 0).withoutItemOnConditionFailure
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

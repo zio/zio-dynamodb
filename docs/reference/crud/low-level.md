@@ -56,32 +56,16 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .execute
 ```
 
-A condition expression makes `putItem` conditional (fails the request, doesn't throw
-client-side, if the condition isn't met on the server) — replacing an item only if it's still
-in the state you expect, for example:
+`putItem`, `updateItem` and `deleteItem` execute to `Unit`; see [Returned items](#returned-items)
+to get an item back.
 
-```scala mdoc:compile-only
-import zio.dynamodb._
-import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.ProjectionExpression.$
-
-def example(implicit interp: Interpreter[zio.Task]) =
-  DynamoDBQuery
-    .putItem(
-      "orders",
-      Item("customerId" -> "cust-42", "orderId" -> "ord-1", "total" -> 129.99, "status" -> "Shipped"),
-      conditionExpression = Some($("status") === "Pending")
-    )
-    .execute
-```
-
-A failed condition fails the effect with `DynamoDBError.ItemError.ConditionFailed`; every other
-failure is the AWS SDK exception itself.
-`.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)` — on
-`putItem`, `updateItem` or `deleteItem` — puts the item as it was on that failure
-(`ConditionFailed.item`), saving a follow-up `getItem` (see AWS's
+`.where` makes a write conditional (see AWS's
 [`PutItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)
-reference):
+reference). A failed condition fails the effect with `DynamoDBError.ItemError.ConditionFailed`;
+every other failure is the AWS SDK exception itself. `ConditionFailed.item` holds the item as it was:
+conditional writes send `ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity
+is consumed; only the failure response is larger). Turn it off with `.withoutItemOnConditionFailure`
+after `.where`:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -91,11 +75,12 @@ import zio.dynamodb.ProjectionExpression.$
 def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
     .putItem("orders", Item("customerId" -> "cust-42", "orderId" -> "ord-1", "status" -> "Shipped"))
-    .where($("status") === "Pending")
-    .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+    .where($("status") === "Pending")                           // existing item returned on failure by default
     .execute
     .catchSome { case DynamoDBError.ItemError.ConditionFailed(_, existing) => zio.ZIO.debug(existing) }
 ```
+
+`.capacity`, `.metrics` and `.withRetryPolicy` compose with `.where` and `.returning` in any order.
 
 ## Update
 
@@ -127,6 +112,24 @@ import zio.dynamodb.ExecuteSyntax.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery.deleteItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1")).execute
+```
+
+## Returned items
+
+To get back the item DynamoDB returns, add `.returning`: the result becomes `Option[Item]` (`None`
+when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts any value (see
+AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.ProjectionExpression.$
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  DynamoDBQuery
+    .updateItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))($("status").set("Shipped"))
+    .returning(ReturnValues.AllNew)
+    .execute
 ```
 
 ## Query

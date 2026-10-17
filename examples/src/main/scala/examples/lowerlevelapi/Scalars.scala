@@ -61,16 +61,16 @@ object Scalars {
   val item: Item      = Item("id" -> "w-1", "qty" -> 10, "price" -> 9.99, "active" -> true, "blob" -> Chunk[Byte](1, 2, 3))
   val key: PrimaryKey = PrimaryKey("id" -> "w-1")
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, item)
 
   val getQuery: DynamoDBQuery[Any, Option[Item]] =
     DynamoDBQuery.getItem(table, key)
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)($("qty").set(5))
 
-  val deleteQuery: DynamoDBQuery[Any, Option[Item]] =
+  val deleteQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.deleteItem(table, key)
 
   val queryQuery: DynamoDBQuery[Any, Page[Item]] =

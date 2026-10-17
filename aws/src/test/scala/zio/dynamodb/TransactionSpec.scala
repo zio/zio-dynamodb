@@ -239,12 +239,10 @@ object TransactionSpec extends ZIOSpecDefault {
       val put                                 = captured.transactItems().get(0).put()
       assertTrue(put.conditionExpression() != null)
     },
-    test("PutItem with returnValuesOnConditionCheckFailure: field is set") {
+    test("conditional PutItem: returnValuesOnConditionCheckFailure is ALL_OLD by default") {
       var captured: TransactWriteItemsRequest = null
       val q                                   = DynamoDBQuery.transactWriteItems(
-        DynamoDBQuery
-          .putItem(table, item)
-          .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+        DynamoDBQuery.putItem(table, item).where($("score") === 42)
       )
       run(q, txStub(onTransactWrite = req => { captured = req; TransactWriteItemsResponse.builder().build() }))
       val put                                 = captured.transactItems().get(0).put()
@@ -456,7 +454,7 @@ object TransactionSpec extends ZIOSpecDefault {
       assertTrue(result.failed.get.getMessage.contains("between 1 and 100"))
     },
     test("transactWriteItems with 101 items fails with TransactionValidationError") {
-      val writes = (1 to 101).map(i => DynamoDBQuery.putItem(table, Item("id" -> i.toString)))
+      val writes = (1 to 101).map(i => DynamoDBQuery.putItem(table, Item("id" -> i.toString)).toQuery)
       val result = run(DynamoDBQuery.transactWriteItems(writes: _*))
       assert(result.failed.get)(isSubtype[TransactionError.TransactionValidationError](anything))
     },
@@ -478,7 +476,7 @@ object TransactionSpec extends ZIOSpecDefault {
       val result = run(
         DynamoDBQuery.transactWriteItems(
           DynamoDBQuery.putItem(table, item),
-          DynamoDBQuery.updateItem(table, pk)($("score").set(1)).returns(ReturnValues.AllNew)
+          DynamoDBQuery.updateItem(table, pk)($("score").set(1)).returning(ReturnValues.AllNew)
         ),
         txStub()
       )
@@ -558,7 +556,7 @@ object TransactionSpec extends ZIOSpecDefault {
     suite("returnValuesOnConditionCheckFailure")(
       test("propagates to PutItem") {
         val q = DynamoDBQuery
-          .putItem(table, item)
+          .PutItem(table, item)
           .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
         assert(q)(
           isSubtype[DynamoDBQuery.PutItem](
@@ -586,7 +584,7 @@ object TransactionSpec extends ZIOSpecDefault {
       },
       test("propagates to DeleteItem") {
         val q = DynamoDBQuery
-          .deleteItem(table, pk)
+          .DeleteItem(table, pk)
           .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
         assert(q)(
           isSubtype[DynamoDBQuery.DeleteItem](

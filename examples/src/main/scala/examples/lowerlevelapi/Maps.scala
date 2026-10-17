@@ -36,10 +36,10 @@ object Maps {
 
   val item: Item = Item("id" -> "u1", "address" -> Item("city" -> "London", "zip" -> "SW1A 1AA"))
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, item)
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(setCity)
 
   val scanQuery = DynamoDBQuery.scan(table, limit = 20).filter(cityExists)

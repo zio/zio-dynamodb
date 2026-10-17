@@ -23,13 +23,38 @@ import zio.test._
 
 object WriteBuilderSpec extends ZIOSpecDefault {
 
-  private val put: WriteBuilder[Any, Unit, Option[Item]] =
-    new ItemWriteBuilder(DynamoDBQuery.putItem("t", Item("id" -> "a")), WriteBuilder.discard)
+  private val put: ItemWriteBuilder[Any, Unit, WriteOp.Put] = DynamoDBQuery.putItem("t", Item("id" -> "a"))
 
   private val condition: ConditionExpression[Any] = $("v") === 0
   private val total: ReturnConsumedCapacity       = ReturnConsumedCapacity.Total
   private val size: ReturnItemCollectionMetrics   = ReturnItemCollectionMetrics.Size
   private val allOld: ReturnValues                = ReturnValues.AllOld
+
+  // The write node under any Map / builder wrapping.
+  @scala.annotation.tailrec
+  private def leaf(q: DynamoDBQuery[_, _]): DynamoDBQuery[_, _] = q match {
+    case DynamoDBQuery.Map(inner, _) => leaf(inner)
+    case w: WriteNode[_, _]          => leaf(w.write)
+    case other                       => other
+  }
+
+  private val leafHasItemOnFailure: Assertion[DynamoDBQuery[_, _]] =
+    hasField[DynamoDBQuery[_, _], DynamoDBQuery[_, _]](
+      "leaf",
+      leaf,
+      isSubtype[PutItem](
+        hasField[PutItem, Option[ConditionExpression[_]]](
+          "conditionExpression",
+          _.conditionExpression,
+          isSome(anything)
+        ) &&
+          hasField[PutItem, Option[ReturnValuesOnConditionCheckFailure]](
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            isSome(equalTo(ReturnValuesOnConditionCheckFailure.AllOld))
+          )
+      )
+    )
 
   def spec = suite("WriteBuilder")(
     test(".where sets the condition and returns the existing item on failure by default") {
@@ -60,8 +85,8 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       )
     },
     test(".returning sets ReturnValues and makes the returned item the result") {
-      val returning: WriteBuilder[Any, Option[Item], Option[Item]] = put.returning(allOld)
-      val item                                                     = Some(Item("id" -> "a"))
+      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(allOld)
+      val item                                                        = Some(Item("id" -> "a"))
       assert(returning.write)(
         isSubtype[PutItem](hasField[PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)))
       ) &&
@@ -78,6 +103,64 @@ object WriteBuilderSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("conditionCheck returns the existing item on failure by default; withoutItemOnConditionFailure turns it off") {
+      val check = DynamoDBQuery.conditionCheck("t", PrimaryKey("id" -> "a"))(condition)
+      assertTrue(
+        check.returnValuesOnConditionCheckFailure.contains(ReturnValuesOnConditionCheckFailure.AllOld),
+        check.withoutItemOnConditionFailure.returnValuesOnConditionCheckFailure
+          .contains(ReturnValuesOnConditionCheckFailure.None)
+      )
+    },
+    test("a builder is itself the query - no wrapper is allocated") {
+      assertTrue(put.toQuery eq put)
+    },
+    test("general modifiers reach builders nested in zipPar, and the pair still runs") {
+      val pair: DynamoDBQuery[Any, Unit]                            =
+        (put zipPar DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "b")))
+          .capacity(total)
+          .withRetryPolicy(RetryPolicy.NoRetry)
+      def node(q: DynamoDBQuery[_, _]): Option[DynamoDBQuery[_, _]] = q match {
+        case w: WriteNode[_, _] => Some(w.write)
+        case _                  => None
+      }
+      val (left, right)                                             = pair match {
+        case DynamoDBQuery.ZipPar(l, r, _) => (node(l), node(r))
+        case _                             => (None, None)
+      }
+      assert(left)(
+        isSome(
+          isSubtype[PutItem](
+            hasField[PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
+              hasField[PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
+          )
+        )
+      ) &&
+      assert(right)(
+        isSome(
+          isSubtype[DynamoDBQuery.DeleteItem](
+            hasField[DynamoDBQuery.DeleteItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total))
+          )
+        )
+      ) &&
+      assertTrue(DummyIOInterpreter.run(pair).unsafeRun() == (()))
+    },
+    suite(".where on a composed write keeps the item-on-failure default")(
+      test("after .map") {
+        assert(put.map(identity).where(condition))(leafHasItemOnFailure)
+      },
+      test("after .toQuery") {
+        assert(put.toQuery.where(condition))(leafHasItemOnFailure)
+      },
+      test("on both sides of a zipPar") {
+        val pair = (put zipPar DynamoDBQuery.putItem("t", Item("id" -> "b"))).where(condition)
+        assert(pair)(
+          isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]]("left", _.left, leafHasItemOnFailure) &&
+              hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]]("right", _.right, leafHasItemOnFailure)
+          )
+        )
+      }
+    ),
     test("toQuery maps the raw result through finish") {
       assertTrue(DummyIOInterpreter.run(put.toQuery).unsafeRun() == (()))
     }

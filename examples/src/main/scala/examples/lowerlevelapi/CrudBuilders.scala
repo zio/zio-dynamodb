@@ -30,10 +30,10 @@ object CrudBuilders {
   private val table = "tasks"
   private val key   = PrimaryKey("id" -> "t1")
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, Item("id" -> "t1", "title" -> "write docs", "done" -> false, "priority" -> 1))
 
-  val putWithCondition: DynamoDBQuery[Any, Option[Item]] =
+  val putWithCondition: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery
       .putItem(table, Item("id" -> "t1", "title" -> "write docs", "done" -> false, "priority" -> 1))
       .where($("id").attributeNotExists)
@@ -41,16 +41,16 @@ object CrudBuilders {
   val getQuery: DynamoDBQuery[Any, Option[Item]] =
     DynamoDBQuery.getItem(table, key)
 
-  val deleteQuery: DynamoDBQuery[Any, Option[Item]] =
+  val deleteQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.deleteItem(table, key)
 
-  val deleteWithCondition: DynamoDBQuery[Any, Option[Item]] =
+  val deleteWithCondition: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.deleteItem(table, key).where($("done") === true)
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)($("done").set(true))
 
-  val updateWithCondition: DynamoDBQuery[Any, Option[Item]] =
+  val updateWithCondition: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)($("priority").increment(1)).where($("done") === false)
 
   val queryQuery: DynamoDBQuery[Any, Page[Item]] =

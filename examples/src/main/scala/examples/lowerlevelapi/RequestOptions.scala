@@ -20,9 +20,9 @@ import zio.dynamodb.{ ConsistencyMode, DynamoDBQuery, Item, PrimaryKey, ReturnCo
 import zio.dynamodb.ProjectionExpression.$
 
 /**
- * Per-request configuration knobs, all defined directly on `DynamoDBQuery` rather than on a
- * separate builder type: `.capacity` (`ReturnConsumedCapacity`), `.returns` (`ReturnValues`),
- * `.consistency` (`ConsistencyMode`), `.sortOrder`, `.startKey` (pagination), `.limit`. The
+ * Per-request configuration knobs: `.capacity` (`ReturnConsumedCapacity`), `.returning`
+ * (`ReturnValues`, on writes), `.consistency` (`ConsistencyMode`), `.sortOrder`, `.startKey`
+ * (pagination), `.limit`. The
  * Low-Level API has no schema-derivation configuration to speak of — there's no schema — so
  * this file's counterpart to the High-Level API's `TableConfigs.scala` is these request-level
  * knobs instead.
@@ -32,11 +32,11 @@ object RequestOptions {
   private val table = "orders"
   private val key   = PrimaryKey("id" -> "o1")
 
-  val putWithCapacity: DynamoDBQuery[Any, Option[Item]] =
+  val putWithCapacity: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, Item("id" -> "o1")).capacity(ReturnConsumedCapacity.Total)
 
   val updateWithReturnValues: DynamoDBQuery[Any, Option[Item]] =
-    DynamoDBQuery.updateItem(table, key)($("status").set("shipped")).returns(ReturnValues.AllNew)
+    DynamoDBQuery.updateItem(table, key)($("status").set("shipped")).returning(ReturnValues.AllNew)
 
   val strictlyConsistentGet: DynamoDBQuery[Any, Option[Item]] =
     DynamoDBQuery.getItem(table, key).consistency(ConsistencyMode.Strong)

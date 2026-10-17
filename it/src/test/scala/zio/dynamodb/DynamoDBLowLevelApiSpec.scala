@@ -545,7 +545,6 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery
                               .putItem(table, Item("id" -> "p", "score" -> 99))
                               .where($("score") === 42)
-                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
             } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
@@ -560,7 +559,6 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery
                               .updateItem(table, PrimaryKey("id" -> "u"))($("score").set(99))
                               .where($("score") === 42)
-                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
             } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
@@ -575,13 +573,12 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery
                               .deleteItem(table, PrimaryKey("id" -> "d"))
                               .where($("score") === 42)
-                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
             } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
           }
         },
-        test("without AllOld, no item is returned") {
+        test(".withoutItemOnConditionFailure: no item is returned") {
           withSingleIdKeyTable { (table, interpreter) =>
             for {
               _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "n", "score" -> 0)))
@@ -590,6 +587,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery
                               .putItem(table, Item("id" -> "n", "score" -> 99))
                               .where($("score") === 42)
+                              .withoutItemOnConditionFailure
                           )
                           .either
             } yield assert(result)(
@@ -826,7 +824,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .putItem(table, Item("id" -> "ret-a", "v" -> 2))
-                          .returns(ReturnValues.AllOld)
+                          .returning(ReturnValues.AllOld)
                       )
           } yield assertTrue(result.contains(Item("id" -> "ret-a", "v" -> 1)))
         }
@@ -838,7 +836,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .deleteItem(table, PrimaryKey("id" -> "ret-d"))
-                          .returns(ReturnValues.AllOld)
+                          .returning(ReturnValues.AllOld)
                       )
           } yield assertTrue(result.contains(Item("id" -> "ret-d", "v" -> 99)))
         }
@@ -1165,7 +1163,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .updateItem(table, PrimaryKey("id" -> "rv-a"))($("score").set(42))
-                          .returns(ReturnValues.UpdatedOld)
+                          .returning(ReturnValues.UpdatedOld)
                       )
           } yield assertTrue(result.contains(Item("score" -> 0)))
         }
@@ -1178,7 +1176,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .updateItem(table, PrimaryKey("id" -> "rv-b"))($("score").set(99))
-                          .returns(ReturnValues.AllOld)
+                          .returning(ReturnValues.AllOld)
                       )
           } yield assertTrue(result.contains(original))
         }
@@ -1192,7 +1190,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .updateItem(table, PrimaryKey("id" -> "rv-c"))($("score").set(42))
-                          .returns(ReturnValues.AllNew)
+                          .returning(ReturnValues.AllNew)
                       )
           } yield assertTrue(result.contains(Item("id" -> "rv-c", "score" -> 42, "name" -> "charlie")))
         }
@@ -1206,7 +1204,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DynamoDBQuery
                           .updateItem(table, PrimaryKey("id" -> "rv-d"))($("score").set(42))
-                          .returns(ReturnValues.UpdatedNew)
+                          .returning(ReturnValues.UpdatedNew)
                       )
           } yield assertTrue(result.contains(Item("score" -> 42)))
         }

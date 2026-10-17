@@ -43,10 +43,10 @@ object Sets {
 
   val item: Item = Item("id" -> "p1", "tags" -> Set("new", "featured"), "ratings" -> Set(4, 5))
 
-  val putQuery: DynamoDBQuery[Any, Option[Item]] =
+  val putQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.putItem(table, item)
 
-  val updateQuery: DynamoDBQuery[Any, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.updateItem(table, key)(addTags + addRatings)
 
   val scanQuery = DynamoDBQuery.scan(table, limit = 20).filter(hasTag)
