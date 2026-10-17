@@ -1086,6 +1086,90 @@ object RetrySpec extends ZIOSpecDefault {
         for {
           result <- ZIO.attempt(ZioRetryQuota.standard(capacity = -1)).exit
         } yield assert(result)(fails(isSubtype[IllegalArgumentException](anything)))
+      },
+      test("an empty quota ends the batch unprocessed retry with Incomplete — no sleep, no interceptor call") {
+        for {
+          log    <- Ref.make(0)
+          interp <- makeInterp(
+                      batchGetResponses = List(unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()),
+                      batchRetryInterceptorParam = Some(countingBatchInterceptor(log)),
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 0))
+                    )
+          // not forked: a sleep here would block on the TestClock and never complete
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                        .withBatchUnprocessedRetryPolicy(backoff2x100ms)
+                    )
+          n      <- log.get
+        } yield assert(result)(isSubtype[Batch.GetResult.Incomplete](anything)) && assertTrue(n == 0)
+      },
+      test("an empty quota ends a batch write's unprocessed retry with Incomplete") {
+        val item = Item("id" -> "a")
+        for {
+          log    <- Ref.make(0)
+          interp <- makeInterp(
+                      batchWriteResponses = List(
+                        DynamoDBQuery.BatchWriteItem.Response(
+                          Some(
+                            Map(
+                              "t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item))
+                            )
+                          )
+                        ),
+                        DynamoDBQuery.BatchWriteItem.Response(None)
+                      ),
+                      batchRetryInterceptorParam = Some(countingBatchInterceptor(log)),
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 0))
+                    )
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
+                        .withBatchUnprocessedRetryPolicy(backoff2x100ms)
+                    )
+          n      <- log.get
+        } yield assert(result)(isSubtype[Batch.WriteResult.Incomplete](anything)) && assertTrue(n == 0)
+      },
+      test("each unprocessed resubmission costs 5 tokens") {
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(unprocessedKeyA, unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()),
+                      // one resubmission's cost: the first is granted, the second denied
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 5))
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                          .withBatchUnprocessedRetryPolicy(backoff2x100ms)
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(
+          isSubtype[Batch.GetResult.Incomplete](
+            hasField("unprocessedKeys", _.response.unprocessedKeys.nonEmpty, equalTo(true))
+          )
+        )
+      },
+      test("a batch that completes after resubmitting credits the resubmissions' cost back") {
+        for {
+          quota  <- ZIO.succeed(ZioRetryQuota.standard(capacity = 5))
+          interp <- makeInterp(
+                      batchGetResponses = List(unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()),
+                      retryQuotaParam = Some(quota)
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                          .withBatchUnprocessedRetryPolicy(backoff2x100ms)
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+          full   <- quota.tryConsume(5)
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything)) && assertTrue(full)
       }
     ),
 
@@ -1454,6 +1538,17 @@ object RetrySpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private def countingBatchInterceptor(calls: Ref[Int]): BatchUnprocessedRetryInterceptor[Task] =
+    new BatchUnprocessedRetryInterceptor[Task] {
+      def onUnprocessedKeysRetry(unprocessedKeys: Map[String, Set[PrimaryKey]], attempt: Int): Task[Unit] =
+        calls.update(_ + 1)
+      def onUnprocessedItemsRetry(
+        unprocessedPuts: Map[String, Chunk[Item]],
+        unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
+        attempt: Int
+      ): Task[Unit]                                                                                       = calls.update(_ + 1)
+    }
 
   private val backoff2x100ms: RetryPolicy =
     RetryPolicy.ExponentialBackoff(maxRetries = 2, initialDelay = FiniteDuration(100, MILLISECONDS), jitter = false)

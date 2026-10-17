@@ -113,10 +113,9 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /**
    * Client-scoped circuit breaker gating whether a retry should happen at all — see
    *  [[RetryQuota]]. This trait's own default is `None`; concrete interpreters override it the
-   *  same way as `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter. Not consulted
-   *  by the batch unprocessed retry (`newUnprocessedDelayFn` below): a
-   *  resubmission of unprocessed keys/items is a fresh logical request built from a successful
-   *  response, not a retry of a failed one, so AWS's own token bucket doesn't apply to it either.
+   *  same way as `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter. Also charged by
+   *  the batch unprocessed retry (5 tokens per resubmission); an exhausted quota ends it with
+   *  `Incomplete`.
    */
   protected def retryQuota: Option[RetryQuota[F]] = None
 
@@ -129,6 +128,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   // retries credits back exactly what those retries cost (`spent`), no more.
   private def creditQuota(quota: Option[RetryQuota[F]], attempts: Int, spent: Int): F[Unit] =
     quota.fold(pure(()))(q => q.credit(if (attempts == 0) 1 else spent))
+
+  // Unprocessed keys / items are DynamoDB's throttling signal for batches, so each resubmission
+  // costs the throttling rate. On completion the resubmissions' cost is credited back; the clean
+  // first request's 1-token credit is already given by the effect-level loop around it.
+  private val UnprocessedRetryCost = 5
+
+  private def creditUnprocessedRetries[A](attempt: Int, a: A): F[A] =
+    if (attempt == 0) pure(a)
+    else retryQuota.fold(pure(a))(q => map(q.credit(attempt * UnprocessedRetryCost))(_ => a))
 
   /**
    * Retries `fa` according to `policy` whenever `isRetryable` matches the
@@ -597,28 +605,35 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           acc.updated(tableName, acc.getOrElse(tableName, Chunk.empty) ++ items)
         }
         if (response.unprocessedKeys.isEmpty)
-          pure(Batch.GetResult.Complete(response.copy(responses = merged)))
-        else
+          creditUnprocessedRetries(attempt, Batch.GetResult.Complete(response.copy(responses = merged)))
+        else {
+          def incomplete = pure[Batch.GetResult](Batch.GetResult.Incomplete(response.copy(responses = merged)))
           flatMap(getDelay(attempt)) {
-            case None    => pure(Batch.GetResult.Incomplete(response.copy(responses = merged)))
+            case None    => incomplete
             case Some(d) =>
-              val unprocessed: Map[String, Set[PrimaryKey]] =
-                response.unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
-              val notify: F[Unit]                           =
-                batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedKeysRetry(unprocessed, attempt))
-              flatMap(notify) { _ =>
-                flatMap(sleep(d)) { _ =>
-                  // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
-                  // retryPolicy from the original query across the retry.
-                  runBatchGetItemRetrying(
-                    q.copy(requestItems = response.unprocessedKeys),
-                    getDelay,
-                    attempt + 1,
-                    merged
-                  )
+              flatMap(tryConsumeQuota(retryQuota, UnprocessedRetryCost)) { granted =>
+                if (!granted) incomplete
+                else {
+                  val unprocessed: Map[String, Set[PrimaryKey]] =
+                    response.unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
+                  val notify: F[Unit]                           =
+                    batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedKeysRetry(unprocessed, attempt))
+                  flatMap(notify) { _ =>
+                    flatMap(sleep(d)) { _ =>
+                      // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
+                      // retryPolicy from the original query across the retry.
+                      runBatchGetItemRetrying(
+                        q.copy(requestItems = response.unprocessedKeys),
+                        getDelay,
+                        attempt + 1,
+                        merged
+                      )
+                    }
+                  }
                 }
               }
           }
+        }
     }
   }
 
@@ -633,35 +648,40 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         pure(Batch.WriteResult.Failed(cause, unprocessedRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
         response.unprocessedItems match {
-          case None            => pure(Batch.WriteResult.Complete(response))
+          case None            => creditUnprocessedRetries(attempt, Batch.WriteResult.Complete(response))
           case Some(remaining) =>
             flatMap(getDelay(attempt)) {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
-                // Splits each table's order-preserving Chunk[Write] into separate puts/deletes
-                // views for the interceptor — Chunk, not Set, to match onUnprocessedItemsRetry's
-                // no-implicit-dedup contract (BatchUnprocessedRetryInterceptor.scala).
-                val (puts, deletes) = remaining.foldLeft(
-                  (Map.empty[String, Chunk[Item]], Map.empty[String, Chunk[PrimaryKey]])
-                ) { case ((putsAcc, deletesAcc), (tableName, writes)) =>
-                  val tablePuts    = writes.collect { case DynamoDBQuery.BatchWriteItem.Put(item) => item }
-                  val tableDeletes = writes.collect { case DynamoDBQuery.BatchWriteItem.Delete(key) => key }
-                  (
-                    if (tablePuts.isEmpty) putsAcc else putsAcc.updated(tableName, tablePuts),
-                    if (tableDeletes.isEmpty) deletesAcc else deletesAcc.updated(tableName, tableDeletes)
-                  )
-                }
-                val notify: F[Unit] =
-                  batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedItemsRetry(puts, deletes, attempt))
-                flatMap(notify) { _ =>
-                  flatMap(sleep(d)) { _ =>
-                    // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/
-                    // retryPolicy from the original query across the retry.
-                    runBatchWriteItemRetrying(
-                      q.copy(requestItems = remaining),
-                      getDelay,
-                      attempt + 1
-                    )
+                flatMap(tryConsumeQuota(retryQuota, UnprocessedRetryCost)) { granted =>
+                  if (!granted) pure(Batch.WriteResult.Incomplete(response))
+                  else {
+                    // Splits each table's order-preserving Chunk[Write] into separate puts/deletes
+                    // views for the interceptor — Chunk, not Set, to match onUnprocessedItemsRetry's
+                    // no-implicit-dedup contract (BatchUnprocessedRetryInterceptor.scala).
+                    val (puts, deletes) = remaining.foldLeft(
+                      (Map.empty[String, Chunk[Item]], Map.empty[String, Chunk[PrimaryKey]])
+                    ) { case ((putsAcc, deletesAcc), (tableName, writes)) =>
+                      val tablePuts    = writes.collect { case DynamoDBQuery.BatchWriteItem.Put(item) => item }
+                      val tableDeletes = writes.collect { case DynamoDBQuery.BatchWriteItem.Delete(key) => key }
+                      (
+                        if (tablePuts.isEmpty) putsAcc else putsAcc.updated(tableName, tablePuts),
+                        if (tableDeletes.isEmpty) deletesAcc else deletesAcc.updated(tableName, tableDeletes)
+                      )
+                    }
+                    val notify: F[Unit] =
+                      batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedItemsRetry(puts, deletes, attempt))
+                    flatMap(notify) { _ =>
+                      flatMap(sleep(d)) { _ =>
+                        // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/
+                        // retryPolicy from the original query across the retry.
+                        runBatchWriteItemRetrying(
+                          q.copy(requestItems = remaining),
+                          getDelay,
+                          attempt + 1
+                        )
+                      }
+                    }
                   }
                 }
             }
