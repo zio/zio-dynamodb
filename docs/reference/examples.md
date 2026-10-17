@@ -61,7 +61,7 @@ default (`defaultRetryPolicy = None`) and opting in with a `zio.Schedule`-backed
 `ZioRetryPolicies.fromSchedule` — run against both a plain `getItem` and a `batchGetItem` with
 no policy of its own. The batch's unprocessed keys are governed separately, by
 `defaultBatchUnprocessedRetryPolicy` (on by default; the no-retry interpreter sets it to `None`).
-See [Retries](retries.md#two-attachment-points).
+See [Retries](retries.md#attachment-points).
 
 ## `ZIOStreamingUtils`
 
