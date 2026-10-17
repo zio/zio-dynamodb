@@ -41,25 +41,25 @@ object RetrySpec extends ZIOSpecDefault {
     batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None,
     retryInterceptorParam: Option[RetryInterceptor[Task]] = None,
-    batchRetryInterceptorParam: Option[BatchRetryInterceptor[Task]] = None,
+    batchRetryInterceptorParam: Option[BatchUnprocessedRetryInterceptor[Task]] = None,
     retryQuotaParam: Option[RetryQuota[Task]] = None
   ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
       getRef   <- Ref.make(batchGetResponses)
     } yield new AwsInterpreter[Task] {
-      override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]     = defaultRetryPolicyParam
-      override protected def retryInterceptor: Option[RetryInterceptor[Task]]           = retryInterceptorParam
-      override protected def batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] =
+      override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]                           = defaultRetryPolicyParam
+      override protected def retryInterceptor: Option[RetryInterceptor[Task]]                                 = retryInterceptorParam
+      override protected def batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[Task]] =
         batchRetryInterceptorParam
-      override protected def retryQuota: Option[RetryQuota[Task]]                       = retryQuotaParam
-      private[dynamodb] def pure[A](a: A): Task[A]                                      = ZIO.succeed(a)
-      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                  = fa.map(f)
-      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]        = fa.flatMap(f)
-      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]               = fa.zip(fb)
-      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]            = fa.zipPar(fb)
-      protected def fail[A](e: DynamoDBError): Task[A]                                  = ZIO.fail(e)
-      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]                 =
+      override protected def retryQuota: Option[RetryQuota[Task]]                                             = retryQuotaParam
+      private[dynamodb] def pure[A](a: A): Task[A]                                                            = ZIO.succeed(a)
+      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                                        = fa.map(f)
+      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]                              = fa.flatMap(f)
+      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]                                     = fa.zip(fb)
+      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]                                  = fa.zipPar(fb)
+      protected def fail[A](e: DynamoDBError): Task[A]                                                        = ZIO.fail(e)
+      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]                                       =
         fa.flatMap(ZIO.fromEither(_))
 
       private[dynamodb] def sleep(d: FiniteDuration): Task[Unit]                =
@@ -257,7 +257,7 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("BatchWriteItem — response-level retry (via interp.run)")(
+    suite("BatchWriteItem — batch unprocessed retry (via interp.run)")(
       test("returns Complete when no unprocessed items") {
         for {
           interp <- makeInterp(
@@ -299,7 +299,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
       },
 
-      test("returns Incomplete when response-level policy exhausted") {
+      test("returns Incomplete when batch unprocessed retry policy exhausted") {
         val item        = Item("id" -> "a")
         val unprocessed = Some(
           Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
@@ -355,7 +355,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assertTrue(result.isFailure && n == 1)
       },
 
-      test("non-retryable error fails immediately — effectRetries and responseRetries are both 0") {
+      test("non-retryable error fails immediately — effectRetries and unprocessedRetries are both 0") {
         for {
           calls  <- Ref.make(0)
           interp <- makeInterp(
@@ -377,13 +377,13 @@ object RetrySpec extends ZIOSpecDefault {
                     )
           n      <- calls.get
         } yield result match {
-          case Batch.WriteResult.Failed(_, responseRetries, effectRetries) =>
+          case Batch.WriteResult.Failed(_, unprocessedRetries, effectRetries) =>
             assertTrue(
               n == 1 &&
-                responseRetries == 0 &&
+                unprocessedRetries == 0 &&
                 effectRetries == 0
             )
-          case _                                                           =>
+          case _                                                              =>
             assertTrue(false)
         }
       },
@@ -415,19 +415,19 @@ object RetrySpec extends ZIOSpecDefault {
           result <- fiber.join
           n      <- calls.get
         } yield result match {
-          case Batch.WriteResult.Failed(cause, responseRetries, effectRetries) =>
+          case Batch.WriteResult.Failed(cause, unprocessedRetries, effectRetries) =>
             assertTrue(
               cause.getMessage.contains("ProvisionedThroughputExceededException") &&
-                n == 3 &&               // 3 effect-level calls via withRetryTracked
-                responseRetries == 0 && // failed on the first batch submission (no response-level retries)
-                effectRetries == 2      // 2 retries after the initial attempt
+                n == 3 &&                  // 3 effect-level calls via withRetryTracked
+                unprocessedRetries == 0 && // failed on the first batch submission (no batch unprocessed retries)
+                effectRetries == 2         // 2 retries after the initial attempt
             )
-          case _                                                               =>
+          case _                                                                  =>
             assertTrue(false)
         }
       },
 
-      test("withResponseRetryPolicy alone drives response-level retry even without a retryPolicy") {
+      test("withBatchUnprocessedRetryPolicy alone drives batch unprocessed retry even without a retryPolicy") {
         val item        = Item("id" -> "a")
         val unprocessed = Some(
           Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
@@ -443,7 +443,7 @@ object RetrySpec extends ZIOSpecDefault {
                       .run(
                         DynamoDBQuery
                           .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
-                          .withResponseRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -457,7 +457,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
       },
 
-      test("withResponseRetryPolicy takes precedence over withRetryPolicy for the response-level loop") {
+      test("withBatchUnprocessedRetryPolicy takes precedence over withRetryPolicy for the batch unprocessed retry") {
         val item        = Item("id" -> "a")
         val unprocessed = Some(
           Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
@@ -474,7 +474,7 @@ object RetrySpec extends ZIOSpecDefault {
                         DynamoDBQuery
                           .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
                           .withRetryPolicy(RetryPolicy.NoRetry)
-                          .withResponseRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -488,7 +488,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
       },
 
-      test("withResponseRetryPolicy does not enable the effect-level retry loop") {
+      test("withBatchUnprocessedRetryPolicy does not enable the effect-level retry loop") {
         for {
           calls  <- Ref.make(0)
           interp <- makeInterp(
@@ -500,7 +500,7 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(
                       DynamoDBQuery
                         .batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
-                        .withResponseRetryPolicy(
+                        .withBatchUnprocessedRetryPolicy(
                           RetryPolicy.ExponentialBackoff(
                             maxRetries = 3,
                             initialDelay = FiniteDuration(50, MILLISECONDS),
@@ -510,9 +510,9 @@ object RetrySpec extends ZIOSpecDefault {
                     )
           n      <- calls.get
         } yield result match {
-          case Batch.WriteResult.Failed(_, responseRetries, effectRetries) =>
-            assertTrue(n == 1 && responseRetries == 0 && effectRetries == 0)
-          case _                                                           =>
+          case Batch.WriteResult.Failed(_, unprocessedRetries, effectRetries) =>
+            assertTrue(n == 1 && unprocessedRetries == 0 && effectRetries == 0)
+          case _                                                              =>
             assertTrue(false)
         }
       }
@@ -787,7 +787,7 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("RetryInterceptor / BatchRetryInterceptor")(
+    suite("RetryInterceptor / BatchUnprocessedRetryInterceptor")(
       test("onRetry fires once per retried attempt with correct metadata, error, and attempt number") {
         for {
           calls    <- Ref.make(0)
@@ -867,7 +867,7 @@ object RetrySpec extends ZIOSpecDefault {
           log      <- retryLog.get
         } yield assertTrue(log.isEmpty)
       },
-      test("onBatchGetRetry fires with unprocessed keys reshaped to Map[String, Set[PrimaryKey]]") {
+      test("onUnprocessedKeysRetry fires with unprocessed keys reshaped to Map[String, Set[PrimaryKey]]") {
         import scala.collection.immutable.{ Map => ScalaMap }
         val unprocessedKeys = ScalaMap(
           "t" -> DynamoDBQuery.BatchGetItem.TableGet(
@@ -877,24 +877,24 @@ object RetrySpec extends ZIOSpecDefault {
         )
         for {
           batchRetryLog <- Ref.make(Chunk.empty[(Map[String, Set[PrimaryKey]], Int)])
-          batchRetryInterceptor = new BatchRetryInterceptor[Task] {
-                                    def onBatchGetRetry(
-                                      unprocessedKeys: Map[String, Set[PrimaryKey]],
-                                      attempt: Int
-                                    ): Task[Unit] =
-                                      batchRetryLog.update(_ :+ ((unprocessedKeys, attempt)))
-                                    def onBatchWriteRetry(
-                                      unprocessedPuts: Map[String, Chunk[Item]],
-                                      unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
-                                      attempt: Int
-                                    ): Task[Unit] = ZIO.unit
-                                  }
+          batchUnprocessedRetryInterceptor = new BatchUnprocessedRetryInterceptor[Task] {
+                                               def onUnprocessedKeysRetry(
+                                                 unprocessedKeys: Map[String, Set[PrimaryKey]],
+                                                 attempt: Int
+                                               ): Task[Unit] =
+                                                 batchRetryLog.update(_ :+ ((unprocessedKeys, attempt)))
+                                               def onUnprocessedItemsRetry(
+                                                 unprocessedPuts: Map[String, Chunk[Item]],
+                                                 unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
+                                                 attempt: Int
+                                               ): Task[Unit] = ZIO.unit
+                                             }
           interp        <- makeInterp(
                              batchGetResponses = List(
                                DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
                                DynamoDBQuery.BatchGetItem.Response()
                              ),
-                             batchRetryInterceptorParam = Some(batchRetryInterceptor)
+                             batchRetryInterceptorParam = Some(batchUnprocessedRetryInterceptor)
                            )
           query =
             DynamoDBQuery
@@ -907,7 +907,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything)) &&
           assertTrue(log == Chunk((Map("t" -> Set(PrimaryKey("id" -> "a"))), 0)))
       },
-      test("onBatchWriteRetry fires with puts/deletes split from the order-preserving Chunk[Write]") {
+      test("onUnprocessedItemsRetry fires with puts/deletes split from the order-preserving Chunk[Write]") {
         import scala.collection.immutable.{ Map => ScalaMap }
         val putItem          = Item("id" -> "a", "name" -> "alice")
         val deleteKey        = PrimaryKey("id" -> "b")
@@ -919,24 +919,26 @@ object RetrySpec extends ZIOSpecDefault {
         )
         for {
           batchRetryLog <- Ref.make(Chunk.empty[(Map[String, Chunk[Item]], Map[String, Chunk[PrimaryKey]], Int)])
-          batchRetryInterceptor = new BatchRetryInterceptor[Task] {
-                                    def onBatchGetRetry(
-                                      unprocessedKeys: Map[String, Set[PrimaryKey]],
-                                      attempt: Int
-                                    ): Task[Unit] = ZIO.unit
-                                    def onBatchWriteRetry(
-                                      unprocessedPuts: Map[String, Chunk[Item]],
-                                      unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
-                                      attempt: Int
-                                    ): Task[Unit] =
-                                      batchRetryLog.update(_ :+ ((unprocessedPuts, unprocessedDeletes, attempt)))
-                                  }
+          batchUnprocessedRetryInterceptor = new BatchUnprocessedRetryInterceptor[Task] {
+                                               def onUnprocessedKeysRetry(
+                                                 unprocessedKeys: Map[String, Set[PrimaryKey]],
+                                                 attempt: Int
+                                               ): Task[Unit] = ZIO.unit
+                                               def onUnprocessedItemsRetry(
+                                                 unprocessedPuts: Map[String, Chunk[Item]],
+                                                 unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
+                                                 attempt: Int
+                                               ): Task[Unit] =
+                                                 batchRetryLog.update(
+                                                   _ :+ ((unprocessedPuts, unprocessedDeletes, attempt))
+                                                 )
+                                             }
           interp        <- makeInterp(
                              batchWriteResponses = List(
                                DynamoDBQuery.BatchWriteItem.Response(unprocessedItems = Some(unprocessedItems)),
                                DynamoDBQuery.BatchWriteItem.Response(None)
                              ),
-                             batchRetryInterceptorParam = Some(batchRetryInterceptor)
+                             batchRetryInterceptorParam = Some(batchUnprocessedRetryInterceptor)
                            )
           writes: List[Either[Item, PrimaryKey]] = List(Left(putItem), Right(deleteKey))
           query =
@@ -1125,7 +1127,7 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("BatchGetItem — response-level retry (via interp.run)")(
+    suite("BatchGetItem — batch unprocessed retry (via interp.run)")(
       test("returns Complete when no unprocessed keys") {
         for {
           interp <- makeInterp(
@@ -1163,7 +1165,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assertTrue(result.isFailure && n == 1)
       },
 
-      test("non-retryable error fails immediately — effectRetries and responseRetries are both 0") {
+      test("non-retryable error fails immediately — effectRetries and unprocessedRetries are both 0") {
         for {
           calls  <- Ref.make(0)
           interp <- makeInterp(
@@ -1185,13 +1187,13 @@ object RetrySpec extends ZIOSpecDefault {
                     )
           n      <- calls.get
         } yield result match {
-          case Batch.GetResult.Failed(_, responseRetries, effectRetries) =>
+          case Batch.GetResult.Failed(_, unprocessedRetries, effectRetries) =>
             assertTrue(
               n == 1 &&
-                responseRetries == 0 &&
+                unprocessedRetries == 0 &&
                 effectRetries == 0
             )
-          case _                                                         =>
+          case _                                                            =>
             assertTrue(false)
         }
       },
@@ -1273,7 +1275,7 @@ object RetrySpec extends ZIOSpecDefault {
         )
       },
 
-      test("withResponseRetryPolicy alone drives response-level retry even without a retryPolicy") {
+      test("withBatchUnprocessedRetryPolicy alone drives batch unprocessed retry even without a retryPolicy") {
         import scala.collection.immutable.{ Map => ScalaMap }
         val unprocessedKeys = ScalaMap(
           "t" -> DynamoDBQuery.BatchGetItem.TableGet(
@@ -1292,7 +1294,7 @@ object RetrySpec extends ZIOSpecDefault {
                       .run(
                         DynamoDBQuery
                           .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-                          .withResponseRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -1306,7 +1308,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
       },
 
-      test("withResponseRetryPolicy takes precedence over withRetryPolicy for the response-level loop") {
+      test("withBatchUnprocessedRetryPolicy takes precedence over withRetryPolicy for the batch unprocessed retry") {
         import scala.collection.immutable.{ Map => ScalaMap }
         val unprocessedKeys = ScalaMap(
           "t" -> DynamoDBQuery.BatchGetItem.TableGet(
@@ -1326,7 +1328,7 @@ object RetrySpec extends ZIOSpecDefault {
                         DynamoDBQuery
                           .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
                           .withRetryPolicy(RetryPolicy.NoRetry)
-                          .withResponseRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -1340,7 +1342,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
       },
 
-      test("withResponseRetryPolicy does not enable the effect-level retry loop") {
+      test("withBatchUnprocessedRetryPolicy does not enable the effect-level retry loop") {
         for {
           calls  <- Ref.make(0)
           interp <- makeInterp(
@@ -1352,7 +1354,7 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(
                       DynamoDBQuery
                         .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-                        .withResponseRetryPolicy(
+                        .withBatchUnprocessedRetryPolicy(
                           RetryPolicy.ExponentialBackoff(
                             maxRetries = 3,
                             initialDelay = FiniteDuration(50, MILLISECONDS),
@@ -1362,9 +1364,9 @@ object RetrySpec extends ZIOSpecDefault {
                     )
           n      <- calls.get
         } yield result match {
-          case Batch.GetResult.Failed(_, responseRetries, effectRetries) =>
-            assertTrue(n == 1 && responseRetries == 0 && effectRetries == 0)
-          case _                                                         =>
+          case Batch.GetResult.Failed(_, unprocessedRetries, effectRetries) =>
+            assertTrue(n == 1 && unprocessedRetries == 0 && effectRetries == 0)
+          case _                                                            =>
             assertTrue(false)
         }
       }

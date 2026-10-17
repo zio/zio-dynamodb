@@ -23,7 +23,7 @@ package zio.dynamodb
  *  ultimately succeeds, never on the failed attempts that preceded it.
  *
  *  Separate from [[ResponseInterceptor]] since most `ResponseInterceptor` implementors have no
- *  interest in retries; separate from [[BatchRetryInterceptor]] since batch's response-level
+ *  interest in retries; separate from [[BatchUnprocessedRetryInterceptor]] since batch's batch unprocessed
  *  resubmission loop (unprocessed keys/items, no `Throwable` involved) is a genuinely different
  *  mechanism this trait doesn't cover.
  */

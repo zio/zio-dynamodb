@@ -94,19 +94,19 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def retryInterceptor: Option[RetryInterceptor[F]] = None
 
   /**
-   * Fires just before batch's response-level (unprocessed-items) resubmission loop sleeps and
-   *  resubmits — see [[BatchRetryInterceptor]]. Independent of `retryInterceptor`: the
-   *  response-level loop resubmits from a successful response with no `Throwable` involved, a
+   * Fires just before the batch unprocessed retry sleeps and
+   *  resubmits — see [[BatchUnprocessedRetryInterceptor]]. Independent of `retryInterceptor`: the
+   *  batch unprocessed retry resubmits from a successful response with no `Throwable` involved, a
    *  genuinely different mechanism from the effect-level retry loop `retryInterceptor` covers,
    *  so a caller who only wants effect-level retry visibility has nothing to no-op here.
    */
-  protected def batchRetryInterceptor: Option[BatchRetryInterceptor[F]] = None
+  protected def batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[F]] = None
 
   /**
    * Client-scoped circuit breaker gating whether a retry should happen at all — see
    *  [[RetryQuota]]. This trait's own default is `None`; concrete interpreters override it the
    *  same way as `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter. Not consulted
-   *  by batch's response-level resubmission loop (`newResponseLevelDelayFn` below): a
+   *  by the batch unprocessed retry (`newUnprocessedDelayFn` below): a
    *  resubmission of unprocessed keys/items is a fresh logical request built from a successful
    *  response, not a retry of a failed one, so AWS's own token bucket doesn't apply to it either.
    */
@@ -309,14 +309,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     }
 
   /**
-   * The delay-decision function for batch's response-level (unprocessed-items) resubmission
-   * loop — resolved once per batch call from `responseRetryPolicy` if the caller set one
-   * (via `.withResponseRetryPolicy`), else the same fallback chain as
+   * The delay-decision function for batch's batch unprocessed (unprocessed-items) resubmission
+   * loop — resolved once per batch call from `unprocessedRetryPolicy` if the caller set one
+   * (via `.withBatchUnprocessedRetryPolicy`), else the same fallback chain as
    * [[withOptionalRetryTracked]] (`retryPolicy` then `defaultRetryPolicy`), then threaded
    * through the loop's recursion so a stateful `defaultRetryPolicy` only calls `newAttempt()`
    * once per batch call, not once per resubmission.
    */
-  private def newResponseLevelDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
+  private def newUnprocessedDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
     retryPolicy match {
       case Some(p) =>
         // See withRetry — newAttempt() deferred so a reused F[...] value gets a fresh Attempt per run.
@@ -524,11 +524,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
           runBatchGetItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchWriteItem     =>
-        flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
           runBatchWriteItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
@@ -571,10 +571,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     }
 
   // Drives both the effect-level retry (transient failures, via withOptionalRetryTracked) and
-  // the response-level retry (resubmitting unprocessedKeys/unprocessedItems) for batch queries,
+  // the batch unprocessed retry (resubmitting unprocessedKeys/unprocessedItems) for batch queries,
   // so `run` alone is sufficient — no separate entry point needed for batch vs. everything
-  // else. `getDelay` (resolved once per batch call, see `newResponseLevelDelayFn`) governs the
-  // response-level loop; the effect-level loop re-resolves its own retry policy fresh on each
+  // else. `getDelay` (resolved once per batch call, see `newUnprocessedDelayFn`) governs the
+  // batch unprocessed retry; the effect-level loop re-resolves its own retry policy fresh on each
   // resubmission via `q.retryPolicy` (unchanged by `q.copy`, so this is stable across a call).
   // `accumulatedResponses` carries item data recovered in earlier attempts forward — each
   // retry only re-requests the residual unprocessedKeys, so its response alone would
@@ -588,7 +588,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     val meta = DynamoDBRetryMetadata.BatchGetItem(q.requestItems.keySet)
     flatMap(withOptionalRetryTracked(q.retryPolicy, onRetryFor(meta))(runBatchGetItem(q))) {
       case Left((cause, effectRetries)) =>
-        pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
+        pure(Batch.GetResult.Failed(cause, unprocessedRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
         val merged = response.responses.foldLeft(accumulatedResponses) { case (acc, (tableName, items)) =>
           acc.updated(tableName, acc.getOrElse(tableName, Chunk.empty) ++ items)
@@ -602,7 +602,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
               val unprocessed: Map[String, Set[PrimaryKey]] =
                 response.unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
               val notify: F[Unit]                           =
-                batchRetryInterceptor.fold(pure(()))(_.onBatchGetRetry(unprocessed, attempt))
+                batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedKeysRetry(unprocessed, attempt))
               flatMap(notify) { _ =>
                 flatMap(sleep(d)) { _ =>
                   // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
@@ -627,7 +627,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     val meta = DynamoDBRetryMetadata.BatchWriteItem(q.requestItems.keySet)
     flatMap(withOptionalRetryTracked(q.retryPolicy, onRetryFor(meta))(runBatchWriteItem(q))) {
       case Left((cause, effectRetries)) =>
-        pure(Batch.WriteResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
+        pure(Batch.WriteResult.Failed(cause, unprocessedRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
         response.unprocessedItems match {
           case None            => pure(Batch.WriteResult.Complete(response))
@@ -636,8 +636,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
                 // Splits each table's order-preserving Chunk[Write] into separate puts/deletes
-                // views for the interceptor — Chunk, not Set, to match onBatchWriteRetry's
-                // no-implicit-dedup contract (BatchRetryInterceptor.scala).
+                // views for the interceptor — Chunk, not Set, to match onUnprocessedItemsRetry's
+                // no-implicit-dedup contract (BatchUnprocessedRetryInterceptor.scala).
                 val (puts, deletes) = remaining.foldLeft(
                   (Map.empty[String, Chunk[Item]], Map.empty[String, Chunk[PrimaryKey]])
                 ) { case ((putsAcc, deletesAcc), (tableName, writes)) =>
@@ -649,7 +649,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                   )
                 }
                 val notify: F[Unit] =
-                  batchRetryInterceptor.fold(pure(()))(_.onBatchWriteRetry(puts, deletes, attempt))
+                  batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedItemsRetry(puts, deletes, attempt))
                 flatMap(notify) { _ =>
                   flatMap(sleep(d)) { _ =>
                     // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/

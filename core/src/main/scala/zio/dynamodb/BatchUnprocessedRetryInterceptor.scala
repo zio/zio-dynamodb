@@ -19,23 +19,23 @@ package zio.dynamodb
 import zio.blocks.chunk.Chunk
 
 /**
- * Callback invoked just before `batchGetItem`/`batchWriteItem`'s response-level resubmission
- *  loop sleeps and resubmits unprocessed keys/items — a **successful** response reporting AWS
+ * Callback invoked just before the batch unprocessed retry sleeps and resubmits `batchGetItem` /
+ *  `batchWriteItem`'s unprocessed keys/items — a **successful** response reporting AWS
  *  partial-failure detail, not a thrown error, so [[RetryInterceptor]] never sees it. Likely the
  *  more common batch retry signal in practice: DynamoDB throttling on batch ops typically shows
  *  up as partial `unprocessedItems`, not an exception.
  *
- *  `onBatchWriteRetry`'s puts/deletes are `Chunk`, not `Set`, deliberately — order-preserving,
+ *  `onUnprocessedItemsRetry`'s puts/deletes are `Chunk`, not `Set`, deliberately — order-preserving,
  *  matching AWS's own `List<WriteRequest>` per table, so the interceptor doesn't reintroduce the
  *  silent-collapse behavior the underlying batch model was fixed to remove.
  */
-trait BatchRetryInterceptor[F[_]] {
+trait BatchUnprocessedRetryInterceptor[F[_]] {
 
-  /** Called once per response-level resubmission of `batchGetItem`, right before the delay. */
-  def onBatchGetRetry(unprocessedKeys: Map[String, Set[PrimaryKey]], attempt: Int): F[Unit]
+  /** Called once per unprocessed resubmission of `batchGetItem`, right before the delay. */
+  def onUnprocessedKeysRetry(unprocessedKeys: Map[String, Set[PrimaryKey]], attempt: Int): F[Unit]
 
-  /** Called once per response-level resubmission of `batchWriteItem`, right before the delay. */
-  def onBatchWriteRetry(
+  /** Called once per unprocessed resubmission of `batchWriteItem`, right before the delay. */
+  def onUnprocessedItemsRetry(
     unprocessedPuts: Map[String, Chunk[Item]],
     unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
     attempt: Int

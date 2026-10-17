@@ -60,7 +60,7 @@ Interpreter-level [retry policies](retries.md): leaving `defaultRetryPolicy` at 
 default (`defaultRetryPolicy = None`) and opting in with a `zio.Schedule`-backed one via
 `ZioRetryPolicies.fromSchedule` — run against both a plain `getItem` and a `batchGetItem` with
 no policy of its own, to show the same interpreter-level fallback governs batch's
-response-level retry loop too. See [Retries](retries.md#two-attachment-points).
+batch unprocessed retry too. See [Retries](retries.md#two-attachment-points).
 
 ## `ZIOStreamingUtils`
 

@@ -13,12 +13,12 @@ and can return **unprocessed** items — ones DynamoDB didn't get to (throttling
 capacity limits) — separately from ones it handled. `DynamoDBQuery.batchGetItem`/
 `batchWriteItem` go through two independent retry loops, each with its own attachment point:
 effect-level (`.withRetryPolicy`, throttling/network errors on a given attempt) and
-response-level (`.withResponseRetryPolicy`, re-submitting unprocessed keys/items from a
+batch unprocessed (`.withBatchUnprocessedRetryPolicy`, re-submitting unprocessed keys/items from a
 successful response). Setting only `.withRetryPolicy(...)` governs both loops as one combined
-policy, same as always; `.withResponseRetryPolicy(...)` is additive, letting the
-response-level loop use its own curve instead. See
+policy, same as always; `.withBatchUnprocessedRetryPolicy(...)` is additive, letting the
+batch unprocessed retry use its own curve instead. See
 [Retries: batch operations](../retries.md#batch-operations-two-independent-loops) for why that
-split exists — in short, the response-level loop, unlike the effect-level one, is safe to use
+split exists — in short, the batch unprocessed retry, unlike the effect-level one, is safe to use
 even with the SDK client's own retries left on.
 
 ## Building a batch
@@ -64,7 +64,7 @@ sealed trait GetResult
 object GetResult {
   final case class Complete(response: BatchGetItem.Response) extends GetResult
   final case class Incomplete(response: BatchGetItem.Response) extends GetResult
-  final case class Failed(cause: Throwable, responseRetries: Int, effectRetries: Int) extends GetResult
+  final case class Failed(cause: Throwable, unprocessedRetries: Int, effectRetries: Int) extends GetResult
 }
 ```
 
@@ -74,7 +74,7 @@ object GetResult {
   (throttling, internal capacity) faster than the policy retried. `response.unprocessedKeys`
   tells you what's still outstanding.
 - **`Failed`** — an effect-level failure (throttling exception, network error) survived every
-  effect-level retry. `responseRetries`/`effectRetries` tell you how far the batch got before
+  effect-level retry. `unprocessedRetries`/`effectRetries` tell you how far the batch got before
   giving up.
 
 ## batchWriteItem
@@ -87,7 +87,7 @@ sealed trait WriteResult
 object WriteResult {
   final case class Complete(response: BatchWriteItem.Response) extends WriteResult
   final case class Incomplete(response: BatchWriteItem.Response) extends WriteResult
-  final case class Failed(cause: Throwable, responseRetries: Int, effectRetries: Int) extends WriteResult
+  final case class Failed(cause: Throwable, unprocessedRetries: Int, effectRetries: Int) extends WriteResult
 }
 ```
 

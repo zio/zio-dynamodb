@@ -29,5 +29,5 @@ package zio.dynamodb
 final case class InterceptorConfig[F[_]](
   response: Option[ResponseInterceptor[F]] = None,
   retry: Option[RetryInterceptor[F]] = None,
-  batchRetry: Option[BatchRetryInterceptor[F]] = None
+  batchUnprocessedRetry: Option[BatchUnprocessedRetryInterceptor[F]] = None
 )

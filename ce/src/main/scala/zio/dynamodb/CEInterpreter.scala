@@ -33,7 +33,7 @@ class CEInterpreter[F[_]](
   client: AwsDynamoDB[F],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[F]] = None,
-  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[F]] = None,
+  override protected val batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[F]] = None,
   override protected val retryQuota: Option[RetryQuota[F]] = None
 )(implicit F: Async[F])
     extends RealAwsInterpreter[F](client) {
@@ -67,7 +67,7 @@ object CEInterpreter {
    * doesn't specify its own `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` when set,
    * except `UpdateItem`, which never retries without an explicit policy. `interceptors` bundles
    * the three independent, optional observability hooks (`ResponseInterceptor`/
-   * `RetryInterceptor`/`BatchRetryInterceptor`); set only what you want, named:
+   * `RetryInterceptor`/`BatchUnprocessedRetryInterceptor`); set only what you want, named:
    * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
    * circuit breaker gating retries independent of any one call's own backoff curve, on by
    * default (`CERetryQuota.standard()`) since — unlike a retry policy — it can only ever
@@ -135,7 +135,7 @@ object CEInterpreter {
       client,
       defaultRetryPolicy,
       resolvedInterceptors.retry,
-      resolvedInterceptors.batchRetry,
+      resolvedInterceptors.batchUnprocessedRetry,
       resolvedRetryQuota
     )
   }

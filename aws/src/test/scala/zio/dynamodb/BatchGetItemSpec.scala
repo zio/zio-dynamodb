@@ -124,7 +124,7 @@ object BatchGetItemSpec extends ZIOSpecDefault {
 
   // Unwraps the Batch.GetResult.Complete/Incomplete response — these tests exercise
   // RealAwsInterpreter.runBatchGetItem end-to-end (codec + response propagation), not the
-  // response-level retry loop, so both outcomes carry a response we can inspect.
+  // batch unprocessed retry, so both outcomes carry a response we can inspect.
   private def evalBatch(resp: BatchGetItemResponse): scala.util.Try[DynamoDBQuery.BatchGetItem.Response] = {
     val interp = new DummyIOInterpreter(stubClient(resp))
     val query  = DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.getItem("t", PrimaryKey("id" -> id)))

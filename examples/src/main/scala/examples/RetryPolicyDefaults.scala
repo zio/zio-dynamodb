@@ -52,7 +52,7 @@ object RetryPolicyDefaults extends ZIOAppDefault {
         // opts every query on this interpreter out of retrying, unless a query sets its own policy
         noRetryInterp = ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = None)
         _ <- noRetryInterp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
-        // batch: any unprocessed keys AWS returns stay unprocessed — no response-level retry loop runs
+        // batch: any unprocessed keys AWS returns stay unprocessed — no batch unprocessed retry runs
         _ <- noRetryInterp.run(batchQuery).flatMap(logBatchResult("no-retry"))
 
         // every query on this interpreter retries via the Schedule-backed policy by default

@@ -41,7 +41,7 @@ object RetryPolicy {
    * Per-execution retry state. `nextDelay` is consulted once per failed attempt of one retry
    * sequence — `None` means stop retrying and raise the error; `Some(d)` means wait `d` then
    * try again. Driven internally by `AwsInterpreter.withRetry` for effect-level failures, and
-   * by the batch-specific retry loop in `Batch` for response-level unprocessed items/keys.
+   * by the batch-specific retry loop in `Batch` for unprocessed items/keys.
    */
   trait Attempt {
     def nextDelay(attempt: Int): Option[FiniteDuration]

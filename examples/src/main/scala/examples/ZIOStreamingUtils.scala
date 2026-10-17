@@ -58,10 +58,10 @@ object ZIOStreamingUtils {
               s"batchGetItems[$tableName]: $unprocessedCount key(s) unprocessed after policy exhaustion"
             ) *> ZIO.succeed(response.responses.iterator.flatMap(_._2).toList)
 
-          case Batch.GetResult.Failed(cause, responseRetries, effectRetries) =>
+          case Batch.GetResult.Failed(cause, unprocessedRetries, effectRetries) =>
             ZIO.logError(
               s"batchGetItems[$tableName]: batch failed " +
-                s"(responseRetries=$responseRetries, effectRetries=$effectRetries): ${cause.getMessage}"
+                s"(unprocessedRetries=$unprocessedRetries, effectRetries=$effectRetries): ${cause.getMessage}"
             ) *> ZIO.succeed(Nil)
         }
       }

@@ -17,7 +17,7 @@ stacking a second, uncoordinated retry cycle on top of the SDK's own. Any query 
 Two independent toggles govern retry behavior: the AWS SDK client's own retry strategy (on by
 default) and zio-dynamodb's own retry (off by default, attached via `.withRetryPolicy`/
 `defaultRetryPolicy`). `batchGetItem`/`batchWriteItem` add a third, independent toggle — the
-response-level resubmission loop (`.withResponseRetryPolicy`) — since that loop has no
+batch unprocessed retry (`.withBatchUnprocessedRetryPolicy`) — since that loop has no
 SDK-level equivalent to conflict with in the first place.
 
 ### General operations
@@ -36,15 +36,15 @@ per-query/custom curve) at all.
 
 ### Batch operations (`batchGetItem`/`batchWriteItem`)
 
-Same two toggles, plus the response-level one. Only the response-level loop is exempt from
+Same two toggles, plus the batch unprocessed one. Only the batch unprocessed retry is exempt from
 the SDK conflict — effect-level batch retry has exactly the same double-stacking problem as
 the general case above, batch isn't special there:
 
-| SDK retries | Effect-level (`.withRetryPolicy`) | Response-level (`.withResponseRetryPolicy`) | Outcome | Recommendation |
+| SDK retries | Effect-level (`.withRetryPolicy`) | Batch unprocessed (`.withBatchUnprocessedRetryPolicy`) | Outcome | Recommendation |
 |---|---|---|---|---|
 | On | Off | On | SDK handles whole-call failures invisibly, same as doing nothing; zio-dynamodb only resubmits unprocessed keys/items — no overlap with the SDK at all | **Recommended** when the SDK's own transient-failure handling is enough and you only want unprocessed-item handling added on top; see below |
 | Off | On | On (same policy, inherited via `.withRetryPolicy` alone) | one coordinated policy for both loops, `retryQuota` as the circuit breaker | **Recommended** for full control |
-| On | On | On | effect-level stacks with the SDK's own retries (same problem as the general case); response-level is still fine | Avoid the effect-level half — set `.withResponseRetryPolicy` directly instead of relying on `.withRetryPolicy`'s fallback |
+| On | On | On | effect-level stacks with the SDK's own retries (same problem as the general case); batch unprocessed is still fine | Avoid the effect-level half — set `.withBatchUnprocessedRetryPolicy` directly instead of relying on `.withRetryPolicy`'s fallback |
 | On | Off | Off | zero config; a partial failure surfaces as `Incomplete` for you to handle yourself | Acceptable default |
 | Off | Off | Off | no retries anywhere, including unprocessed items | Only if you handle `Incomplete` entirely yourself |
 
@@ -113,7 +113,7 @@ stops retrying once recent traffic looks bad, regardless of what any individual 
   backoff curve itself running out, not a distinct error.
 - Scoped to the whole interpreter, not any one query — like AWS's own quota, there's no
   per-query override.
-- Doesn't gate batch's response-level resubmission loop (resubmitting unprocessed keys/items):
+- Doesn't gate the batch unprocessed retry (resubmitting unprocessed keys/items):
   that's a fresh logical request built from a successful response, not a retry of a failed
   one, so AWS's own token bucket doesn't apply there either.
 
@@ -239,19 +239,19 @@ level.
 ## Batch operations: two independent loops
 
 `batchGetItem`/`batchWriteItem` retry twice over per call: effect-level (a single
-`BatchGetItem`/`BatchWriteItem` call failing with a retryable error) and response-level (AWS
+`BatchGetItem`/`BatchWriteItem` call failing with a retryable error) and batch unprocessed (AWS
 returning unprocessed keys/items). Each loop has its own attachment point:
 
 | Loop | Set via | Falls back to |
 |---|---|---|
 | Effect-level | `.withRetryPolicy(policy)` | `defaultRetryPolicy`, then none |
-| Response-level | `.withResponseRetryPolicy(policy)` | `.withRetryPolicy(policy)`, then `defaultRetryPolicy`, then none |
+| Batch unprocessed | `.withBatchUnprocessedRetryPolicy(policy)` | `.withRetryPolicy(policy)`, then `defaultRetryPolicy`, then none |
 
 Setting only `.withRetryPolicy(...)` (the common case) governs both loops identically, exactly
-as before `.withResponseRetryPolicy` existed. `.withResponseRetryPolicy(...)` is additive: set
-it to give the response-level loop its own curve, independent of — and taking precedence over
+as before `.withBatchUnprocessedRetryPolicy` existed. `.withBatchUnprocessedRetryPolicy(...)` is additive: set
+it to give the batch unprocessed retry its own curve, independent of — and taking precedence over
 — whatever `.withRetryPolicy` resolves to for that call. Effect-level retry never consults
-`responseRetryPolicy`.
+`unprocessedRetryPolicy`.
 
 ### Why split them: only one loop is safe to double up with the SDK's own retries
 
@@ -262,12 +262,12 @@ specific to the *effect-level* loop — a whole `BatchGetItem`/`BatchWriteItem` 
 retryable exception is exactly the case the SDK's own retry strategy already handles, so
 stacking zio-dynamodb's effect-level retry on top re-retries what the SDK already retried.
 
-The *response-level* loop never has that problem: it resubmits `unprocessedKeys`/
+The *batch unprocessed* loop never has that problem: it resubmits `unprocessedKeys`/
 `unprocessedItems` from a **successful** response — a case the SDK's retry strategy was never
 involved in and never will be. Neither the low-level `DynamoDbAsyncClient` nor the DynamoDB
 Enhanced Client (which zio-dynamodb doesn't use) auto-resubmits unprocessed items regardless
 of retry configuration — both require the caller to do it, per AWS's own documentation for
-each client layer. So it's safe to set `.withResponseRetryPolicy(...)` on a batch query while
+each client layer. So it's safe to set `.withBatchUnprocessedRetryPolicy(...)` on a batch query while
 leaving the SDK client's own retries on for everything else, including that same batch call's
 effect-level failures:
 
@@ -279,12 +279,12 @@ import scala.concurrent.duration.DurationInt
 def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
     .batchGetItem(List("alice", "bob"))(id => DynamoDBQuery.GetItem("customers", PrimaryKey("customerId" -> id)))
-    .withResponseRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 5, initialDelay = 50.millis))
+    .withBatchUnprocessedRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 5, initialDelay = 50.millis))
 ```
 
 No `.withRetryPolicy(...)` here — the SDK client's own retry strategy (left at its default)
 handles effect-level failures for this call, same as every other operation; only the
-response-level resubmission of unprocessed keys is zio-dynamodb's to do, since the SDK has no
+unprocessed resubmission of unprocessed keys is zio-dynamodb's to do, since the SDK has no
 equivalent for it either way. See [Batch Operations](crud/batch.md#retry-behavior).
 
 ## Worked examples
@@ -294,7 +294,7 @@ equivalent for it either way. See [Batch Operations](crud/batch.md#retry-behavio
 - `examples/src/main/scala/examples/RetryPolicyDefaults.scala` — interpreter-level: leaving
   `defaultRetryPolicy` at its off default, and opting in with a `zio.Schedule`-backed one
   instead; includes a `batchGetItem` with no policy of its own, run against both interpreters
-  to show the same fallback governs batch's response-level loop too.
+  to show the same fallback governs batch's batch unprocessed retry too.
 
 ## Which exceptions actually retry, and what the quota looks like at real volume
 
