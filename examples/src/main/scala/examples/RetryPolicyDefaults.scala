@@ -22,7 +22,9 @@ import zio.dynamodb._
 
 /**
  * Interpreter-level retry defaults — see the "Retries" reference doc. `defaultRetryPolicy`
- * governs every query on an interpreter that doesn't set its own `.withRetryPolicy(...)`.
+ * retries failed requests for every query that doesn't set its own `.withRetryPolicy(...)`;
+ * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items for every
+ * batch that doesn't set its own `.withBatchUnprocessedRetryPolicy(...)`.
  */
 object RetryPolicyDefaults extends ZIOAppDefault {
 
@@ -31,7 +33,7 @@ object RetryPolicyDefaults extends ZIOAppDefault {
   val scheduleBacked: EffectfulRetryPolicy[Task] =
     ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(5))
 
-  // No .withRetryPolicy of its own — governed entirely by whichever interpreter runs it.
+  // No policies of its own — governed entirely by whichever interpreter runs it.
   val batchQuery: DynamoDBQuery[Any, Batch.GetResult] =
     DynamoDBQuery.batchGetItem(List("ord-1", "ord-2"))(id =>
       DynamoDBQuery.GetItem("orders", PrimaryKey("orderId" -> id))
@@ -49,16 +51,18 @@ object RetryPolicyDefaults extends ZIOAppDefault {
         client <-
           ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
 
-        // opts every query on this interpreter out of retrying, unless a query sets its own policy
-        noRetryInterp = ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = None)
+        // opts every query on this interpreter out of both loops, unless a query sets its own policy
+        noRetryInterp =
+          ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = None, defaultBatchUnprocessedRetryPolicy = None)
         _ <- noRetryInterp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
-        // batch: any unprocessed keys AWS returns stay unprocessed — no response-level retry loop runs
+        // batch: any unprocessed keys AWS returns stay unprocessed (Incomplete)
         _ <- noRetryInterp.run(batchQuery).flatMap(logBatchResult("no-retry"))
 
         // every query on this interpreter retries via the Schedule-backed policy by default
         scheduleInterp = ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = Some(scheduleBacked))
         _ <- scheduleInterp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-2")))
-        // batch: unprocessed keys are resubmitted through the Schedule-backed policy automatically
+        // batch: failed requests retry via the Schedule-backed policy; unprocessed keys are
+        // resubmitted by the separate defaultBatchUnprocessedRetryPolicy (on by default)
         _ <- scheduleInterp.run(batchQuery).flatMap(logBatchResult("schedule-backed"))
       } yield ()
     }

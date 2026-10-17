@@ -30,24 +30,32 @@ object ZIOStreamingUtils {
    *  Keys are grouped into batches of up to 100 and run via `interp.run`, which honors the
    *  AWS batch retry contract internally (see [[Batch]]). The stream never fails: incomplete
    *  and failed batches are logged (ZIO logger) and skipped, and pagination continues with
-   *  the next batch.
+   *  the next batch. Unprocessed keys are resubmitted per the interpreter's
+   *  `defaultBatchUnprocessedRetryPolicy`; the overload taking a [[RetryPolicy]] overrides it.
    *
    *  @param interp     the effect interpreter to run each batch through
    *  @param tableName  DynamoDB table to query
-   *  @param policy     retry policy attached to the batch query; defaults to [[RetryPolicy.NoRetry]]
    *  @param keys       source stream of primary keys to fetch
    */
-  def batchGetItems(
+  def batchGetItems(interp: AwsInterpreter[Task], tableName: String)(
+    keys: ZStream[Any, Nothing, PrimaryKey]
+  ): ZStream[Any, Nothing, Item] =
+    batchGetItemsWith(interp, tableName, identity)(keys)
+
+  def batchGetItems(interp: AwsInterpreter[Task], tableName: String, unprocessedRetryPolicy: RetryPolicy)(
+    keys: ZStream[Any, Nothing, PrimaryKey]
+  ): ZStream[Any, Nothing, Item] =
+    batchGetItemsWith(interp, tableName, _.withBatchUnprocessedRetryPolicy(unprocessedRetryPolicy))(keys)
+
+  private def batchGetItemsWith(
     interp: AwsInterpreter[Task],
     tableName: String,
-    policy: RetryPolicy = RetryPolicy.NoRetry
+    configure: DynamoDBQuery[Any, Batch.GetResult] => DynamoDBQuery[Any, Batch.GetResult]
   )(keys: ZStream[Any, Nothing, PrimaryKey]): ZStream[Any, Nothing, Item] =
     keys
       .grouped(BatchSize)
       .mapZIO { chunk =>
-        val query = DynamoDBQuery
-          .batchGetItem(chunk)(pk => DynamoDBQuery.GetItem(tableName, pk))
-          .withRetryPolicy(policy)
+        val query = configure(DynamoDBQuery.batchGetItem(chunk)(pk => DynamoDBQuery.GetItem(tableName, pk)))
         interp.run(query).flatMap {
           case Batch.GetResult.Complete(response) =>
             ZIO.succeed(response.responses.iterator.flatMap(_._2).toList)
@@ -58,10 +66,10 @@ object ZIOStreamingUtils {
               s"batchGetItems[$tableName]: $unprocessedCount key(s) unprocessed after policy exhaustion"
             ) *> ZIO.succeed(response.responses.iterator.flatMap(_._2).toList)
 
-          case Batch.GetResult.Failed(cause, responseRetries, effectRetries) =>
+          case Batch.GetResult.Failed(cause, unprocessedRetries, effectRetries) =>
             ZIO.logError(
               s"batchGetItems[$tableName]: batch failed " +
-                s"(responseRetries=$responseRetries, effectRetries=$effectRetries): ${cause.getMessage}"
+                s"(unprocessedRetries=$unprocessedRetries, effectRetries=$effectRetries): ${cause.getMessage}"
             ) *> ZIO.succeed(Nil)
         }
       }

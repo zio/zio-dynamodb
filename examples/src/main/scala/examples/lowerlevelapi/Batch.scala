@@ -16,7 +16,9 @@
 
 package examples.lowerlevelapi
 
-import zio.dynamodb.{ Batch => DynamoDBBatch, DynamoDBQuery, Item, PrimaryKey }
+import zio.dynamodb.{ Batch => DynamoDBBatch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
+
+import scala.concurrent.duration.DurationInt
 
 /**
  * `batchGetItem`/`batchWriteItem` build one batch request from a `Iterable[A]` plus a function
@@ -29,10 +31,14 @@ object Batch {
 
   private val orderIds: List[String] = List("o1", "o2")
 
+  // Every batch below resubmits its unprocessed keys / items by default (RetryPolicy.fullJitter()).
+  // .withBatchUnprocessedRetryPolicy overrides that per call; RetryPolicy.NoRetry returns Incomplete instead.
   val batchGet: DynamoDBQuery[Any, DynamoDBBatch.GetResult] =
-    DynamoDBQuery.batchGetItem(orderIds) { id =>
-      DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
-    }
+    DynamoDBQuery
+      .batchGetItem(orderIds) { id =>
+        DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
+      }
+      .withBatchUnprocessedRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 3, initialDelay = 50.millis))
 
   val batchWrite: DynamoDBQuery[Any, DynamoDBBatch.WriteResult] =
     DynamoDBQuery.batchWriteItem(orderIds) { id =>

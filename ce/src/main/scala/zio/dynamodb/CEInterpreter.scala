@@ -33,8 +33,9 @@ class CEInterpreter[F[_]](
   client: AwsDynamoDB[F],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[F]] = None,
-  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[F]] = None,
-  override protected val retryQuota: Option[RetryQuota[F]] = None
+  override protected val batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[F]] = None,
+  override protected val retryQuota: Option[RetryQuota[F]] = None,
+  override protected val defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
 )(implicit F: Async[F])
     extends RealAwsInterpreter[F](client) {
   private[dynamodb] def pure[A](a: A): F[A]                         = F.pure(a)
@@ -67,19 +68,30 @@ object CEInterpreter {
    * doesn't specify its own `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` when set,
    * except `UpdateItem`, which never retries without an explicit policy. `interceptors` bundles
    * the three independent, optional observability hooks (`ResponseInterceptor`/
-   * `RetryInterceptor`/`BatchRetryInterceptor`); set only what you want, named:
+   * `RetryInterceptor`/`BatchUnprocessedRetryInterceptor`); set only what you want, named:
    * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
    * circuit breaker gating retries independent of any one call's own backoff curve, on by
    * default (`CERetryQuota.standard()`) since — unlike a retry policy — it can only ever
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
+   * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
+   * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
+   * (`RetryPolicy.fullJitter()`), pass `None` to return `Incomplete` instead. It is independent of
+   * `defaultRetryPolicy`, which never drives that resubmission.
    */
   def fromAsyncClient[F[_]: Async](
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[F] = null,
     defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None,
-    retryQuota: Option[RetryQuota[F]] = null
+    retryQuota: Option[RetryQuota[F]] = null,
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.fullJitter())
   ): CEInterpreter[F] =
-    fromAsyncClientInternal(sdkClient, Option(interceptors), defaultRetryPolicy, Option(retryQuota))
+    fromAsyncClientInternal(
+      sdkClient,
+      Option(interceptors),
+      defaultRetryPolicy,
+      Option(retryQuota),
+      defaultBatchUnprocessedRetryPolicy
+    )
 
   // `interceptors`/`retryQuota`'s defaults can't be literal default-argument expressions above:
   // default-argument expressions are compiled as separate synthetic methods that neither
@@ -93,7 +105,8 @@ object CEInterpreter {
     sdkClient: DynamoDbAsyncClient,
     interceptors: Option[InterceptorConfig[F]],
     defaultRetryPolicy: Option[EffectfulRetryPolicy[F]],
-    retryQuota: Option[Option[RetryQuota[F]]]
+    retryQuota: Option[Option[RetryQuota[F]]],
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy]
   )(implicit F: Async[F]): CEInterpreter[F] = {
     val resolvedInterceptors: InterceptorConfig[F] = interceptors.getOrElse(InterceptorConfig())
     val resolvedRetryQuota: Option[RetryQuota[F]]  = retryQuota.getOrElse(Some(CERetryQuota.standard[F]()))
@@ -135,8 +148,9 @@ object CEInterpreter {
       client,
       defaultRetryPolicy,
       resolvedInterceptors.retry,
-      resolvedInterceptors.batchRetry,
-      resolvedRetryQuota
+      resolvedInterceptors.batchUnprocessedRetry,
+      resolvedRetryQuota,
+      defaultBatchUnprocessedRetryPolicy
     )
   }
 }

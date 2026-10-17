@@ -59,13 +59,15 @@ all via `.withRetryPolicy(...)`, regardless of the interpreter's configured defa
 Interpreter-level [retry policies](retries.md): leaving `defaultRetryPolicy` at its off
 default (`defaultRetryPolicy = None`) and opting in with a `zio.Schedule`-backed one via
 `ZioRetryPolicies.fromSchedule` — run against both a plain `getItem` and a `batchGetItem` with
-no policy of its own, to show the same interpreter-level fallback governs batch's
-response-level retry loop too. See [Retries](retries.md#two-attachment-points).
+no policy of its own. The batch's unprocessed keys are governed separately, by
+`defaultBatchUnprocessedRetryPolicy` (on by default; the no-retry interpreter sets it to `None`).
+See [Retries](retries.md#two-attachment-points).
 
 ## `ZIOStreamingUtils`
 
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to
-100, running each through `interp.run` with a `RetryPolicy`, and turning
+100, running each through `interp.run` (unprocessed keys resubmitted per the interpreter's default,
+or an explicit `RetryPolicy` via an overload), and turning
 `Incomplete`/`Failed` batch outcomes into log output instead of a fatal stream error. See
 [Batch Operations](crud/batch.md) for the Low-Level batch API this builds on. Backed by a
 real `ZIOSpecDefault` test

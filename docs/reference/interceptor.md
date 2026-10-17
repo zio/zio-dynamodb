@@ -22,7 +22,7 @@ produce no metadata and never invoke the interceptor.
 ## Attaching an interceptor
 
 Pass it to `fromAsyncClient` wrapped in an `InterceptorConfig` — a bundle of the three
-independent, optional interceptors (`response`/`retry`/`batchRetry`, see
+independent, optional interceptors (`response`/`retry`/`batchUnprocessedRetry`, see
 [Retries](retries.md) for the latter two). Set only the field you want, named:
 
 ```scala mdoc:compile-only
@@ -51,10 +51,10 @@ no overhead, no metadata collection.
 
 Under the hood, attaching a `response` interceptor also switches on `ReturnConsumedCapacity.TOTAL`
 (and `ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't
-need to set those yourself for the metadata to be populated. Attaching only `retry`/`batchRetry`
+need to set those yourself for the metadata to be populated. Attaching only `retry`/`batchUnprocessedRetry`
 (no `response`) doesn't enable this — those two fire from `core`'s retry loop, never through
 `InterceptingAwsDynamoDB`, so there's no response-shaped metadata involved to enrich the request
-for. See [Retries](retries.md) for what `retry`/`batchRetry` actually observe.
+for. See [Retries](retries.md) for what `retry`/`batchUnprocessedRetry` actually observe.
 
 ## What's in `DynamoDBResponseMetadata`
 

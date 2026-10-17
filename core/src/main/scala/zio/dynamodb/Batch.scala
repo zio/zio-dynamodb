@@ -21,18 +21,17 @@ package zio.dynamodb
  *
  *  Batch queries run through the same [[AwsInterpreter.run]] entry point as every other
  *  [[DynamoDBQuery]] — build one with [[DynamoDBQuery.batchWriteItem]] or
- *  [[DynamoDBQuery.batchGetItem]], attach a [[RetryPolicy]] with `.withRetryPolicy(policy)`
- *  if desired, and call `interpreter.run(query)`. The interpreter honors the AWS batch retry
- *  contract internally — resubmitting unprocessed keys/items — so the caller never has to
- *  implement that loop themselves.
+ *  [[DynamoDBQuery.batchGetItem]] and call `interpreter.run(query)`. The interpreter honors the
+ *  AWS batch retry contract internally — resubmitting unprocessed keys/items — so the caller
+ *  never has to implement that loop themselves.
  *
- *  `policy` (read from the query's own `retryPolicy` field) governs two independent retry
- *  loops, both driven inside the interpreter's internal request-dispatch loop:
- *  - Effect-level: transient failures (throttling, network) are retried on each individual
- *    attempt.
- *  - Response-level: unprocessed items are re-submitted until either all items are
- *    processed or the policy is exhausted. If no policy is attached, the batch runs once
- *    with no retries ([[RetryPolicy.NoRetry]]).
+ *  Two independent retry loops, each with its own policy:
+ *  - Effect-level: a failed request (throttling, network) is retried per `.withRetryPolicy`,
+ *    else the interpreter's `defaultRetryPolicy` (off by default).
+ *  - Batch unprocessed retry: unprocessed keys/items are re-submitted until all are processed
+ *    or the policy is exhausted, per `.withBatchUnprocessedRetryPolicy`, else the
+ *    interpreter's `defaultBatchUnprocessedRetryPolicy` (on by default, with
+ *    [[RetryPolicy.fullJitter]]). With neither, the batch runs once.
  *
  *  Non-fatal effect errors (e.g. throttling, SDK validation failures) are captured in
  *  [[Batch.WriteResult.Failed]] / [[Batch.GetResult.Failed]] rather than raising a failed
@@ -49,19 +48,19 @@ object Batch {
     final case class Complete(response: DynamoDBQuery.BatchWriteItem.Response) extends WriteResult
 
     /**
-     * Policy exhausted with items still unprocessed (response-level). The AWS calls
+     * Policy exhausted with items still unprocessed. The AWS calls
      *  succeeded; DynamoDB kept returning leftovers until retries ran out.
      */
     final case class Incomplete(response: DynamoDBQuery.BatchWriteItem.Response) extends WriteResult
 
     /**
      * Effect-level failure (throttling, network) after all retries exhausted.
-     *  `responseRetries` is the number of response-level resubmissions before the failure
+     *  `unprocessedRetries` is the number of unprocessed resubmissions before the failure
      *  (0 = failed on the first submission).
      *  `effectRetries` is the number of effect-level retries within that submission
      *  (0 = failed on the first attempt with no retries).
      */
-    final case class Failed(cause: Throwable, responseRetries: Int, effectRetries: Int) extends WriteResult
+    final case class Failed(cause: Throwable, unprocessedRetries: Int, effectRetries: Int) extends WriteResult
   }
 
   sealed trait GetResult
@@ -70,16 +69,16 @@ object Batch {
     /** All keys retrieved — response has no unprocessed keys. */
     final case class Complete(response: DynamoDBQuery.BatchGetItem.Response) extends GetResult
 
-    /** Policy exhausted with keys still unprocessed (response-level). */
+    /** Policy exhausted with keys still unprocessed. */
     final case class Incomplete(response: DynamoDBQuery.BatchGetItem.Response) extends GetResult
 
     /**
      * Effect-level failure after all retries exhausted.
-     *  `responseRetries` is the number of response-level resubmissions before the failure
+     *  `unprocessedRetries` is the number of unprocessed resubmissions before the failure
      *  (0 = failed on the first submission).
      *  `effectRetries` is the number of effect-level retries within that submission
      *  (0 = failed on the first attempt with no retries).
      */
-    final case class Failed(cause: Throwable, responseRetries: Int, effectRetries: Int) extends GetResult
+    final case class Failed(cause: Throwable, unprocessedRetries: Int, effectRetries: Int) extends GetResult
   }
 }

@@ -219,24 +219,26 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   /**
-   * Sets the retry policy governing only `BatchGetItem`/`BatchWriteItem`'s response-level
-   * (unprocessed-items) resubmission loop, independent of `.withRetryPolicy`'s effect-level
-   * retry. No-op on every other operation, since only batch operations have a response-level
-   * loop to opt into. See `docs/reference/retries.md`.
+   * Sets the retry policy governing only the resubmission of `BatchGetItem` / `BatchWriteItem`'s
+   * unprocessed keys / items, independent of `.withRetryPolicy`'s effect-level retry. Overrides
+   * the interpreter's `defaultBatchUnprocessedRetryPolicy`; `RetryPolicy.NoRetry` turns the
+   * resubmission off for this call. No-op on every other operation, since only batch operations
+   * have unprocessed keys / items. See `docs/reference/retries.md`.
    */
-  final def withResponseRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
+  final def withBatchUnprocessedRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)    =>
-        ZipPar(left.withResponseRetryPolicy(policy), right.withResponseRetryPolicy(policy), zippable)
-      case b: BuilderNode[_, _]             => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].withResponseRetryPolicy(policy)
+        ZipPar(left.withBatchUnprocessedRetryPolicy(policy), right.withBatchUnprocessedRetryPolicy(policy), zippable)
+      case b: BuilderNode[_, _]             =>
+        b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].withBatchUnprocessedRetryPolicy(policy)
       case DynamoDBQuery.Map(query, mapper) =>
-        DynamoDBQuery.Map(query.withResponseRetryPolicy(policy), mapper)
+        DynamoDBQuery.Map(query.withBatchUnprocessedRetryPolicy(policy), mapper)
       case DynamoDBQuery.Absolve(query)     =>
-        DynamoDBQuery.Absolve(query.withResponseRetryPolicy(policy))
+        DynamoDBQuery.Absolve(query.withBatchUnprocessedRetryPolicy(policy))
       case bw: DynamoDBQuery.BatchWriteItem =>
-        bw.copy(responseRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+        bw.copy(unprocessedRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case bg: DynamoDBQuery.BatchGetItem   =>
-        bg.copy(responseRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+        bg.copy(unprocessedRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                => self
     }
 
@@ -718,9 +720,9 @@ object DynamoDBQuery {
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
     retryPolicy: Option[RetryPolicy] = None,
-    // Governs only the response-level (unprocessed-keys) resubmission loop — independent of
-    // `retryPolicy`, which governs the effect-level loop. See `.withResponseRetryPolicy`.
-    responseRetryPolicy: Option[RetryPolicy] = None
+    // Governs only the batch unprocessed retry — independent of
+    // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
+    unprocessedRetryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Batch.GetResult] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -741,7 +743,7 @@ object DynamoDBQuery {
         self.capacity,
         self.orderedGetItems :+ getItem,
         self.retryPolicy.orElse(getItem.retryPolicy), // inherit retry policy from GetItem if not set
-        self.responseRetryPolicy
+        self.unprocessedRetryPolicy
       )
     }
 
@@ -787,9 +789,9 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Option[RetryPolicy] = None,
-    // Governs only the response-level (unprocessed-items) resubmission loop — independent of
-    // `retryPolicy`, which governs the effect-level loop. See `.withResponseRetryPolicy`.
-    responseRetryPolicy: Option[RetryPolicy] = None
+    // Governs only the batch unprocessed retry — independent of
+    // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
+    unprocessedRetryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Batch.WriteResult] { self =>
     // Only a plain put / delete builder is accepted (no condition, no ReturnValues - a batch supports
     // neither), and those always hold a PutItem / DeleteItem node, so the cast to Write is safe.
@@ -810,7 +812,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ write,
             self.retryPolicy.orElse(putItem.retryPolicy), // inherit retry policy from PutItem if not set
-            self.responseRetryPolicy
+            self.unprocessedRetryPolicy
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _, _) =>
           val write = Delete(deleteItem.key)
@@ -821,7 +823,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ write,
             self.retryPolicy.orElse(deleteItem.retryPolicy), // inherit retry policy from DeleteItem if not set
-            self.responseRetryPolicy
+            self.unprocessedRetryPolicy
           )
       }
 

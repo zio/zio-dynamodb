@@ -169,7 +169,7 @@ Some specific pain points from 2.x drove the redesign:
 - A high-level, schema-derived API (`DdbExprApi`) for CRUD, query, and scan, with type-safe
   condition and key-condition expressions.
 - Interpreters for ZIO, Cats Effect, and `Future`.
-- Retry policies with response-level batch retry built into query execution.
+- Retry policies with batch unprocessed retry built into query execution.
 
 Batch and transaction operations are Low-Level only, on purpose — see
 [Batch Operations](docs/reference/crud/batch.md) and

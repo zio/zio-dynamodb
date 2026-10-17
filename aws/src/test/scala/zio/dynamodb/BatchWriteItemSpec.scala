@@ -124,7 +124,7 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
 
   // Unwraps the Batch.WriteResult.Complete/Incomplete response — these tests exercise
   // RealAwsInterpreter.runBatchWriteItem end-to-end (codec + response propagation), not the
-  // response-level retry loop, so both outcomes carry a response we can inspect.
+  // batch unprocessed retry, so both outcomes carry a response we can inspect.
   private def evalBatch(resp: BatchWriteItemResponse): scala.util.Try[DynamoDBQuery.BatchWriteItem.Response] = {
     val interp = new DummyIOInterpreter(stubClient(resp))
     val query  = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
