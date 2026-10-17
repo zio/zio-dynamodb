@@ -87,6 +87,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None
 
   /**
+   * The policy for resubmitting a batch's unprocessed keys / items when the batch call doesn't set
+   *  `.withBatchUnprocessedRetryPolicy(...)`. Independent of `defaultRetryPolicy` / `.withRetryPolicy`,
+   *  which only govern retries of failed requests. This trait's own default is `None`; the concrete
+   *  interpreters default it to [[RetryPolicy.fullJitter]] via a `fromAsyncClient` factory parameter.
+   */
+  protected def defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
+
+  /**
    * Fires just before an effect-level retry sleeps and retries — see [[RetryInterceptor]]. This
    *  trait's own default is `None`; concrete interpreters override it the same way as
    *  `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter.
@@ -309,26 +317,21 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     }
 
   /**
-   * The delay-decision function for batch's batch unprocessed (unprocessed-items) resubmission
-   * loop — resolved once per batch call from `unprocessedRetryPolicy` if the caller set one
-   * (via `.withBatchUnprocessedRetryPolicy`), else the same fallback chain as
-   * [[withOptionalRetryTracked]] (`retryPolicy` then `defaultRetryPolicy`), then threaded
-   * through the loop's recursion so a stateful `defaultRetryPolicy` only calls `newAttempt()`
-   * once per batch call, not once per resubmission.
+   * The delay-decision function for the batch unprocessed retry - resolved once per batch call from
+   * `unprocessedRetryPolicy` (`.withBatchUnprocessedRetryPolicy`), else
+   * `defaultBatchUnprocessedRetryPolicy`; never from `.withRetryPolicy` / `defaultRetryPolicy`, which
+   * govern only retries of failed requests. Threaded through the loop's recursion so a stateful
+   * policy only calls `newAttempt()` once per batch call, not once per resubmission.
    */
-  private def newUnprocessedDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
-    retryPolicy match {
+  private def newUnprocessedDelayFn(policy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
+    policy.orElse(defaultBatchUnprocessedRetryPolicy) match {
       case Some(p) =>
         // See withRetry — newAttempt() deferred so a reused F[...] value gets a fresh Attempt per run.
         flatMap(pure(())) { _ =>
           val attemptState = p.newAttempt()
           pure((n: Int) => pure(attemptState.nextDelay(n)))
         }
-      case None    =>
-        defaultRetryPolicy match {
-          case Some(p) => map(p.newAttempt())(attemptState => (n: Int) => attemptState.nextDelay(n))
-          case None    => pure((_: Int) => pure(None))
-        }
+      case None    => pure((_: Int) => pure(None))
     }
 
   // Per-operation methods — each concrete interpreter or stub implements these.
@@ -524,11 +527,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
           runBatchGetItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchWriteItem     =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
           runBatchWriteItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>

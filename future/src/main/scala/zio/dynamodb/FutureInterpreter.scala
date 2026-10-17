@@ -40,7 +40,8 @@ class FutureInterpreter(
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[Future]] = None,
   override protected val batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[Future]] = None,
-  override protected val retryQuota: Option[RetryQuota[Future]] = None
+  override protected val retryQuota: Option[RetryQuota[Future]] = None,
+  override protected val defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
 )(implicit ec: ExecutionContext)
     extends RealAwsInterpreter[Future](client) {
 
@@ -97,14 +98,19 @@ object FutureInterpreter {
    * circuit breaker gating retries independent of any one call's own backoff curve, on by
    * default (`FutureRetryQuota.standard()`) since — unlike a retry policy — it can only ever
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
+   * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
+   * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
+   * (`RetryPolicy.fullJitter()`), pass `None` to return `Incomplete` instead. It is independent of
+   * `defaultRetryPolicy`, which never drives that resubmission.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Future] = InterceptorConfig(),
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
-    retryQuota: Option[RetryQuota[Future]] = Some(FutureRetryQuota.standard())
+    retryQuota: Option[RetryQuota[Future]] = Some(FutureRetryQuota.standard()),
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.fullJitter())
   )(implicit ec: ExecutionContext): FutureInterpreter =
-    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota, defaultBatchUnprocessedRetryPolicy)
 
   // The SDK's futures usually fail with a CompletionException around the real exception. Unwrap it
   // so callers - and the library's own error translation and retry classification - see the SDK
@@ -127,7 +133,8 @@ object FutureInterpreter {
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Future],
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]],
-    retryQuota: Option[RetryQuota[Future]]
+    retryQuota: Option[RetryQuota[Future]],
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy]
   )(implicit ec: ExecutionContext): FutureInterpreter = {
     val base: AwsDynamoDB[Future]   = new AwsDynamoDB[Future] {
       def getItem(req: GetItemRequest): Future[GetItemResponse]                                  = toScala(sdkClient.getItem(req))
@@ -160,7 +167,8 @@ object FutureInterpreter {
       defaultRetryPolicy,
       interceptors.retry,
       interceptors.batchUnprocessedRetry,
-      retryQuota
+      retryQuota,
+      defaultBatchUnprocessedRetryPolicy
     )
   }
 }

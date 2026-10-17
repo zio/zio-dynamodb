@@ -220,9 +220,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   /**
    * Sets the retry policy governing only the resubmission of `BatchGetItem` / `BatchWriteItem`'s
-   * unprocessed keys / items, independent of `.withRetryPolicy`'s effect-level retry. No-op on
-   * every other operation, since only batch operations have unprocessed keys / items. See
-   * `docs/reference/retries.md`.
+   * unprocessed keys / items, independent of `.withRetryPolicy`'s effect-level retry. Overrides
+   * the interpreter's `defaultBatchUnprocessedRetryPolicy`; `RetryPolicy.NoRetry` turns the
+   * resubmission off for this call. No-op on every other operation, since only batch operations
+   * have unprocessed keys / items. See `docs/reference/retries.md`.
    */
   final def withBatchUnprocessedRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {

@@ -21,18 +21,17 @@ package zio.dynamodb
  *
  *  Batch queries run through the same [[AwsInterpreter.run]] entry point as every other
  *  [[DynamoDBQuery]] — build one with [[DynamoDBQuery.batchWriteItem]] or
- *  [[DynamoDBQuery.batchGetItem]], attach a [[RetryPolicy]] with `.withRetryPolicy(policy)`
- *  if desired, and call `interpreter.run(query)`. The interpreter honors the AWS batch retry
- *  contract internally — resubmitting unprocessed keys/items — so the caller never has to
- *  implement that loop themselves.
+ *  [[DynamoDBQuery.batchGetItem]] and call `interpreter.run(query)`. The interpreter honors the
+ *  AWS batch retry contract internally — resubmitting unprocessed keys/items — so the caller
+ *  never has to implement that loop themselves.
  *
- *  `policy` (read from the query's own `retryPolicy` field) governs two independent retry
- *  loops, both driven inside the interpreter's internal request-dispatch loop:
- *  - Effect-level: transient failures (throttling, network) are retried on each individual
- *    attempt.
- *  - Batch unprocessed retry: unprocessed items are re-submitted until either all items are
- *    processed or the policy is exhausted. If no policy is attached, the batch runs once
- *    with no retries ([[RetryPolicy.NoRetry]]).
+ *  Two independent retry loops, each with its own policy:
+ *  - Effect-level: a failed request (throttling, network) is retried per `.withRetryPolicy`,
+ *    else the interpreter's `defaultRetryPolicy` (off by default).
+ *  - Batch unprocessed retry: unprocessed keys/items are re-submitted until all are processed
+ *    or the policy is exhausted, per `.withBatchUnprocessedRetryPolicy`, else the
+ *    interpreter's `defaultBatchUnprocessedRetryPolicy` (on by default, with
+ *    [[RetryPolicy.fullJitter]]). With neither, the batch runs once.
  *
  *  Non-fatal effect errors (e.g. throttling, SDK validation failures) are captured in
  *  [[Batch.WriteResult.Failed]] / [[Batch.GetResult.Failed]] rather than raising a failed

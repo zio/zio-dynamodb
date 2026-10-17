@@ -14,9 +14,10 @@ capacity limits) — separately from ones it handled. `DynamoDBQuery.batchGetIte
 `batchWriteItem` go through two independent retry loops, each with its own attachment point:
 effect-level (`.withRetryPolicy`, throttling/network errors on a given attempt) and
 batch unprocessed (`.withBatchUnprocessedRetryPolicy`, re-submitting unprocessed keys/items from a
-successful response). Setting only `.withRetryPolicy(...)` governs both loops as one combined
-policy, same as always; `.withBatchUnprocessedRetryPolicy(...)` is additive, letting the
-batch unprocessed retry use its own curve instead. See
+successful response). Each knob governs only its own loop. Unprocessed keys/items are
+resubmitted by default — the interpreter's `defaultBatchUnprocessedRetryPolicy` is
+`Some(RetryPolicy.fullJitter())` unless set otherwise in `fromAsyncClient` (`None` turns it
+off); `.withBatchUnprocessedRetryPolicy(...)` overrides it per call. See
 [Retries: batch operations](../retries.md#batch-operations-two-independent-loops) for why that
 split exists — in short, the batch unprocessed retry, unlike the effect-level one, is safe to use
 even with the SDK client's own retries left on.
@@ -49,9 +50,10 @@ def writeExample(implicit interp: Interpreter[zio.Task]) =
 ```
 
 `batchGetItem`/`batchWriteItem` fold an `Iterable[A]` into one batch query, one `GetItem`/
-`Write` per element. `withRetryPolicy` is optional — omitting it falls back to the
-interpreter's `defaultRetryPolicy`, which is `None` (no retry) unless the interpreter was
-constructed with one. See [Retries](../retries.md).
+`Write` per element. `withRetryPolicy` is optional — it retries failed requests and, when
+omitted, falls back to the interpreter's `defaultRetryPolicy`, which is `None` (no retry)
+unless the interpreter was constructed with one. It doesn't affect resubmission of unprocessed
+keys/items. See [Retries](../retries.md).
 
 ## batchGetItem
 

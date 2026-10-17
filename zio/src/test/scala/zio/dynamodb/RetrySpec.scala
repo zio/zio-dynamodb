@@ -23,7 +23,17 @@ import zio.test._
 import zio.test.Assertion.{ anything, equalTo, fails, hasField, isSubtype }
 import zio.test.TestClock
 
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.model.{
+  AttributeValue => AwsAttributeValue,
+  BatchGetItemRequest,
+  BatchGetItemResponse,
+  KeysAndAttributes
+}
+
+import java.util.concurrent.CompletableFuture
 import scala.concurrent.duration.{ FiniteDuration, MILLISECONDS }
+import scala.jdk.CollectionConverters._
 
 object RetrySpec extends ZIOSpecDefault {
 
@@ -42,7 +52,8 @@ object RetrySpec extends ZIOSpecDefault {
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None,
     retryInterceptorParam: Option[RetryInterceptor[Task]] = None,
     batchRetryInterceptorParam: Option[BatchUnprocessedRetryInterceptor[Task]] = None,
-    retryQuotaParam: Option[RetryQuota[Task]] = None
+    retryQuotaParam: Option[RetryQuota[Task]] = None,
+    defaultBatchUnprocessedRetryPolicyParam: Option[RetryPolicy] = None
   ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
@@ -53,6 +64,8 @@ object RetrySpec extends ZIOSpecDefault {
       override protected def batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[Task]] =
         batchRetryInterceptorParam
       override protected def retryQuota: Option[RetryQuota[Task]]                                             = retryQuotaParam
+      override protected def defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy]                          =
+        defaultBatchUnprocessedRetryPolicyParam
       private[dynamodb] def pure[A](a: A): Task[A]                                                            = ZIO.succeed(a)
       private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                                        = fa.map(f)
       private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]                              = fa.flatMap(f)
@@ -285,7 +298,7 @@ object RetrySpec extends ZIOSpecDefault {
                       .run(
                         DynamoDBQuery
                           .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
-                          .withRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -760,7 +773,7 @@ object RetrySpec extends ZIOSpecDefault {
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 1) // defaultRetryPolicy never consulted for UpdateItem
       },
-      test("BatchGetItem without its own retryPolicy resubmits unprocessed keys via defaultRetryPolicy") {
+      test("defaultRetryPolicy no longer resubmits a batch's unprocessed keys") {
         import scala.collection.immutable.{ Map => ScalaMap }
         val unprocessedKeys = ScalaMap(
           "t" -> DynamoDBQuery.BatchGetItem.TableGet(
@@ -777,13 +790,9 @@ object RetrySpec extends ZIOSpecDefault {
                       defaultRetryPolicyParam =
                         Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(2)))
                     )
-          fiber  <-
-            interp
-              .run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
-              .fork
-          _      <- TestClock.adjust(50.millis)
-          result <- fiber.join
-        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+          result <-
+            interp.run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+        } yield assert(result)(isSubtype[Batch.GetResult.Incomplete](anything))
       }
     ),
 
@@ -899,7 +908,9 @@ object RetrySpec extends ZIOSpecDefault {
           query =
             DynamoDBQuery
               .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+              .withBatchUnprocessedRetryPolicy(
+                RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false)
+              )
           fiber         <- interp.run(query).fork
           _             <- TestClock.adjust(50.millis)
           result        <- fiber.join
@@ -947,7 +958,9 @@ object RetrySpec extends ZIOSpecDefault {
                 case Left(item) => DynamoDBQuery.putItem("t", item)
                 case Right(key) => DynamoDBQuery.deleteItem("t", key)
               }
-              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+              .withBatchUnprocessedRetryPolicy(
+                RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false)
+              )
           fiber         <- interp.run(query).fork
           _             <- TestClock.adjust(50.millis)
           result        <- fiber.join
@@ -1217,7 +1230,7 @@ object RetrySpec extends ZIOSpecDefault {
                       .run(
                         DynamoDBQuery
                           .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-                          .withRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -1257,7 +1270,7 @@ object RetrySpec extends ZIOSpecDefault {
                       .run(
                         DynamoDBQuery
                           .batchGetItem(List("a", "b"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-                          .withRetryPolicy(
+                          .withBatchUnprocessedRetryPolicy(
                             RetryPolicy.ExponentialBackoff(
                               maxRetries = 2,
                               initialDelay = FiniteDuration(100, MILLISECONDS),
@@ -1369,7 +1382,114 @@ object RetrySpec extends ZIOSpecDefault {
           case _                                                            =>
             assertTrue(false)
         }
+      },
+
+      test("withRetryPolicy alone does not resubmit unprocessed keys") {
+        for {
+          interp <- makeInterp(batchGetResponses = List(unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()))
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                        .withRetryPolicy(backoff2x100ms)
+                    )
+        } yield assert(result)(isSubtype[Batch.GetResult.Incomplete](anything))
+      },
+
+      test("defaultBatchUnprocessedRetryPolicy resubmits unprocessed keys when the query sets no policy") {
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()),
+                      defaultBatchUnprocessedRetryPolicyParam = Some(backoff2x100ms)
+                    )
+          fiber  <-
+            interp
+              .run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+              .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      },
+
+      test("withBatchUnprocessedRetryPolicy takes precedence over defaultBatchUnprocessedRetryPolicy") {
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(unprocessedKeyA, DynamoDBQuery.BatchGetItem.Response()),
+                      defaultBatchUnprocessedRetryPolicyParam = Some(backoff2x100ms)
+                    )
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                        .withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry)
+                    )
+        } yield assert(result)(isSubtype[Batch.GetResult.Incomplete](anything))
+      },
+
+      test("fromAsyncClient resubmits unprocessed keys by default") {
+        for {
+          calls  <- Ref.make(0)
+          rt     <- ZIO.runtime[Any]
+          interp = ZioInterpreter.fromAsyncClient(unprocessedOnceClient(calls, rt))
+          fiber  <-
+            interp
+              .run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+              .fork
+          _      <- TestClock.adjust(20.seconds)
+          result <- fiber.join
+          n      <- calls.get
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything)) && assertTrue(n == 2)
+      },
+
+      test("fromAsyncClient with defaultBatchUnprocessedRetryPolicy = None returns Incomplete") {
+        for {
+          calls  <- Ref.make(0)
+          rt     <- ZIO.runtime[Any]
+          interp = ZioInterpreter.fromAsyncClient(
+                     unprocessedOnceClient(calls, rt),
+                     defaultBatchUnprocessedRetryPolicy = None
+                   )
+          result <-
+            interp.run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+          n      <- calls.get
+        } yield assert(result)(isSubtype[Batch.GetResult.Incomplete](anything)) && assertTrue(n == 1)
       }
     )
   )
+
+  private val backoff2x100ms: RetryPolicy =
+    RetryPolicy.ExponentialBackoff(maxRetries = 2, initialDelay = FiniteDuration(100, MILLISECONDS), jitter = false)
+
+  private val unprocessedKeyA: DynamoDBQuery.BatchGetItem.Response =
+    DynamoDBQuery.BatchGetItem.Response(unprocessedKeys =
+      scala.collection.immutable.Map(
+        "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+          keysSet = Set(PrimaryKey("id" -> "a")),
+          projectionExpressionSet = Set.empty
+        )
+      )
+    )
+
+  // An SDK client whose first BatchGetItem leaves key "a" unprocessed and whose later calls process everything.
+  private def unprocessedOnceClient(calls: Ref[Int], rt: Runtime[Any]): DynamoDbAsyncClient =
+    new DynamoDbAsyncClient {
+      def serviceName(): String                                                                    = "dynamodb"
+      def close(): Unit                                                                            = ()
+      override def batchGetItem(req: BatchGetItemRequest): CompletableFuture[BatchGetItemResponse] = {
+        val n        = Unsafe.unsafe(implicit u => rt.unsafe.run(calls.updateAndGet(_ + 1)).getOrThrow())
+        val response =
+          if (n == 1)
+            BatchGetItemResponse
+              .builder()
+              .unprocessedKeys(
+                Map(
+                  "t" -> KeysAndAttributes
+                    .builder()
+                    .keys(Map("id" -> AwsAttributeValue.builder().s("a").build()).asJava)
+                    .build()
+                ).asJava
+              )
+              .build()
+          else BatchGetItemResponse.builder().build()
+        CompletableFuture.completedFuture(response)
+      }
+    }
 }
