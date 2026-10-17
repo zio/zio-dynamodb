@@ -96,7 +96,7 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       )
     },
     test(".returning sets ReturnValues and makes the returned item the result") {
-      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(allOld)
+      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(ReturnValues.AllOld)
       val item                                                        = Some(Item("id" -> "a"))
       assert(returning.write)(
         isSubtype[PutItem](hasField[PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)))
@@ -104,7 +104,12 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       assertTrue(returning.finish(item) == item)
     },
     test("the general modifiers keep the builder, in any order with .where / .returning") {
-      val b = put.capacity(total).returning(allOld).metrics(size).where(condition).withRetryPolicy(RetryPolicy.NoRetry)
+      val b = put
+        .capacity(total)
+        .returning(ReturnValues.AllOld)
+        .metrics(size)
+        .where(condition)
+        .withRetryPolicy(RetryPolicy.NoRetry)
       assert(b.write)(
         isSubtype[PutItem](
           hasField[PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&

@@ -107,7 +107,7 @@ object DdbExprApiSpec extends ZIOSpecDefault {
           DdbExprApi
             .put(tasks, Task("t1", 1, Priority.Low))
             .capacity(total)
-            .returning(allOld)
+            .returning(ReturnValues.AllOld)
             .metrics(size)
             .where(Task.score > 0)
             .withRetryPolicy(RetryPolicy.NoRetry)

@@ -155,8 +155,10 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 `put`, `update` and `deleteFrom` execute to `Unit`. To get back the item DynamoDB returns, add
 `.returning`: the result becomes `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`
-(`None` when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts
-any value (see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+(`None` when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts `AllOld` or `AllNew` (`UpdatedOld` /
+`UpdatedNew` return only the updated attributes, which don't decode into `Order` - use the Low-Level API for
+those; see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)). The compiler checks the value against the operation, so pass it
+directly (`ReturnValues.AllOld`), not as a value typed `ReturnValues`.
 
 ```scala mdoc:compile-only
 import zio.dynamodb._

@@ -976,14 +976,14 @@ sealed abstract class WriteNode[In, Out] private[dynamodb] (
 }
 
 /**
- * A put / update / delete that executes to `Out` - `Unit` unless `.returning` asks for the item
- * DynamoDB sends back, which is then decoded to `Returned`. `.where` makes it a
+ * A put / update / delete that executes to `Out` - `Unit` unless the concrete builder's `.returning`
+ * asks for the item DynamoDB sends back. `.where` makes it a
  * [[ConditionalWriteBuilder]]. Itself a [[DynamoDBQuery]], so it runs, composes (`zipPar`,
  * `transactWriteItems`) and takes the general modifiers directly; the concrete builders override
  * `capacity` / `metrics` / `withRetryPolicy` to keep the builder, so they compose with `.where` /
  * `.returning` in any order.
  */
-abstract class WriteBuilder[In, Out, Returned] private[dynamodb] (
+abstract class WriteBuilder[In, Out] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteNode[In, Out](write0, finish0) {
@@ -995,10 +995,7 @@ abstract class WriteBuilder[In, Out, Returned] private[dynamodb] (
    * only the failure response is larger). Turn it off with
    * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]].
    */
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
-
-  /** Returns the item DynamoDB sends back: `None` when there was none. */
-  def returning(rv: ReturnValues): WriteBuilder[In, Returned, Returned]
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out]
 
   def toQuery: DynamoDBQuery[In, Out] = this
 
@@ -1025,22 +1022,20 @@ private[dynamodb] object WriteBuilder {
  * default - see [[withoutItemOnConditionFailure]]); every other failure is the underlying AWS SDK
  * exception.
  */
-abstract class ConditionalWriteBuilder[In, Out, Returned] private[dynamodb] (
+abstract class ConditionalWriteBuilder[In, Out] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteNode[In, Out](write0, finish0) {
 
   /** Replaces the condition. */
-  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out]
 
   /**
    * Stops a failed condition from returning the existing item (`ConditionFailed.item` is then
    * `None`): for very large items or frequently failing conditions, where the larger failure
    * response isn't wanted.
    */
-  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Returned]
-
-  def returning(rv: ReturnValues): ConditionalWriteBuilder[In, Returned, Returned]
+  def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out]
 
   def toQuery: DynamoDBQuery[In, Out] = this
 

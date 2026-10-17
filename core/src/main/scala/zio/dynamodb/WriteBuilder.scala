@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.annotation.implicitNotFound
+
 /**
  * Which operation a write builder holds, as a phantom type: `Put` and `Delete` can go in
  * `batchWriteItem` (DynamoDB batches have no update), `Update` can't.
@@ -30,16 +32,44 @@ object WriteOp {
 }
 
 /**
+ * The `ReturnValues` a Low-Level write's `.returning` accepts, per operation - checked at compile time
+ * on the value's own type, so pass a literal (`ReturnValues.AllOld`), not a value typed `ReturnValues`.
+ */
+@implicitNotFound(
+  "${R} isn't valid here: putItem / deleteItem accept only ReturnValues.AllOld; updateItem accepts " +
+    "ReturnValues.AllOld, AllNew, UpdatedOld or UpdatedNew. Pass the value itself (e.g. ReturnValues.AllOld), " +
+    "not a value typed ReturnValues"
+)
+sealed trait ItemReturnValues[Op <: WriteOp, R <: ReturnValues]
+
+object ItemReturnValues {
+  implicit val putAllOld: ItemReturnValues[WriteOp.Put, ReturnValues.AllOld.type]               =
+    new ItemReturnValues[WriteOp.Put, ReturnValues.AllOld.type] {}
+  implicit val deleteAllOld: ItemReturnValues[WriteOp.Delete, ReturnValues.AllOld.type]         =
+    new ItemReturnValues[WriteOp.Delete, ReturnValues.AllOld.type] {}
+  implicit val updateAllOld: ItemReturnValues[WriteOp.Update, ReturnValues.AllOld.type]         =
+    new ItemReturnValues[WriteOp.Update, ReturnValues.AllOld.type] {}
+  implicit val updateAllNew: ItemReturnValues[WriteOp.Update, ReturnValues.AllNew.type]         =
+    new ItemReturnValues[WriteOp.Update, ReturnValues.AllNew.type] {}
+  implicit val updateUpdatedOld: ItemReturnValues[WriteOp.Update, ReturnValues.UpdatedOld.type] =
+    new ItemReturnValues[WriteOp.Update, ReturnValues.UpdatedOld.type] {}
+  implicit val updateUpdatedNew: ItemReturnValues[WriteOp.Update, ReturnValues.UpdatedNew.type] =
+    new ItemReturnValues[WriteOp.Update, ReturnValues.UpdatedNew.type] {}
+}
+
+/**
  * The Low-Level write builder returned by `putItem` / `updateItem` / `deleteItem`: `.returning` gives
  * back the raw `Item`. A plain put or delete also goes in `batchWriteItem`.
  */
 final class ItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
-) extends WriteBuilder[In, Out, Option[Item]](write0, finish0) {
+) extends WriteBuilder[In, Out](write0, finish0) {
   def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]              =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
-  def returning(rv: ReturnValues): ItemWriteBuilder[In, Option[Item], Op]                       =
+  def returning[R <: ReturnValues](rv: R)(implicit
+    valid: ItemReturnValues[Op, R]
+  ): ItemWriteBuilder[In, Option[Item], Op]                                                     =
     new ItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
   override def capacity(capacity: ReturnConsumedCapacity): ItemWriteBuilder[In, Out, Op]        =
     new ItemWriteBuilder(write.capacity(capacity), finish)
@@ -57,12 +87,14 @@ private[dynamodb] object ItemWriteBuilder {
 final class ConditionalItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
-) extends ConditionalWriteBuilder[In, Out, Option[Item]](write0, finish0) {
+) extends ConditionalWriteBuilder[In, Out](write0, finish0) {
   def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]                         =
     new ConditionalItemWriteBuilder(write.withCondition(ce), finish)
   def withoutItemOnConditionFailure: ConditionalItemWriteBuilder[In, Out, Op]                              =
     new ConditionalItemWriteBuilder(WriteBuilder.withoutItemOnConditionFailure(write), finish)
-  def returning(rv: ReturnValues): ConditionalItemWriteBuilder[In, Option[Item], Op]                       =
+  def returning[R <: ReturnValues](rv: R)(implicit
+    valid: ItemReturnValues[Op, R]
+  ): ConditionalItemWriteBuilder[In, Option[Item], Op]                                                     =
     new ConditionalItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
   override def capacity(capacity: ReturnConsumedCapacity): ConditionalItemWriteBuilder[In, Out, Op]        =
     new ConditionalItemWriteBuilder(write.capacity(capacity), finish)
