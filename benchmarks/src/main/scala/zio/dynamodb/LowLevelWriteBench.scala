@@ -38,4 +38,7 @@ class LowLevelWriteBench {
 
   @Benchmark def updateConstructOnly: DynamoDBQuery[_, _] =
     DynamoDBQuery.updateItem(table, key)($("name").set("c"))
+
+  @Benchmark def conditionCheckConstructOnly: DynamoDBQuery[_, _] =
+    DynamoDBQuery.conditionCheck(table, key)($("name") === "b")
 }

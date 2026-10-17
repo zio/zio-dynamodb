@@ -87,9 +87,8 @@ object DynamoDBError {
   }
 
   /**
-   * One cancellation reason from a failed `TransactWriteItems` call.
-   *  `item` is populated only when `ReturnValuesOnConditionCheckFailure.AllOld` was set
-   *  on the corresponding action.
+   * One cancellation reason from a failed `TransactWriteItems` call. `item` is the item as it was, for
+   * an action that returned it on failure (the default for conditional writes and condition checks).
    */
   final case class CancellationReason(
     code: CancellationCode,
@@ -133,7 +132,7 @@ object DynamoDBError {
 
     /**
      * A write's condition expression evaluated to false. `item` holds the item as it was when
-     * the write requested `ReturnValuesOnConditionCheckFailure.AllOld`. When raised by the
+     * the write asked for it, which conditional writes do by default. When raised by the
      * library, the inherited `getCause` is the AWS SDK `ConditionalCheckFailedException` it was
      * translated from.
      */

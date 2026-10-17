@@ -477,6 +477,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     q match {
       case DynamoDBQuery.Map(inner, _)  => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
       case w: WriteNode[_, _]           => unwrapMappedWriteItem(w.write.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case c: ConditionCheckBuilder[_]  => unwrapMappedWriteItem(c.check.asInstanceOf[DynamoDBQuery[Any, Any]])
       case DynamoDBQuery.Absolve(inner) => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
       case f: DynamoDBQuery.Fail        => Left(f.error())
       case other                        => Right(other)
@@ -562,6 +563,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         map(runAny(m.query))(m.mapper.asInstanceOf[Any => Any])
       case w: WriteNode[_, _]                  =>
         map(runAny(w.write))(w.finish.asInstanceOf[Any => Any])
+      case c: ConditionCheckBuilder[_]         => runAny(c.check)
       case DynamoDBQuery.Succeed(v)            => pure(v())
       case DynamoDBQuery.Fail(e)               => fail(e())
       case a: DynamoDBQuery.Absolve[_, _]      =>

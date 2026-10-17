@@ -97,7 +97,7 @@ def guardedExample(implicit interp: Interpreter[zio.Task]) =
 DynamoDB returns the original result instead of re-applying it.
 A conditional write (`.where`) or a `conditionCheck` returns that item's prior state on its
 cancellation reason by default, if it's the one that caused the cancellation;
-`.withoutItemOnConditionFailure` turns it off (on writes, and on Low-Level `conditionCheck`).
+`.withoutItemOnConditionFailure` turns it off.
 
 A transaction returns no items, so a write with `.returning` is rejected
 with `TransactionValidationError` before any request is sent.
@@ -107,7 +107,7 @@ with `TransactionValidationError` before any request is sent.
 A failed transaction surfaces as `DynamoDBError.TransactionError.TransactionCancelled(reasons)`
 on the normal failed-effect channel — not errors-as-values like batch, since there's no
 partial-success state to carry. One `CancellationReason` per sub-operation (code, optional
-message, and the conflicting item if `ReturnValuesOnConditionCheckFailure.AllOld` was
+message, and the conflicting item if `ReturnValuesOnConditionCheckFailure=ALL_OLD` was
 requested on that action). A High-Level value whose optic path can't resolve to a DynamoDB
 attribute (e.g. a non-`String` map key) fails the same way `put`/`update`/`get` do standalone
 — with a `DecodingError`, before any AWS request is issued, never as a silently incomplete

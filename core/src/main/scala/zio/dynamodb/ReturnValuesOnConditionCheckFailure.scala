@@ -16,9 +16,11 @@
 
 package zio.dynamodb
 
-sealed trait ReturnValuesOnConditionCheckFailure
+// The AWS ReturnValuesOnConditionCheckFailure request parameter. Internal: conditional writes and
+// condition checks send AllOld by default and `.withoutItemOnConditionFailure` sends None.
+private[dynamodb] sealed trait ReturnValuesOnConditionCheckFailure
 
-object ReturnValuesOnConditionCheckFailure {
+private[dynamodb] object ReturnValuesOnConditionCheckFailure {
   case object None   extends ReturnValuesOnConditionCheckFailure
   case object AllOld extends ReturnValuesOnConditionCheckFailure
 }

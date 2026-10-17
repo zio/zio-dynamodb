@@ -352,7 +352,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test(".withoutItemOnConditionFailure needs a .where first") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).withoutItemOnConditionFailure
@@ -363,7 +363,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("but .where(...).withoutItemOnConditionFailure compiles fine") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).withoutItemOnConditionFailure
@@ -372,12 +372,60 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("but .returning compiles fine, with or without .where") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).returning(ReturnValues.AllOld)
         """).map(result => assertTrue(result.isRight))
+      },
+      test(".returning accepts AllOld on put / deleteFrom and AllOld / AllNew on update") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.ReturnValues
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)
+          deleteFrom(widgets)(Widget.id.partitionKey === "w-1").returning(ReturnValues.AllOld)
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).returning(ReturnValues.AllOld)
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).returning(ReturnValues.AllNew)
+        """).map(result => assertTrue(result.isRight))
+      },
+      test(".returning(AllNew) is rejected on put") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.ReturnValues
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllNew)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+      },
+      test(".returning(UpdatedNew) is rejected on update (a partial item won't decode)") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.ReturnValues
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).returning(ReturnValues.UpdatedNew)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+      },
+      test(".returning(None) is rejected") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.ReturnValues
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          deleteFrom(widgets)(Widget.id.partitionKey === "w-1").returning(ReturnValues.None)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+      },
+      test(".returning is checked after .where too") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.ReturnValues
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).where(Widget.qty > 0).returning(ReturnValues.UpdatedOld)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
       }
     ),
     suite("value must match the optic's own type")(

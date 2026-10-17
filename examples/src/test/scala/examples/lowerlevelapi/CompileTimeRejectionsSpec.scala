@@ -105,6 +105,54 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         import zio.dynamodb.ProjectionExpression._
         DynamoDBQuery.putItem("t", Item("id" -> "1")).where($("v") === 0).withoutItemOnConditionFailure
       """).map(result => assertTrue(result.isRight))
+    },
+    test(".returning accepts AllOld on putItem / deleteItem and every value but None on updateItem") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).returning(ReturnValues.AllOld)
+        DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1")).returning(ReturnValues.AllOld)
+        DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)).returning(ReturnValues.AllOld)
+        DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)).returning(ReturnValues.AllNew)
+        DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)).returning(ReturnValues.UpdatedOld)
+        DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)).returning(ReturnValues.UpdatedNew)
+      """).map(result => assertTrue(result.isRight))
+    },
+    test(".returning(AllNew) is rejected on putItem") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).returning(ReturnValues.AllNew)
+      """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+    },
+    test(".returning(UpdatedOld) is rejected on deleteItem") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1")).returning(ReturnValues.UpdatedOld)
+      """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+    },
+    test(".returning(None) is rejected") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "1"))($("v").set(1)).returning(ReturnValues.None)
+      """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+    },
+    test(".returning is checked after .where too") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).where($("v") === 0).returning(ReturnValues.AllNew)
+      """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
+    },
+    test(".returning needs the value itself, not a value typed ReturnValues") {
+      typeCheck("""
+        import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, ReturnValues }
+        import zio.dynamodb.ProjectionExpression._
+        val rv: ReturnValues = ReturnValues.AllOld
+        DynamoDBQuery.putItem("t", Item("id" -> "1")).returning(rv)
+      """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
     }
   )
 }

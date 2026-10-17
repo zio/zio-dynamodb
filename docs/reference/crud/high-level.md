@@ -153,10 +153,20 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Returned items
 
-`put`, `update` and `deleteFrom` execute to `Unit`. To get back the item DynamoDB returns, add
-`.returning`: the result becomes `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`
-(`None` when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts
-any value (see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+`put`, `update` and `deleteFrom` execute to `Unit`. Add `.returning` to get back the item DynamoDB
+returns, as `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]` (`None` when nothing was returned):
+
+| `.returning(...)` | `put` | `update` | `deleteFrom` |
+|---|---|---|---|
+| `ReturnValues.AllOld` | ✅ | ✅ | ✅ |
+| `ReturnValues.AllNew` | ❌ | ✅ | ❌ |
+| `ReturnValues.UpdatedOld` / `UpdatedNew` | ❌ | ❌ ¹ | ❌ |
+| `ReturnValues.None` | ❌ | ❌ | ❌ |
+
+¹ They return only the updated attributes, which don't decode into `Order`; use the Low-Level API.
+
+❌ doesn't compile. Pass the value itself (`ReturnValues.AllOld`), not a value typed `ReturnValues`.
+See AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues).
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -178,7 +188,7 @@ Effect, `recover` for `Future`) so other failures pass through untouched - a han
 step chained before it, not just the write.
 
 `ConditionFailed.item` holds the item as it was: conditional writes send
-`ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity is consumed; only the
+AWS's `ReturnValuesOnConditionCheckFailure=ALL_OLD` **by default** (no read capacity is consumed; only the
 failure response is larger). Turn it off with `.withoutItemOnConditionFailure` after `.where`:
 
 ```scala mdoc:compile-only

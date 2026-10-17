@@ -297,6 +297,10 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def blocksUpdatePrebuiltWithRetryPolicy: Unit =
     interpreter.run(prebuiltUpdateQueryWithRetryPolicy).unsafeRunSync()
 
+  /** Construction only of a transaction condition check. */
+  @Benchmark def blocksConditionCheckConstructOnly: DynamoDBQuery[_, _] =
+    conditionCheck(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name === newName)
+
   @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Unit] =
     DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
 

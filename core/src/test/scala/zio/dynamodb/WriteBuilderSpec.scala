@@ -30,6 +30,17 @@ object WriteBuilderSpec extends ZIOSpecDefault {
   private val size: ReturnItemCollectionMetrics   = ReturnItemCollectionMetrics.Size
   private val allOld: ReturnValues                = ReturnValues.AllOld
 
+  private val check: ConditionCheckBuilder[Any] = DynamoDBQuery.conditionCheck("t", PrimaryKey("id" -> "a"))(condition)
+
+  private def itemOnFailureIs(rv: ReturnValuesOnConditionCheckFailure): Assertion[DynamoDBQuery[_, _]] =
+    isSubtype[DynamoDBQuery.ConditionCheck](
+      hasField[DynamoDBQuery.ConditionCheck, Option[ReturnValuesOnConditionCheckFailure]](
+        "returnValuesOnConditionCheckFailure",
+        _.returnValuesOnConditionCheckFailure,
+        isSome(equalTo(rv))
+      )
+    )
+
   // The write node under any Map / builder wrapping.
   @scala.annotation.tailrec
   private def leaf(q: DynamoDBQuery[_, _]): DynamoDBQuery[_, _] = q match {
@@ -85,7 +96,7 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       )
     },
     test(".returning sets ReturnValues and makes the returned item the result") {
-      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(allOld)
+      val returning: ItemWriteBuilder[Any, Option[Item], WriteOp.Put] = put.returning(ReturnValues.AllOld)
       val item                                                        = Some(Item("id" -> "a"))
       assert(returning.write)(
         isSubtype[PutItem](hasField[PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)))
@@ -93,7 +104,12 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       assertTrue(returning.finish(item) == item)
     },
     test("the general modifiers keep the builder, in any order with .where / .returning") {
-      val b = put.capacity(total).returning(allOld).metrics(size).where(condition).withRetryPolicy(RetryPolicy.NoRetry)
+      val b = put
+        .capacity(total)
+        .returning(ReturnValues.AllOld)
+        .metrics(size)
+        .where(condition)
+        .withRetryPolicy(RetryPolicy.NoRetry)
       assert(b.write)(
         isSubtype[PutItem](
           hasField[PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
@@ -103,14 +119,23 @@ object WriteBuilderSpec extends ZIOSpecDefault {
         )
       )
     },
-    test("conditionCheck returns the existing item on failure by default; withoutItemOnConditionFailure turns it off") {
-      val check = DynamoDBQuery.conditionCheck("t", PrimaryKey("id" -> "a"))(condition)
-      assertTrue(
-        check.returnValuesOnConditionCheckFailure.contains(ReturnValuesOnConditionCheckFailure.AllOld),
-        check.withoutItemOnConditionFailure.returnValuesOnConditionCheckFailure
-          .contains(ReturnValuesOnConditionCheckFailure.None)
-      )
-    },
+    suite("ConditionCheckBuilder")(
+      test("returns the existing item on failure by default") {
+        assert(check.check)(itemOnFailureIs(ReturnValuesOnConditionCheckFailure.AllOld))
+      },
+      test(".withoutItemOnConditionFailure turns it off") {
+        assert(check.withoutItemOnConditionFailure.check)(itemOnFailureIs(ReturnValuesOnConditionCheckFailure.None))
+      },
+      test("the opt-out is still available after the general modifiers") {
+        val afterModifiers: ConditionCheckBuilder[Any] =
+          check.capacity(total).metrics(size).withRetryPolicy(RetryPolicy.NoRetry).withoutItemOnConditionFailure
+        assert(afterModifiers.check)(itemOnFailureIs(ReturnValuesOnConditionCheckFailure.None))
+      },
+      test("runs inside a transaction") {
+        val tx = DynamoDBQuery.transactWriteItems(check.withoutItemOnConditionFailure, put)
+        assertTrue(DummyIOInterpreter.run(tx).unsafeRun() == (()))
+      }
+    ),
     test("a builder is itself the query - no wrapper is allocated") {
       assertTrue(put.toQuery eq put)
     },

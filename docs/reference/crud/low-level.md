@@ -63,7 +63,7 @@ to get an item back.
 [`PutItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)
 reference). A failed condition fails the effect with `DynamoDBError.ItemError.ConditionFailed`;
 every other failure is the AWS SDK exception itself. `ConditionFailed.item` holds the item as it was:
-conditional writes send `ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity
+conditional writes send AWS's `ReturnValuesOnConditionCheckFailure=ALL_OLD` **by default** (no read capacity
 is consumed; only the failure response is larger). Turn it off with `.withoutItemOnConditionFailure`
 after `.where`:
 
@@ -116,9 +116,18 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Returned items
 
-To get back the item DynamoDB returns, add `.returning`: the result becomes `Option[Item]` (`None`
-when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts any value (see
-AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+`putItem`, `updateItem` and `deleteItem` execute to `Unit`. Add `.returning` to get back the item DynamoDB
+returns, as `Option[Item]` (`None` when nothing was returned):
+
+| `.returning(...)` | `putItem` | `updateItem` | `deleteItem` |
+|---|---|---|---|
+| `ReturnValues.AllOld` | ✅ | ✅ | ✅ |
+| `ReturnValues.AllNew` | ❌ | ✅ | ❌ |
+| `ReturnValues.UpdatedOld` / `UpdatedNew` | ❌ | ✅ | ❌ |
+| `ReturnValues.None` | ❌ | ❌ | ❌ |
+
+❌ doesn't compile. Pass the value itself (`ReturnValues.AllOld`), not a value typed `ReturnValues`.
+See AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues).
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -214,7 +223,7 @@ def writeExample(implicit interp: Interpreter[zio.Task]) =
 A failed transaction surfaces as `DynamoDBError.TransactionError.TransactionCancelled(reasons)`
 in the effect's error channel — a normal typed failure, carrying one `CancellationReason` per
 sub-operation (code, optional message, and the conflicting item if
-`ReturnValuesOnConditionCheckFailure.AllOld` was requested on that action).
+`ReturnValuesOnConditionCheckFailure=ALL_OLD` was sent for that action).
 
 ## Table management
 
