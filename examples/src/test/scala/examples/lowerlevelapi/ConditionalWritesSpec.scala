@@ -22,7 +22,7 @@ import zio.test._
 
 /**
  * Runs every query `ConditionalWrites` builds - no network call, no Docker. The stub never fails a
- * condition, so the `openAccount` / `transfer` handlers are checked by compiling, not run.
+ * condition, so the per-effect `openAccount` / `transfer` handlers are checked by compiling, not run.
  */
 object ConditionalWritesSpec extends ZIOSpecDefault {
 

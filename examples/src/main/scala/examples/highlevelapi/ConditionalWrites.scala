@@ -16,7 +16,7 @@
 
 package examples.highlevelapi
 
-import zio.Task
+import cats.effect.IO
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{
   DynamoDBError,
@@ -32,6 +32,8 @@ import zio.dynamodb.DynamoDBError.ItemError.ConditionFailed
 import zio.dynamodb.DynamoDBError.TransactionError.TransactionCancelled
 import zio.dynamodb.ExecuteSyntax._
 import zio.dynamodb.blocks.ddbexpr.dsl._
+
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * High-Level writes beyond the plain CRUD calls: conditions, the item a failed condition returns,
@@ -121,27 +123,55 @@ object ConditionalWrites {
       update(accounts)(Account.id.partitionKey === "a1")(Account.balance.add(-10))
     )
 
-  // -- handling the expected failures (ZIO) ---------------------------------
+  // -- handling the expected failures, per effect type ---------------------
+  // A narrow handler deals only with the failed condition / cancelled transaction; every other
+  // failure (throttling, timeouts, ...) passes through as the AWS SDK exception.
 
   sealed trait Outcome
   case object Written                                           extends Outcome
   final case class Rejected(current: Option[zio.dynamodb.Item]) extends Outcome
   final case class Conflict(codes: List[String])                extends Outcome
 
-  // A narrow handler: only the failed condition is handled; every other failure (throttling,
-  // timeouts, ...) passes through as the AWS SDK exception.
-  def openAccount(implicit interpreter: Interpreter[Task]): Task[Outcome] =
-    putIfAbsent.execute
-      .as(Written: Outcome)
-      .catchSome { case ConditionFailed(_, existing) => zio.ZIO.succeed(Rejected(existing)) }
+  // Which outcome a cancelled transaction means - shared by the handlers below.
+  def outcomeOf(tc: TransactionCancelled): Outcome =
+    if (tc.reasons.exists(_.code == CancellationCode.ConditionalCheckFailed))
+      Rejected(tc.reasons.flatMap(_.item).headOption)
+    else Conflict(tc.reasons.map(_.code.value).toList)
 
-  def transfer(implicit interpreter: Interpreter[Task]): Task[Outcome] =
-    guardedTransfer.execute
-      .as(Written: Outcome)
-      .catchSome {
-        case tc: TransactionCancelled if tc.reasons.exists(_.code == CancellationCode.ConditionalCheckFailed) =>
-          zio.ZIO.succeed(Rejected(tc.reasons.flatMap(_.item).headOption))
-        case tc: TransactionCancelled                                                                         =>
-          zio.ZIO.succeed(Conflict(tc.reasons.map(_.code.value).toList))
-      }
+  object Zio {
+    def openAccount(implicit interpreter: Interpreter[zio.Task]): zio.Task[Outcome] =
+      putIfAbsent.execute
+        .as(Written: Outcome)
+        .catchSome { case ConditionFailed(_, existing) => zio.ZIO.succeed(Rejected(existing)) }
+
+    def transfer(implicit interpreter: Interpreter[zio.Task]): zio.Task[Outcome] =
+      guardedTransfer.execute
+        .as(Written: Outcome)
+        .catchSome { case tc: TransactionCancelled => zio.ZIO.succeed(outcomeOf(tc)) }
+  }
+
+  object CatsEffect {
+    def openAccount(implicit interpreter: Interpreter[IO]): IO[Outcome] =
+      putIfAbsent.execute
+        .as(Written: Outcome)
+        .recoverWith { case ConditionFailed(_, existing) => IO.pure(Rejected(existing)) }
+
+    def transfer(implicit interpreter: Interpreter[IO]): IO[Outcome] =
+      guardedTransfer.execute
+        .as(Written: Outcome)
+        .recoverWith { case tc: TransactionCancelled => IO.pure(outcomeOf(tc)) }
+  }
+
+  // `Futures`, not `Future`, so as not to shadow scala.concurrent.Future.
+  object Futures {
+    def openAccount(implicit interpreter: Interpreter[Future], ec: ExecutionContext): Future[Outcome] =
+      putIfAbsent.execute
+        .map(_ => Written: Outcome)
+        .recover { case ConditionFailed(_, existing) => Rejected(existing) }
+
+    def transfer(implicit interpreter: Interpreter[Future], ec: ExecutionContext): Future[Outcome] =
+      guardedTransfer.execute
+        .map(_ => Written: Outcome)
+        .recover { case tc: TransactionCancelled => outcomeOf(tc) }
+  }
 }
