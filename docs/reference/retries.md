@@ -282,8 +282,8 @@ def example(implicit interp: Interpreter[zio.Task]) =
 ```
 
 No `.withRetryPolicy(...)` here — the SDK client's own retry strategy (left at its default)
-handles effect-level failures for this call, same as every other operation; only the
-unprocessed resubmission of unprocessed keys is zio-dynamodb's to do, since the SDK has no
+handles effect-level failures for this call, same as every other operation; only
+resubmitting unprocessed keys is zio-dynamodb's to do, since the SDK has no
 equivalent for it either way. See [Batch Operations](crud/batch.md#retry-behavior).
 
 ## Worked examples
