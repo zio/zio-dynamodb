@@ -66,7 +66,7 @@ See [Retries](retries.md#two-attachment-points).
 ## `ZIOStreamingUtils`
 
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to
-100, running each through `interp.run` with a `RetryPolicy`, and turning
+100, running each through `interp.run` with a `.withBatchUnprocessedRetryPolicy`, and turning
 `Incomplete`/`Failed` batch outcomes into log output instead of a fatal stream error. See
 [Batch Operations](crud/batch.md) for the Low-Level batch API this builds on. Backed by a
 real `ZIOSpecDefault` test

@@ -34,20 +34,21 @@ object ZIOStreamingUtils {
    *
    *  @param interp     the effect interpreter to run each batch through
    *  @param tableName  DynamoDB table to query
-   *  @param policy     retry policy attached to the batch query; defaults to [[RetryPolicy.NoRetry]]
+   *  @param unprocessedRetryPolicy policy for resubmitting each batch's unprocessed keys; defaults to
+   *                                [[RetryPolicy.fullJitter]], the interpreter's own default
    *  @param keys       source stream of primary keys to fetch
    */
   def batchGetItems(
     interp: AwsInterpreter[Task],
     tableName: String,
-    policy: RetryPolicy = RetryPolicy.NoRetry
+    unprocessedRetryPolicy: RetryPolicy = RetryPolicy.fullJitter()
   )(keys: ZStream[Any, Nothing, PrimaryKey]): ZStream[Any, Nothing, Item] =
     keys
       .grouped(BatchSize)
       .mapZIO { chunk =>
         val query = DynamoDBQuery
           .batchGetItem(chunk)(pk => DynamoDBQuery.GetItem(tableName, pk))
-          .withRetryPolicy(policy)
+          .withBatchUnprocessedRetryPolicy(unprocessedRetryPolicy)
         interp.run(query).flatMap {
           case Batch.GetResult.Complete(response) =>
             ZIO.succeed(response.responses.iterator.flatMap(_._2).toList)

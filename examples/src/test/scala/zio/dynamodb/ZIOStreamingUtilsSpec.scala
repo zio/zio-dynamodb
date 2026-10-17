@@ -137,7 +137,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                     )
                   )
         result <- ZIOStreamingUtils
-                    .batchGetItems(interp, "t")(
+                    .batchGetItems(interp, "t", unprocessedRetryPolicy = RetryPolicy.NoRetry)(
                       ZStream(PrimaryKey("id" -> "a"), unprocessed)
                     )
                     .runCollect
@@ -146,6 +146,25 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
         result.toSet == Set(processed) &&
           logs.exists(e => e.logLevel == LogLevel.Warning && e.message().contains("unprocessed"))
       )
+    },
+
+    test("resubmits unprocessed keys by default and emits every item") {
+      val itemA = Item("id" -> "a")
+      val itemB = Item("id" -> "b")
+      for {
+        interp <- makeInterp(batchGetResponses =
+                    List(
+                      incompleteResponse("t", List(itemA), Set(PrimaryKey("id" -> "b"))),
+                      completeResponse("t", itemB)
+                    )
+                  )
+        fiber  <- ZIOStreamingUtils
+                    .batchGetItems(interp, "t")(ZStream(PrimaryKey("id" -> "a"), PrimaryKey("id" -> "b")))
+                    .runCollect
+                    .fork
+        _      <- TestClock.adjust(20.seconds)
+        result <- fiber.join
+      } yield assertTrue(result.toSet == Set(itemA, itemB))
     },
 
     test("emits nothing and logs error when batch effect fails, then continues with next batch") {
