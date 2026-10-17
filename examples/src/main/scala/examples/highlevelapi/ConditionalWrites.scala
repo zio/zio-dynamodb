@@ -59,7 +59,7 @@ object ConditionalWrites {
 
   val accounts: Table[Account] = Table[Account]("accounts")
 
-  private type Returned = Option[Either[DynamoDBError.ItemError.DecodingError, Account]]
+  private type MaybeErrorOrAccount = Option[Either[DynamoDBError.ItemError.DecodingError, Account]]
 
   // -- conditions ---------------------------------------------------------
 
@@ -80,20 +80,20 @@ object ConditionalWrites {
 
   // -- getting a decoded item back -------------------------------------------
 
-  val putReturningPrevious: DynamoDBQuery[Account, Returned] =
+  val putReturningPrevious: DynamoDBQuery[Account, MaybeErrorOrAccount] =
     put(accounts, Account("a1", "open", 5)).returning(ReturnValues.AllOld)
 
-  val updateReturningNew: DynamoDBQuery[Account, Returned] =
+  val updateReturningNew: DynamoDBQuery[Account, MaybeErrorOrAccount] =
     update(accounts)(Account.id.partitionKey === "a1")(Account.balance.add(10)).returning(ReturnValues.AllNew)
 
-  val deleteReturningDeleted: DynamoDBQuery[Account, Returned] =
+  val deleteReturningDeleted: DynamoDBQuery[Account, MaybeErrorOrAccount] =
     deleteFrom(accounts)(Account.id.partitionKey === "a1")
       .where(Account.status === "closed")
       .returning(ReturnValues.AllOld)
 
   // -- request options, in any order with .where / .returning ---------------
 
-  val withRequestOptions: DynamoDBQuery[Account, Returned] =
+  val withRequestOptions: DynamoDBQuery[Account, MaybeErrorOrAccount] =
     update(accounts)(Account.id.partitionKey === "a1")(Account.balance.add(10))
       .capacity(ReturnConsumedCapacity.Total)
       .where(Account.status === "open")
