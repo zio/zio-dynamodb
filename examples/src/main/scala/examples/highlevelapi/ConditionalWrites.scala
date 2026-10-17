@@ -104,13 +104,21 @@ object ConditionalWrites {
   val twoWritesInParallel: DynamoDBQuery[Account, Unit] =
     put(accounts, Account("a2", "open", 0)) zipPar deleteFrom(accounts)(Account.id.partitionKey === "a1")
 
-  // A conditionCheck guards the transaction without writing; it returns the item on failure by
-  // default too.
+  // A conditionCheck guards the transaction without writing; it too returns the item on failure by
+  // default, and has the same opt-out.
   val guardedTransfer: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.transactWriteItems(
       conditionCheck(accounts)(Account.id.partitionKey === "a2")(Account.status === "open"),
       update(accounts)(Account.id.partitionKey === "a1")(Account.balance.add(-10)).where(Account.balance >= 10),
       update(accounts)(Account.id.partitionKey === "a2")(Account.balance.add(10))
+    )
+
+  val guardedTransferWithoutItems: DynamoDBQuery[Any, Unit] =
+    DynamoDBQuery.transactWriteItems(
+      conditionCheck(accounts)(Account.id.partitionKey === "a2")(
+        Account.status === "open"
+      ).withoutItemOnConditionFailure,
+      update(accounts)(Account.id.partitionKey === "a1")(Account.balance.add(-10))
     )
 
   // -- handling the expected failures (ZIO) ---------------------------------

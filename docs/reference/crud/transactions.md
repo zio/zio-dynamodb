@@ -97,7 +97,7 @@ def guardedExample(implicit interp: Interpreter[zio.Task]) =
 DynamoDB returns the original result instead of re-applying it.
 A conditional write (`.where`) or a `conditionCheck` returns that item's prior state on its
 cancellation reason by default, if it's the one that caused the cancellation;
-`.withoutItemOnConditionFailure` turns it off (on writes, and on Low-Level `conditionCheck`).
+`.withoutItemOnConditionFailure` turns it off.
 
 A transaction returns no items, so a write with `.returning` is rejected
 with `TransactionValidationError` before any request is sent.

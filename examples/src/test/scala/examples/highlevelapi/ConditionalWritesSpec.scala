@@ -41,6 +41,7 @@ object ConditionalWritesSpec extends ZIOSpecDefault {
         _ <- ConditionalWrites.withRequestOptions.execute
         _ <- ConditionalWrites.twoWritesInParallel.execute
         _ <- ConditionalWrites.guardedTransfer.execute
+        _ <- ConditionalWrites.guardedTransferWithoutItems.execute
       } yield assertCompletes
       ran.unsafeRun()
     }

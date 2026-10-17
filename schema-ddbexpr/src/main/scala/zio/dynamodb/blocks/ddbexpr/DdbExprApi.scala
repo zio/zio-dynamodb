@@ -332,18 +332,24 @@ trait DdbExprApiSyntax {
    *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too, via
    *  [[DdbExprSyntax.schemaExprToDdbExpr]] — no second overload needed (and a second overload,
    *  curried the same way, is ambiguous under Scala 2.13 for a call site holding the condition
-   *  in a typed `val`). Returned directly as a [[DynamoDBQuery]]. A failed check returns the item
-   *  as it was on its cancellation reason by default.
+   *  in a typed `val`). See [[ConditionCheckBuilder]] for the item a failed check returns.
    */
   def conditionCheck[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     condition: DdbExpr[From, Boolean]
-  ): DynamoDBQuery[From, Unit] =
-    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
-      case Right(pkExpr) =>
-        DynamoDBQuery.conditionCheck(table.name, pkExpr.asAttrMap)(BuilderSupport.condition(condition, table))
-      case Left(msg)     =>
-        DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
-    }
+  ): ConditionCheckBuilder[From] =
+    new ConditionCheckBuilder[From](
+      DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+        case Right(pkExpr) =>
+          DynamoDBQuery.ConditionCheck(
+            table.name,
+            pkExpr.asAttrMap,
+            BuilderSupport.condition(condition, table),
+            returnValuesOnConditionCheckFailure = DynamoDBQuery.itemOnFailure
+          )
+        case Left(msg)     =>
+          DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+      }
+    )
 
   def query[From](table: Table[From], limit: Int): QueryBuilder[From] =
     new QueryBuilder(table, mapPage(DynamoDBQuery.query(table.name, limit), table))
