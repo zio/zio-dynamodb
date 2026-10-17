@@ -116,10 +116,18 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Returned items
 
-To get back the item DynamoDB returns, add `.returning`: the result becomes `Option[Item]` (`None`
-when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts `AllOld`, `AllNew`, `UpdatedOld` or
-`UpdatedNew` (see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)). The compiler checks the value against the operation, so
-pass it directly (`ReturnValues.AllOld`), not as a value typed `ReturnValues`.
+`putItem`, `updateItem` and `deleteItem` execute to `Unit`. Add `.returning` to get back the item DynamoDB
+returns, as `Option[Item]` (`None` when nothing was returned):
+
+| `.returning(...)` | `putItem` | `updateItem` | `deleteItem` |
+|---|---|---|---|
+| `ReturnValues.AllOld` | ✅ | ✅ | ✅ |
+| `ReturnValues.AllNew` | ❌ | ✅ | ❌ |
+| `ReturnValues.UpdatedOld` / `UpdatedNew` | ❌ | ✅ | ❌ |
+| `ReturnValues.None` | ❌ | ❌ | ❌ |
+
+❌ doesn't compile. Pass the value itself (`ReturnValues.AllOld`), not a value typed `ReturnValues`.
+See AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues).
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
