@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.{
   AttributeValue => AwsAttrValue,
   BatchGetItemRequest,
@@ -34,6 +35,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   DescribeTableResponse => AwsDescribeTableResponse,
   GetItemRequest,
   GetItemResponse,
+  KeysAndAttributes,
   PutItemRequest,
   PutItemResponse,
   QueryRequest,
@@ -51,6 +53,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
 import zio.test._
 import zio.test.Assertion.{ anything, isSubtype }
 
+import java.util.concurrent.CompletableFuture
 import scala.collection.JavaConverters._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -547,6 +550,44 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     ddlSuite,
     accumulatorSuite,
     errorTypeSuite,
-    effectPrimitivesSuite
+    effectPrimitivesSuite,
+    batchUnprocessedDefaultSuite
+  )
+
+  // An SDK client whose first BatchGetItem leaves key "a" unprocessed and whose later calls process everything.
+  private def unprocessedOnceClient(calls: java.util.concurrent.atomic.AtomicInteger): DynamoDbAsyncClient =
+    new DynamoDbAsyncClient {
+      def serviceName(): String                                                                    = "dynamodb"
+      def close(): Unit                                                                            = ()
+      override def batchGetItem(req: BatchGetItemRequest): CompletableFuture[BatchGetItemResponse] = {
+        val response =
+          if (calls.incrementAndGet() == 1)
+            BatchGetItemResponse
+              .builder()
+              .unprocessedKeys(
+                Map("t" -> KeysAndAttributes.builder().keys(Map("id" -> awsStr("a")).asJava).build()).asJava
+              )
+              .build()
+          else BatchGetItemResponse.builder().build()
+        CompletableFuture.completedFuture(response)
+      }
+    }
+
+  private val batchGetA: DynamoDBQuery[Any, Batch.GetResult] =
+    DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+
+  private val batchUnprocessedDefaultSuite = suite("fromAsyncClient batch unprocessed default")(
+    test("resubmits unprocessed keys by default") {
+      val calls  = new java.util.concurrent.atomic.AtomicInteger(0)
+      val result = await(FutureInterpreter.fromAsyncClient(unprocessedOnceClient(calls)).run(batchGetA))
+      assert(result)(isSubtype[Batch.GetResult.Complete](anything)) && assertTrue(calls.get == 2)
+    },
+    test("defaultBatchUnprocessedRetryPolicy = None returns Incomplete") {
+      val calls  = new java.util.concurrent.atomic.AtomicInteger(0)
+      val interp =
+        FutureInterpreter.fromAsyncClient(unprocessedOnceClient(calls), defaultBatchUnprocessedRetryPolicy = None)
+      val result = await(interp.run(batchGetA))
+      assert(result)(isSubtype[Batch.GetResult.Incomplete](anything)) && assertTrue(calls.get == 1)
+    }
   )
 }
