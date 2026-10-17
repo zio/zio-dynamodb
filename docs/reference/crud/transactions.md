@@ -107,7 +107,7 @@ with `TransactionValidationError` before any request is sent.
 A failed transaction surfaces as `DynamoDBError.TransactionError.TransactionCancelled(reasons)`
 on the normal failed-effect channel — not errors-as-values like batch, since there's no
 partial-success state to carry. One `CancellationReason` per sub-operation (code, optional
-message, and the conflicting item if `ReturnValuesOnConditionCheckFailure.AllOld` was
+message, and the conflicting item if `ReturnValuesOnConditionCheckFailure=ALL_OLD` was
 requested on that action). A High-Level value whose optic path can't resolve to a DynamoDB
 attribute (e.g. a non-`String` map key) fails the same way `put`/`update`/`get` do standalone
 — with a `DecodingError`, before any AWS request is issued, never as a silently incomplete

@@ -180,7 +180,7 @@ Effect, `recover` for `Future`) so other failures pass through untouched - a han
 step chained before it, not just the write.
 
 `ConditionFailed.item` holds the item as it was: conditional writes send
-`ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity is consumed; only the
+AWS's `ReturnValuesOnConditionCheckFailure=ALL_OLD` **by default** (no read capacity is consumed; only the
 failure response is larger). Turn it off with `.withoutItemOnConditionFailure` after `.where`:
 
 ```scala mdoc:compile-only

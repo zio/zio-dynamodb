@@ -352,7 +352,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test(".withoutItemOnConditionFailure needs a .where first") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).withoutItemOnConditionFailure
@@ -363,7 +363,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("but .where(...).withoutItemOnConditionFailure compiles fine") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).withoutItemOnConditionFailure
@@ -372,7 +372,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("but .returning compiles fine, with or without .where") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.ReturnValues
           import zio.dynamodb.blocks.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)

@@ -991,7 +991,7 @@ abstract class WriteBuilder[In, Out] private[dynamodb] (
   /**
    * Makes the write conditional. A failed condition fails the effect with
    * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` holds the item as it was -
-   * `ReturnValuesOnConditionCheckFailure.AllOld` is sent by default (no read capacity is consumed;
+   * AWS's `ReturnValuesOnConditionCheckFailure=ALL_OLD` is sent by default (no read capacity is consumed;
    * only the failure response is larger). Turn it off with
    * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]].
    */
