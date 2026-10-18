@@ -154,6 +154,21 @@ object RetryPolicySpec extends ZIOSpecDefault {
         (0 until 8).foreach(attempt.nextDelay)
         assertTrue(attempt.nextDelay(8).isEmpty)
       },
+      test("defaults match DynamoDB's transient-error backoff: 8 retries, 25 ms base, 20 s cap") {
+        val expected: RetryPolicy =
+          RetryPolicy.ExponentialBackoff(maxRetries = 8, initialDelay = 25.millis, maxDelay = 20.seconds, jitter = true)
+        assertTrue(RetryPolicy.fullJitter() == expected)
+      },
+      test("the batch unprocessed default is fullJitter with a 100 ms base") {
+        val expected: RetryPolicy =
+          RetryPolicy.ExponentialBackoff(
+            maxRetries = 8,
+            initialDelay = 100.millis,
+            maxDelay = 20.seconds,
+            jitter = true
+          )
+        assertTrue(RetryPolicy.batchUnprocessedDefault == expected)
+      },
       test("does not crash when maxDelay is below baseDelay") {
         val attempt =
           RetryPolicy.fullJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()

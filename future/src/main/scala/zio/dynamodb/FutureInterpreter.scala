@@ -100,7 +100,7 @@ object FutureInterpreter {
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
    * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
-   * (`RetryPolicy.fullJitter()`), pass `None` to return `Incomplete` instead. It is independent of
+   * (`RetryPolicy.fullJitter` with a 100 ms base), pass `None` to return `Incomplete` instead. It is independent of
    * `defaultRetryPolicy`, which never drives that resubmission.
    */
   def fromAsyncClient(
@@ -108,7 +108,7 @@ object FutureInterpreter {
     interceptors: InterceptorConfig[Future] = InterceptorConfig(),
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
     retryQuota: Option[RetryQuota[Future]] = Some(FutureRetryQuota.standard()),
-    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.fullJitter())
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.batchUnprocessedDefault)
   )(implicit ec: ExecutionContext): FutureInterpreter =
     fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota, defaultBatchUnprocessedRetryPolicy)
 
