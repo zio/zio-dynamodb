@@ -86,6 +86,24 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("withClientRequestToken fails with UnsupportedModifier outside a transaction") {
       assert(GetItem(table1, pk).withClientRequestToken("tok"))(failsAsUnsupported("withClientRequestToken"))
     },
+    test("batchGetItem rethrows the error of a get with a modifier it doesn't support") {
+      val result = scala.util.Try(
+        DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).segment(1, 2))
+      )
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
+    test("batchGetItem rejects a callback that doesn't return a getItem with UnbatchableQuery") {
+      val result = scala.util.Try(
+        DynamoDBQuery.batchGetItem(List("a"))(id =>
+          DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).map(_.isDefined)
+        )
+      )
+      assert(result.failed.get)(
+        isSubtype[DynamoDBError.QueryBuilderError.UnbatchableQuery](
+          hasField("message", _.message, containsString("must return a getItem"))
+        )
+      )
+    },
     test("sortOrder reaches both legs of a zipPar") {
       val zipped = (DynamoDBQuery.Query(table1, 10) zipPar DynamoDBQuery.Query(table2, 10)).sortOrder(ascending = false)
       assert(zipped)(

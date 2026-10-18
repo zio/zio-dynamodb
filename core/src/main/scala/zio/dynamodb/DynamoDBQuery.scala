@@ -585,9 +585,18 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
 
+  // `body`'s type doesn't restrict it to a get, so anything else is rejected here, while building;
+  // a failed query (e.g. a modifier a get doesn't support) throws its own, more specific error.
   def batchGetItem[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery.BatchGetItem =
     values.foldLeft(BatchGetItem()) { (batch, a) =>
-      batch + body(a).asInstanceOf[GetItem]
+      body(a) match {
+        case g: GetItem => batch + g
+        case f: Fail    => throw f.error()
+        case other      =>
+          throw DynamoDBError.QueryBuilderError.UnbatchableQuery(
+            s"batchGetItem's callback must return a getItem, got ${other.getClass.getSimpleName}"
+          )
+      }
     }
 
   def batchWriteItem[A](values: Iterable[A])(

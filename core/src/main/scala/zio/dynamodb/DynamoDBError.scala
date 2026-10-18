@@ -56,17 +56,18 @@ object DynamoDBError {
   }
 
   /**
-   * Raised when a `DynamoDBQuery` builder modifier is applied to a query variant that doesn't
-   *  support it — e.g. `.where` (condition expressions) on a `scan`/`query`, or
-   *  `.filter` (filter expressions) on a `putItem`/`updateItem`/`deleteItem` — or when a
-   *  `query` is missing a required one, e.g. no `.whereKey`. The query still builds
-   *  successfully; this is only raised once it's actually executed.
+   * Raised for a query built wrong: a modifier applied to an operation it doesn't affect (e.g.
+   * `.where` on a `scan`, `.consistency` on a `putItem`), a `query` with no `.whereKey`, or a
+   * query that can't go in a batch. The query still builds; the error is raised when it's run,
+   * before any request is sent. The exception is `UnbatchableQuery` from `batchGetItem`, which is
+   * thrown while building, since the method must return a `BatchGetItem`.
    */
   sealed trait QueryBuilderError extends DynamoDBError
 
   object QueryBuilderError {
     final case class UnsupportedModifier(message: String) extends QueryBuilderError
     final case class MissingKeyCondition(message: String) extends QueryBuilderError
+    final case class UnbatchableQuery(message: String)    extends QueryBuilderError
   }
 
   sealed trait TransactionError extends DynamoDBError
