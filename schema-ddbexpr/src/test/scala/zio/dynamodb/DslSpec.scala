@@ -104,6 +104,14 @@ object DslSpec extends ZIOSpecDefault {
       val cond = Task.score > 0 && Task.id.attributeExists
       assert(cond)(isSubtype[DdbExpr.And[_]](anything))
     },
+    test("a High-Level get with a modifier it doesn't support fails with UnsupportedModifier") {
+      val result = scala.util.Try(run(get(tasks)(Task.id.partitionKey === "t1").segment(1, 4)))
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
+    test("a High-Level put with a modifier it doesn't support fails with UnsupportedModifier") {
+      val result = scala.util.Try(run(put(tasks, Task("t1", 42, Priority.High)).consistency(ConsistencyMode.Strong)))
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
     test(".filter with a combined condition runs through scan") {
       val scanQuery = scan(tasks, 20).filter(Task.score > 0 && Task.priority === Priority.High)
       assertTrue(run(scanQuery).items.isEmpty)

@@ -476,6 +476,26 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
+  // A transaction runs as one request, so a retry policy set on one of its items would never be read.
+  private def validateTransactItemRetryPolicies(
+    items: Chunk[DynamoDBQuery[Any, Any]]
+  ): Option[DynamoDBError.QueryBuilderError.UnsupportedModifier] = {
+    val withRetryPolicy = items.collect {
+      case g: DynamoDBQuery.GetItem if g.retryPolicy.isDefined    => "getItem"
+      case p: DynamoDBQuery.PutItem if p.retryPolicy.isDefined    => "putItem"
+      case u: DynamoDBQuery.UpdateItem if u.retryPolicy.isDefined => "updateItem"
+      case d: DynamoDBQuery.DeleteItem if d.retryPolicy.isDefined => "deleteItem"
+    }
+    if (withRetryPolicy.isEmpty) None
+    else
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          "'.withRetryPolicy' has no effect on an item inside a transaction, which runs as one request; " +
+            s"got it on: ${withRetryPolicy.mkString(", ")}"
+        )
+      )
+  }
+
   // Builds the onRetry closure RetryInterceptor.onRetry threads through withRetry/withRetryF —
   // a no-op F[Unit] when no RetryInterceptor is attached, so callers never branch on it.
   private def onRetryFor(meta: DynamoDBRetryMetadata): (Throwable, Int) => F[Unit] =
@@ -543,9 +563,9 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           runBatchWriteItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
-        validateTransactionSize(q.getItems.length).fold(
-          runTransactGetItems(q).asInstanceOf[F[Any]]
-        )(err => fail(err))
+        validateTransactionSize(q.getItems.length)
+          .orElse(validateTransactItemRetryPolicies(q.getItems))
+          .fold(runTransactGetItems(q).asInstanceOf[F[Any]])(err => fail(err))
       case q: DynamoDBQuery.TransactWriteItems =>
         q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
           acc.flatMap(leaves => unwrapMappedWriteItem(item).map(leaves :+ _))
@@ -556,6 +576,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             validateTransactionSize(unwrapped.writeItems.length)
               .orElse(validateTransactWriteItems(unwrapped.writeItems))
               .orElse(validateTransactWriteReturnValues(unwrapped.writeItems))
+              .orElse(validateTransactItemRetryPolicies(unwrapped.writeItems))
               .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }

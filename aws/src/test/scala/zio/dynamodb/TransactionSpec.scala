@@ -458,6 +458,26 @@ object TransactionSpec extends ZIOSpecDefault {
       val result = run(DynamoDBQuery.transactWriteItems(writes: _*))
       assert(result.failed.get)(isSubtype[TransactionError.TransactionValidationError](anything))
     },
+    test("a retry policy on an item inside transactWriteItems fails with UnsupportedModifier") {
+      val result = run(
+        DynamoDBQuery.transactWriteItems(DynamoDBQuery.putItem(table, item).withRetryPolicy(RetryPolicy.NoRetry))
+      )
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
+      assertTrue(result.failed.get.getMessage.contains("putItem"))
+    },
+    test("a retry policy on an item inside transactGetItems fails with UnsupportedModifier") {
+      val result = run(
+        DynamoDBQuery.transactGetItems(DynamoDBQuery.GetItem(table, pk).copy(retryPolicy = Some(RetryPolicy.NoRetry)))
+      )
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
+    test("a retry policy on a condition check inside transactWriteItems fails with UnsupportedModifier") {
+      val check  = DynamoDBQuery
+        .conditionCheck(table, pk)($("score") === 42)
+        .withRetryPolicy(RetryPolicy.NoRetry)
+      val result = run(DynamoDBQuery.transactWriteItems(check, DynamoDBQuery.putItem(table, item)))
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
     test("transactGetItems with 1 item succeeds") {
       val result = run(
         DynamoDBQuery.transactGetItems(DynamoDBQuery.GetItem(table, pk)),
@@ -548,9 +568,13 @@ object TransactionSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("no-op on non-TransactWriteItems query") {
+      test("fails with UnsupportedModifier on a non-TransactWriteItems query") {
         val base = DynamoDBQuery.getItem(table, pk)
-        assertTrue(base.withClientRequestToken("tok").eq(base))
+        assert(base.withClientRequestToken("tok"))(
+          isSubtype[DynamoDBQuery.Fail](
+            hasField("error", _.error(), isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+          )
+        )
       }
     ),
     suite("returnValuesOnConditionCheckFailure")(
