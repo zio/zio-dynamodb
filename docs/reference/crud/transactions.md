@@ -102,6 +102,10 @@ cancellation reason by default, if it's the one that caused the cancellation;
 A transaction returns no items, so a write with `.returning` is rejected
 with `TransactionValidationError` before any request is sent.
 
+A transaction runs as one request, so `.capacity`, `.metrics` and `.withRetryPolicy` on an item
+inside it are rejected with `UnsupportedModifier`; set `.capacity` / `.metrics` on the
+transaction itself.
+
 ## Errors
 
 A failed transaction surfaces as `DynamoDBError.TransactionError.TransactionCancelled(reasons)`

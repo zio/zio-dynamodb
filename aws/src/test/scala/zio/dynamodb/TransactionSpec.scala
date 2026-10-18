@@ -465,6 +465,21 @@ object TransactionSpec extends ZIOSpecDefault {
       assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
       assertTrue(result.failed.get.getMessage.contains("putItem"))
     },
+    test("capacity and metrics on an item inside transactWriteItems fail with UnsupportedModifier") {
+      val result = run(
+        DynamoDBQuery.transactWriteItems(
+          DynamoDBQuery
+            .putItem(table, item)
+            .capacity(ReturnConsumedCapacity.Total)
+            .metrics(ReturnItemCollectionMetrics.Size)
+        )
+      )
+      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
+      assertTrue(
+        result.failed.get.getMessage.contains("putItem.capacity"),
+        result.failed.get.getMessage.contains("putItem.metrics")
+      )
+    },
     test("a retry policy on an item inside transactGetItems fails with UnsupportedModifier") {
       val result = run(
         DynamoDBQuery.transactGetItems(DynamoDBQuery.GetItem(table, pk).copy(retryPolicy = Some(RetryPolicy.NoRetry)))

@@ -476,22 +476,36 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
-  // A transaction runs as one request, so a retry policy set on one of its items would never be read.
-  private def validateTransactItemRetryPolicies(
+  // A transaction runs as one request and encodes only each item's target, expressions and
+  // returnValuesOnConditionCheckFailure; capacity and metrics are set on the transaction itself.
+  // A get item's consistency isn't checked: transactional reads are serializable, which satisfies it.
+  private def validateTransactItemModifiers(
     items: Chunk[DynamoDBQuery[Any, Any]]
   ): Option[DynamoDBError.QueryBuilderError.UnsupportedModifier] = {
-    val withRetryPolicy = items.collect {
-      case g: DynamoDBQuery.GetItem if g.retryPolicy.isDefined    => "getItem"
-      case p: DynamoDBQuery.PutItem if p.retryPolicy.isDefined    => "putItem"
-      case u: DynamoDBQuery.UpdateItem if u.retryPolicy.isDefined => "updateItem"
-      case d: DynamoDBQuery.DeleteItem if d.retryPolicy.isDefined => "deleteItem"
+    def write(
+      name: String,
+      retryPolicy: Option[RetryPolicy],
+      capacity: ReturnConsumedCapacity,
+      itemMetrics: ReturnItemCollectionMetrics
+    ): List[String] =
+      (if (retryPolicy.isDefined) List(s"$name.withRetryPolicy") else Nil) ++
+        (if (capacity != ReturnConsumedCapacity.None) List(s"$name.capacity") else Nil) ++
+        (if (itemMetrics != ReturnItemCollectionMetrics.None) List(s"$name.metrics") else Nil)
+    val ignored     = items.toList.flatMap {
+      case g: DynamoDBQuery.GetItem    =>
+        (if (g.retryPolicy.isDefined) List("getItem.withRetryPolicy") else Nil) ++
+          (if (g.capacity != ReturnConsumedCapacity.None) List("getItem.capacity") else Nil)
+      case p: DynamoDBQuery.PutItem    => write("putItem", p.retryPolicy, p.capacity, p.itemMetrics)
+      case u: DynamoDBQuery.UpdateItem => write("updateItem", u.retryPolicy, u.capacity, u.itemMetrics)
+      case d: DynamoDBQuery.DeleteItem => write("deleteItem", d.retryPolicy, d.capacity, d.itemMetrics)
+      case _                           => Nil
     }
-    if (withRetryPolicy.isEmpty) None
+    if (ignored.isEmpty) None
     else
       Some(
         DynamoDBError.QueryBuilderError.UnsupportedModifier(
-          "'.withRetryPolicy' has no effect on an item inside a transaction, which runs as one request; " +
-            s"got it on: ${withRetryPolicy.mkString(", ")}"
+          "a transaction runs as one request, so these item-level modifiers have no effect - set " +
+            s"capacity / metrics on the transaction itself instead; got: ${ignored.mkString(", ")}"
         )
       )
   }
@@ -564,7 +578,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
         validateTransactionSize(q.getItems.length)
-          .orElse(validateTransactItemRetryPolicies(q.getItems))
+          .orElse(validateTransactItemModifiers(q.getItems))
           .fold(runTransactGetItems(q).asInstanceOf[F[Any]])(err => fail(err))
       case q: DynamoDBQuery.TransactWriteItems =>
         q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
@@ -576,7 +590,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             validateTransactionSize(unwrapped.writeItems.length)
               .orElse(validateTransactWriteItems(unwrapped.writeItems))
               .orElse(validateTransactWriteReturnValues(unwrapped.writeItems))
-              .orElse(validateTransactItemRetryPolicies(unwrapped.writeItems))
+              .orElse(validateTransactItemModifiers(unwrapped.writeItems))
               .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }
