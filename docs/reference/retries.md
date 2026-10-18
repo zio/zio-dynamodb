@@ -33,10 +33,13 @@ an error to it.
 
 The downsides of leaving failed-request retries to the SDK:
 
-- `RetryInterceptor` doesn't see them, and there's no per-query curve.
-- Unhappy-path tests wait out the SDK's real retry delays. zio-dynamodb's own delays can be
-  skipped with ZIO's `TestClock` or Cats Effect's `TestControl` (`Future` always waits in real
-  time).
+- **No observability:** the SDK retries internally, with no hook for your code. zio-dynamodb
+  reports each of its retries to an interceptor — see [Observing retries](#observing-retries).
+- **No per-query curve:** the SDK applies one retry strategy to every call on the client.
+  zio-dynamodb takes a policy per call (`.withRetryPolicy`).
+- **Slow unhappy-path tests:** tests wait out the SDK's real retry delays. zio-dynamodb's own
+  delays can be skipped with ZIO's `TestClock` or Cats Effect's `TestControl` (`Future` always
+  waits in real time).
 
 To avoid these, see [Moving failed-request retry into zio-dynamodb](#moving-failed-request-retry-into-zio-dynamodb).
 
