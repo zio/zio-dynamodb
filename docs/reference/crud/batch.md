@@ -16,7 +16,7 @@ effect-level (`.withRetryPolicy`, throttling/network errors on a given attempt) 
 batch unprocessed (`.withBatchUnprocessedRetryPolicy`, re-submitting unprocessed keys/items from a
 successful response). Each knob governs only its own loop. Unprocessed keys/items are
 resubmitted by default — the interpreter's `defaultBatchUnprocessedRetryPolicy` is
-`Some(RetryPolicy.fullJitter())` unless set otherwise in `fromAsyncClient` (`None` turns it
+`RetryPolicy.fullJitter` with a 100 ms base unless set otherwise in `fromAsyncClient` (`None` turns it
 off); `.withBatchUnprocessedRetryPolicy(...)` overrides it per call. See
 [Retries: batch operations](../retries.md#batch-operations-two-independent-loops) for why that
 split exists — in short, the batch unprocessed retry, unlike the effect-level one, is safe to use

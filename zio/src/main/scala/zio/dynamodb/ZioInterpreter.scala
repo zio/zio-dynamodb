@@ -65,7 +65,7 @@ object ZioInterpreter {
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
    * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
-   * (`RetryPolicy.fullJitter()`), pass `None` to return `Incomplete` instead. It is independent of
+   * (`RetryPolicy.fullJitter` with a 100 ms base), pass `None` to return `Incomplete` instead. It is independent of
    * `defaultRetryPolicy`, which never drives that resubmission.
    */
   def fromAsyncClient(
@@ -73,7 +73,7 @@ object ZioInterpreter {
     interceptors: InterceptorConfig[Task] = InterceptorConfig(),
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
     retryQuota: Option[RetryQuota[Task]] = Some(ZioRetryQuota.standard()),
-    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.fullJitter())
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.batchUnprocessedDefault)
   ): ZioInterpreter =
     fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota, defaultBatchUnprocessedRetryPolicy)
 

@@ -48,14 +48,14 @@ object FutureRetryPolicies {
     }
 
   /**
-   * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
-   * it's what AWS SDKs actually ship as their default today. Stateless, so no `var` is needed
+   * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula and where
+   * its defaults come from. Stateless, so no `var` is needed
    * either; the wrapping `Attempt` is built once here (not per `newAttempt()` call) and shared,
    * since it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
     maxRetries: Int = 8,
-    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    baseDelay: FiniteDuration = FiniteDuration(25, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): EffectfulRetryPolicy[Future] = {
     val pureAttempt   = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()

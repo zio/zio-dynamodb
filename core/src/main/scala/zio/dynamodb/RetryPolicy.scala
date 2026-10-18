@@ -125,18 +125,23 @@ object RetryPolicy {
 
   /**
    * Full-jitter exponential backoff: `delay = random(0, min(maxDelay, baseDelay * 2^attempt))`
-   * — a thin preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. This is
-   * what AWS SDKs actually implement as their current standard retry mode (see AWS's SDKs and
-   * Tools Reference Guide, "Retry behavior"). `maxRetries` counts retries, not total attempts
-   * — the default of 8 matches DynamoDB clients' own default retry count, which is higher than
-   * other AWS service clients' default.
+   * — a preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. The defaults
+   * match the AWS SDK's DynamoDB client for transient errors: 8 retries (9 attempts) and a 25 ms
+   * base delay. The SDK uses a longer base (500 ms to 1 s, depending on retry mode) for
+   * throttling errors, which a single curve can't express.
    */
   def fullJitter(
     maxRetries: Int = 8,
-    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    baseDelay: FiniteDuration = FiniteDuration(25, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): RetryPolicy =
     ExponentialBackoff(maxRetries, baseDelay, factor = 2.0, maxDelay, jitter = true)
+
+  // The interpreters' default for resubmitting a batch's unprocessed keys / items. `fullJitter`'s
+  // 25 ms base is DynamoDB's delay for transient errors; unprocessed items aren't one, so this
+  // keeps a longer 100 ms base.
+  private[dynamodb] val batchUnprocessedDefault: RetryPolicy =
+    fullJitter(baseDelay = FiniteDuration(100, "milliseconds"))
 
   /** Default predicate covering standard DynamoDB transient errors. */
   val isRetryable: Throwable => Boolean = { t =>

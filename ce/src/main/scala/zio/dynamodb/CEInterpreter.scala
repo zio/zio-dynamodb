@@ -75,7 +75,7 @@ object CEInterpreter {
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
    * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
-   * (`RetryPolicy.fullJitter()`), pass `None` to return `Incomplete` instead. It is independent of
+   * (`RetryPolicy.fullJitter` with a 100 ms base), pass `None` to return `Incomplete` instead. It is independent of
    * `defaultRetryPolicy`, which never drives that resubmission.
    */
   def fromAsyncClient[F[_]: Async](
@@ -83,7 +83,7 @@ object CEInterpreter {
     interceptors: InterceptorConfig[F] = null,
     defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None,
     retryQuota: Option[RetryQuota[F]] = null,
-    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.fullJitter())
+    defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = Some(RetryPolicy.batchUnprocessedDefault)
   ): CEInterpreter[F] =
     fromAsyncClientInternal(
       sdkClient,

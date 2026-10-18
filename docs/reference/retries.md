@@ -9,7 +9,7 @@ Three retry loops can act on a call:
 |---|---|---|---|
 | AWS SDK retry | a failed request, inside the SDK client | **on** — standard mode; DynamoDB clients default to 8 retries (9 attempts) | the `DynamoDbAsyncClient`'s `ClientOverrideConfiguration` ([AWS: Retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html)) |
 | Effect-level retry | a failed request whose error is retryable, around the SDK call | **off** | `.withRetryPolicy(policy)` per call, `defaultRetryPolicy` per interpreter |
-| Batch unprocessed retry | the unprocessed keys / items of a **successful** `batchGetItem` / `batchWriteItem` response | **on** — `RetryPolicy.fullJitter()` | `.withBatchUnprocessedRetryPolicy(policy)` per call, `defaultBatchUnprocessedRetryPolicy` per interpreter |
+| Batch unprocessed retry | the unprocessed keys / items of a **successful** `batchGetItem` / `batchWriteItem` response | **on** — `RetryPolicy.fullJitter` with a 100 ms base | `.withBatchUnprocessedRetryPolicy(policy)` per call, `defaultBatchUnprocessedRetryPolicy` per interpreter |
 
 Each setting governs only its own loop. Both of zio-dynamodb's loops share the interpreter's
 `retryQuota` (on by default), a client-wide circuit breaker.
@@ -84,7 +84,8 @@ val interp: ZioInterpreter =
 
 This gives `RetryInterceptor` visibility, per-query curves (`.withRetryPolicy`) and unhappy-path
 tests that don't wait for real retry delays. `retryQuota` takes over the role of the SDK's own
-retry quota. `fullJitter()` uses the same curve shape as the SDK's standard mode.
+retry quota. `fullJitter()`'s defaults (8 retries, 25 ms base) match the SDK's DynamoDB client for
+transient errors; the SDK backs off longer for throttling errors.
 
 ### Never both for failed requests
 
@@ -149,7 +150,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 | `.withRetryPolicy(policy)` | call | `RetryPolicy` | effect-level | — |
 | `defaultRetryPolicy` | interpreter (`fromAsyncClient`) | `EffectfulRetryPolicy[F]` | effect-level | `None` |
 | `.withBatchUnprocessedRetryPolicy(policy)` | call | `RetryPolicy` | batch unprocessed | — |
-| `defaultBatchUnprocessedRetryPolicy` | interpreter (`fromAsyncClient`) | `RetryPolicy` | batch unprocessed | `Some(RetryPolicy.fullJitter())` |
+| `defaultBatchUnprocessedRetryPolicy` | interpreter (`fromAsyncClient`) | `RetryPolicy` | batch unprocessed | `fullJitter` with a 100 ms base |
 | `retryQuota` | interpreter (`fromAsyncClient`) | `RetryQuota[F]` | both | `<Module>RetryQuota.standard()` |
 
 A call's own policy always wins over the interpreter's. `RetryPolicy.NoRetry` turns a loop off for
@@ -189,7 +190,7 @@ policy only when the update is idempotent.
 State is created fresh per execution (`newAttempt()`), never shared across concurrent executions
 of the same policy value. Built-ins: `RetryPolicy.NoRetry`,
 `RetryPolicy.ExponentialBackoff(maxRetries, initialDelay, factor, maxDelay, jitter)`, and
-`RetryPolicy.fullJitter(maxRetries = 8, baseDelay = 100.millis, maxDelay = 20.seconds)` —
+`RetryPolicy.fullJitter(maxRetries = 8, baseDelay = 25.millis, maxDelay = 20.seconds)` —
 `ExponentialBackoff` with `factor = 2.0` and full jitter.
 
 ```scala mdoc:compile-only
