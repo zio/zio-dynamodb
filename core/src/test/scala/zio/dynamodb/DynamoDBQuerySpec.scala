@@ -461,6 +461,11 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[DynamoDBQuery.BatchWriteItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
       )
     },
+    test("metrics sets TransactWriteItems") {
+      assert(DynamoDBQuery.transactWriteItems(PutItem(table1, item1)).metrics(sizeMetrics))(
+        isSubtype[DynamoDBQuery.TransactWriteItems](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
+      )
+    },
     test("metrics propagates through ZipPar") {
       val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).metrics(sizeMetrics)
       assert(q)(

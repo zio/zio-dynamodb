@@ -365,22 +365,24 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)    =>
+      case ZipPar(left, right, zippable)        =>
         ZipPar(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
-      case b: BuilderNode[_, _]             => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].metrics(itemMetrics)
-      case DynamoDBQuery.Map(query, mapper) =>
+      case b: BuilderNode[_, _]                 => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].metrics(itemMetrics)
+      case DynamoDBQuery.Map(query, mapper)     =>
         DynamoDBQuery.Map(query.metrics(itemMetrics), mapper)
-      case DynamoDBQuery.Absolve(query)     =>
+      case DynamoDBQuery.Absolve(query)         =>
         DynamoDBQuery.Absolve(query.metrics(itemMetrics))
-      case p: DynamoDBQuery.PutItem         =>
+      case p: DynamoDBQuery.PutItem             =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem      =>
+      case u: DynamoDBQuery.UpdateItem          =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem      =>
+      case d: DynamoDBQuery.DeleteItem          =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bw: DynamoDBQuery.BatchWriteItem =>
+      case bw: DynamoDBQuery.BatchWriteItem     =>
         bw.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => unsupportedModifier("metrics", "putItem/updateItem/deleteItem/batchWriteItem")
+      case tw: DynamoDBQuery.TransactWriteItems =>
+        tw.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                    => unsupportedModifier("metrics", "putItem/updateItem/deleteItem/batchWriteItem/transactWriteItems")
     }
 
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[In, Out] =

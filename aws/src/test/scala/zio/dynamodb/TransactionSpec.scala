@@ -465,6 +465,21 @@ object TransactionSpec extends ZIOSpecDefault {
       assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
       assertTrue(result.failed.get.getMessage.contains("putItem"))
     },
+    test("capacity and metrics on the transaction itself are sent with the request") {
+      var captured: TransactWriteItemsRequest = null
+      val result                              = run(
+        DynamoDBQuery
+          .transactWriteItems(DynamoDBQuery.putItem(table, item))
+          .capacity(ReturnConsumedCapacity.Total)
+          .metrics(ReturnItemCollectionMetrics.Size),
+        txStub(onTransactWrite = req => { captured = req; TransactWriteItemsResponse.builder().build() })
+      )
+      assertTrue(
+        result.isSuccess,
+        captured.returnConsumedCapacityAsString() == "TOTAL",
+        captured.returnItemCollectionMetricsAsString() == "SIZE"
+      )
+    },
     test("capacity and metrics on an item inside transactWriteItems fail with UnsupportedModifier") {
       val result = run(
         DynamoDBQuery.transactWriteItems(
