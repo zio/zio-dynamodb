@@ -49,6 +49,29 @@ jobs:
       run: sbt --no-colors +publishLocal
     - name: Check website build process
       run: sbt --no-colors docs/clean; sbt --no-colors docs/buildWebsite
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v7.0.1
+      with:
+        fetch-depth: '0'
+    - name: Install libuv
+      run: sudo apt-get update && sudo apt-get install -y libuv1-dev
+    - name: Setup Scala
+      uses: actions/setup-java@v5.7.0
+      with:
+        distribution: corretto
+        java-version: '17'
+        check-latest: true
+    - name: Setup SBT
+      uses: sbt/setup-sbt@v1.5.7
+    - name: Cache Dependencies
+      uses: coursier/cache-action@v8.1.1
+    - name: Check benchmarks compile
+      run: sbt --no-colors benchmarks/Jmh/compile
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -180,6 +203,7 @@ jobs:
     - lint
     - test
     - build
+    - benchmarks
     if: always()
     steps:
     - name: Report Failed CI

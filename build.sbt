@@ -28,8 +28,8 @@ ThisBuild / organization  := "dev.zio"
 // Scala 3 (LTS) is the primary/default version (matching zio-blocks' pattern of defaulting
 // to Scala 3, but tracking the LTS line rather than zio-blocks' bleeding-edge 3.8.x — this
 // library targets production infra, not compiler-internals-dependent macro features); 2.13
-// is the secondary cross-build target. Modules that can't target 3.x (benchmarks, JMH-only)
-// pin their own scalaVersion explicitly rather than relying on this default.
+// is the secondary cross-build target. `benchmarks` is Scala 3 only: it isn't in root's
+// aggregate, so `+` / `++2.13.18` commands don't build it.
 ThisBuild / scalaVersion  := scala3Version
 ThisBuild / homepage      := Some(url("https://github.com/zio/zio-dynamodb"))
 ThisBuild / licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
@@ -283,3 +283,4 @@ lazy val root = (project in file("."))
 ThisBuild / ciEnabledBranches  := Seq("series/3.x")
 ThisBuild / ciPublishSnapshots := false // superseded by CiWorkflow.release's series/3.x-aware condition
 ThisBuild / ciReleaseJobs      := Seq(CiWorkflow.release.value)
+ThisBuild / ciBuildJobs += CiWorkflow.benchmarks.value
