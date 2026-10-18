@@ -1,6 +1,7 @@
 import sbt._
 import zio.json.ast.Json
 import zio.sbt.ZioSbtCiPlugin._
+import zio.sbt.ZioSbtCiPlugin.autoImport._
 import zio.sbt.githubactions.Step.SingleStep
 import zio.sbt.githubactions._
 
@@ -49,6 +50,23 @@ object CiWorkflow {
       condition = releaseOrSnapshotCondition,
       steps = default.steps.dropRight(1) :+ releaseRetryStep,
       concurrency = Some(Concurrency(group = "release-${{ github.ref }}", cancelInProgress = CancelInProgress.Never))
+    )
+  }
+
+  // `benchmarks` sits outside root's aggregate, so the Test and Build jobs never compile it, and
+  // the plugin's Build job is `continue-on-error`, so a step added there can't fail CI. This job
+  // reuses the Build job's setup steps (everything before its own check steps) and compiles the
+  // JMH sources; the `ci` gate waits on every job in `ciBuildJobs`, so a failure here fails it.
+  lazy val benchmarks: Def.Initialize[Job] = Def.setting {
+    val build      = buildJobs.value.head
+    val checkSteps =
+      ciCheckArtifactsCompilationSteps.value ++ ciCheckArtifactsBuildSteps.value ++ ciCheckWebsiteBuildProcess.value
+    build.copy(
+      id = "benchmarks",
+      name = "Benchmarks",
+      continueOnError = false,
+      steps = build.steps.dropRight(checkSteps.size) :+
+        SingleStep(name = "Check benchmarks compile", run = Some("sbt --no-colors benchmarks/Jmh/compile"))
     )
   }
 }
