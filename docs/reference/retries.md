@@ -58,6 +58,10 @@ val oneCall =
     .withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry)
 ```
 
+The result then carries what you need to retry yourself: `Incomplete` holds the unprocessed
+keys / items (`response.unprocessedKeys` / `response.unprocessedItems`) to build the next batch
+from, and `Failed` holds the `cause`. See [Batch Operations](crud/batch.md).
+
 ## Moving failed-request retry into zio-dynamodb
 
 Turn the SDK's retries off and set an effect-level policy instead:
@@ -238,8 +242,12 @@ holds 500 tokens, matching AWS's default; pass `retryQuota = None` to disable.
 | Success after retrying | + what those retries cost |
 
 An exhausted quota denies the retry immediately: the effect-level loop fails with the last error
-(`Failed` for a batch), the batch unprocessed retry ends with `Incomplete`. The quota is shared by every call on the
-interpreter; there is no per-call override.
+(`Failed` for a batch), the batch unprocessed retry ends with `Incomplete`. The quota is shared by
+every call on the interpreter; there is no per-call override.
+
+Create the interpreter once, at startup, and reuse it — like the `DynamoDbAsyncClient` itself.
+Each `fromAsyncClient` call creates a new quota with a full budget, so an interpreter built per
+request or per Lambda invocation never runs low and the circuit breaker never trips.
 
 ```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
