@@ -31,9 +31,14 @@ val interp: ZioInterpreter = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.
 The two don't overlap: the SDK never resubmits unprocessed items, since a partial result isn't
 an error to it.
 
-What this setup doesn't give you, since the SDK retries internally: `RetryInterceptor`
-visibility of failed-request retries, a per-query curve, or `TestClock`-driven retry tests. For
-those, see [Moving failed-request retry into zio-dynamodb](#moving-failed-request-retry-into-zio-dynamodb).
+The downsides of leaving failed-request retries to the SDK:
+
+- `RetryInterceptor` doesn't see them, and there's no per-query curve.
+- Unhappy-path tests wait out the SDK's real retry delays. zio-dynamodb's own delays can be
+  skipped with ZIO's `TestClock` or Cats Effect's `TestControl` (`Future` always waits in real
+  time).
+
+To avoid these, see [Moving failed-request retry into zio-dynamodb](#moving-failed-request-retry-into-zio-dynamodb).
 
 To leave unprocessed items for you to handle, opt out per interpreter or per call:
 
@@ -70,9 +75,9 @@ val interp: ZioInterpreter =
   ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = Some(ZioRetryPolicies.fullJitter()))
 ```
 
-This gives `RetryInterceptor` visibility, per-query curves (`.withRetryPolicy`) and
-`TestClock`-driven tests. `retryQuota` takes over the role of the SDK's own retry quota.
-`fullJitter()` uses the same curve shape as the SDK's standard mode.
+This gives `RetryInterceptor` visibility, per-query curves (`.withRetryPolicy`) and unhappy-path
+tests that don't wait for real retry delays. `retryQuota` takes over the role of the SDK's own
+retry quota. `fullJitter()` uses the same curve shape as the SDK's standard mode.
 
 ### Never both for failed requests
 
