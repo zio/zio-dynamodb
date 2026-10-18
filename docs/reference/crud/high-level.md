@@ -138,7 +138,7 @@ wouldn't compile.
 **Retries**: `.set`/`.remove`/`.deleteFromSet` are idempotent, but `.add`/`.increment`/
 `.decrement`/`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome
 failure can double-apply it. `update` never retries automatically for this reason; see
-[Retries](../retries.md#updateitem-is-the-one-exception-explicit-opt-in-only).
+[Retries](../retries.md#which-operations-zio-dynamodb-retries).
 
 ## Delete
 
