@@ -156,18 +156,20 @@ def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")).withRetryPolicy(RetryPolicy.NoRetry)
 ```
 
-### `UpdateItem` is the one exception: explicit opt-in only
+### Which operations zio-dynamodb retries
 
-`UpdateItem` never uses `defaultRetryPolicy`; without its own `.withRetryPolicy(...)` it isn't
-retried by zio-dynamodb. Its actions include non-idempotent ones (`.add`, `.increment`,
-`.decrement`, `.appendList`, `.prependList`), and retrying an ambiguous failure — a timeout where
-the write may have landed — would apply the delta twice. Attach a policy only when the update is
-idempotent.
+| Operation | `.withRetryPolicy` | `defaultRetryPolicy` |
+|---|---|---|
+| `GetItem`, `PutItem`, `DeleteItem`, `Query`, `Scan`, `BatchGetItem`, `BatchWriteItem` | Yes | Yes |
+| `UpdateItem` | Yes | No |
+| `TransactGetItems`, `TransactWriteItems`, `CreateTable`, `DeleteTable`, `DescribeTable` | No — ignored | No |
 
-| Operation | Uses `defaultRetryPolicy`? |
-|---|---|
-| `GetItem`, `PutItem`, `DeleteItem`, `Query`, `Scan`, `BatchGetItem`, `BatchWriteItem` | Yes |
-| `UpdateItem` | No — explicit `.withRetryPolicy(...)` only |
+Operations zio-dynamodb doesn't retry are still retried by the SDK, if its retries are on.
+
+`UpdateItem` needs its own `.withRetryPolicy(...)` because its actions include non-idempotent
+ones (`.add`, `.increment`, `.decrement`, `.appendList`, `.prependList`): retrying an ambiguous
+failure — a timeout where the write may have landed — would apply the delta twice. Attach a
+policy only when the update is idempotent.
 
 ### Three ways to shape a curve
 
