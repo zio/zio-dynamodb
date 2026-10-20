@@ -86,6 +86,21 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
+    test("withClientRequestToken on a zipPar fails rather than sharing one token between transactions") {
+      val zipped = DynamoDBQuery.transactWriteItems(PutItem(table1, item1)) zipPar
+        DynamoDBQuery.transactWriteItems(PutItem(table2, item1))
+      assert(zipped.withClientRequestToken("tok"))(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField(
+            "error",
+            _.error(),
+            isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+              hasField("message", _.message, containsString("a token identifies a single transaction"))
+            )
+          )
+        )
+      )
+    },
     test("withClientRequestToken fails with UnsupportedModifier outside a transaction") {
       assert(GetItem(table1, pk).withClientRequestToken("tok"))(failsAsUnsupported("withClientRequestToken"))
     },

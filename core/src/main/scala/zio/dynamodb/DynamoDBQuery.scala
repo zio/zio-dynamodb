@@ -188,10 +188,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         unsupportedModifier("returnValuesOnConditionCheckFailure", "putItem/updateItem/deleteItem/conditionCheck")
     }
 
+  // A token identifies one request to AWS, which treats a repeat as the same request, so it can't
+  // be shared across the legs of a zipPar.
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)        =>
-        ZipPar(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
+      case _: ZipPar[_, _, _]                   =>
+        failUnsupported(
+          "'.withClientRequestToken' has no effect on a zipPar: a token identifies a single transaction, so set " +
+            "one on each transactWriteItems instead"
+        )
       case b: BuilderNode[_, _]                 => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].withClientRequestToken(token)
       case DynamoDBQuery.Map(query, mapper)     => DynamoDBQuery.Map(query.withClientRequestToken(token), mapper)
       case DynamoDBQuery.Absolve(query)         => DynamoDBQuery.Absolve(query.withClientRequestToken(token))
@@ -814,12 +819,13 @@ object DynamoDBQuery {
 
   }
   private[dynamodb] object BatchGetItem {
-    // A batch get sends only each item's table, key and projections; capacity and retry policy
-    // belong on the batch, and it has no per-item consistency.
+    // A batch get sends only each item's table, key and projections: capacity and retry policy
+    // belong on the batch, and per-table consistent reads aren't supported yet.
     private[dynamodb] def unsupportedItemSetting(g: GetItem): Option[DynamoDBError] =
       if (g.retryPolicy.isDefined) unsupported("withRetryPolicy", "set it on the batch")
       else if (g.capacity != ReturnConsumedCapacity.None) unsupported("capacity", "set it on the batch")
-      else if (g.consistency != ConsistencyMode.Weak) unsupported("consistency", "batch gets are eventually consistent")
+      else if (g.consistency != ConsistencyMode.Weak)
+        unsupported("consistency", "batchGetItem doesn't support consistent reads yet")
       else None
 
     private def unsupported(modifier: String, hint: String): Option[DynamoDBError] =
