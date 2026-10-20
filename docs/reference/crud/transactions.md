@@ -94,7 +94,8 @@ def guardedExample(implicit interp: Interpreter[zio.Task]) =
 ```
 
 `.withClientRequestToken(token)` makes a retry of the exact same transaction idempotent —
-DynamoDB returns the original result instead of re-applying it.
+DynamoDB returns the original result instead of re-applying it. A token names one transaction, so
+on a `zipPar` it fails with `UnsupportedModifier`; set one on each `transactWriteItems`.
 A conditional write (`.where`) or a `conditionCheck` returns that item's prior state on its
 cancellation reason by default, if it's the one that caused the cancellation;
 `.withoutItemOnConditionFailure` turns it off.

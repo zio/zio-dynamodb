@@ -189,7 +189,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   // A token identifies one request to AWS, which treats a repeat as the same request, so it can't
-  // be shared across the legs of a zipPar.
+  // be shared across the legs of a zipPar. Unlike other modifiers it fails on the whole zipPar rather
+  // than per leg: a zip has at least two legs and a token can apply to at most one, so no zip can take it.
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
       case _: ZipPar[_, _, _]                   =>

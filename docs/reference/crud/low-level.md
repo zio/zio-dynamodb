@@ -84,6 +84,8 @@ def example(implicit interp: Interpreter[zio.Task]) =
 A modifier applied to an operation it doesn't affect — `.consistency` on a `putItem`, `.segment`
 on a `query` — fails the query with `DynamoDBError.QueryBuilderError.UnsupportedModifier` when it
 runs, naming the modifier and where it applies; on a `zipPar`, only the leg it doesn't apply to fails.
+The exception is `.withClientRequestToken`, which fails on any `zipPar`: a token names a single
+transaction, so set one on each `transactWriteItems`.
 
 ## Update
 
