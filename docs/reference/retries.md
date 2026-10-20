@@ -170,9 +170,11 @@ def example(implicit interp: Interpreter[zio.Task]) =
 |---|---|---|
 | `GetItem`, `PutItem`, `DeleteItem`, `Query`, `Scan`, `BatchGetItem`, `BatchWriteItem` | Yes | Yes |
 | `UpdateItem` | Yes | No |
-| `TransactGetItems`, `TransactWriteItems`, `CreateTable`, `DeleteTable`, `DescribeTable` | No — ignored | No |
+| `TransactGetItems`, `TransactWriteItems`, `CreateTable`, `DeleteTable`, `DescribeTable` | No — fails with `UnsupportedModifier` | No |
 
-Operations zio-dynamodb doesn't retry are still retried by the SDK, if its retries are on.
+Operations zio-dynamodb doesn't retry are still retried by the SDK, if its retries are on. A
+`.withRetryPolicy` on an item inside a transaction or a batch also fails with `UnsupportedModifier`;
+for a batch, set it on the batch itself.
 
 `UpdateItem` needs its own `.withRetryPolicy(...)` because its actions include non-idempotent
 ones (`.add`, `.increment`, `.decrement`, `.appendList`, `.prependList`): retrying an ambiguous

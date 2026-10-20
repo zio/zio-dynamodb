@@ -34,7 +34,167 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
   private val key1 = PrimaryKey("id" -> "a")
   private val key2 = PrimaryKey("id" -> "b")
 
+  private def runFailure(q: DynamoDBQuery[_, _]): Throwable =
+    scala.util.Try(DummyIOInterpreter.run(q).unsafeRun()).failed.get
+
+  private def failsAsUnsupported(modifier: String): Assertion[Any] =
+    isSubtype[DynamoDBQuery.Fail](
+      hasField(
+        "error",
+        _.error(),
+        isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+          hasField("message", _.message, containsString(s"'.$modifier' has no effect on"))
+        )
+      )
+    )
+
+  private val unsupportedModifierSuite = suite("unsupported modifiers")(
+    test("an existing Fail keeps its own error") {
+      val first: DynamoDBError = DynamoDBError.QueryBuilderError.UnsupportedModifier("first")
+      assert(DynamoDBQuery.fail(first).capacity(total).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DynamoDBQuery.Fail](hasField[DynamoDBQuery.Fail, DynamoDBError]("error", _.error(), equalTo(first)))
+      )
+    },
+    test("a Succeed is left unchanged, since it sends no request") {
+      val q = DynamoDBQuery.succeed(1)
+      assertTrue(q.capacity(total) eq q)
+    },
+    test("on a zipPar, only the leg the modifier doesn't apply to fails") {
+      val createTable =
+        DynamoDBQuery.createTable(table1, KeySchema("id"), AttributeDefinition.attrDefnString("id"))(
+          BillingMode.PayPerRequest
+        )
+      val zipped      = (GetItem(table1, pk) zipPar createTable).withRetryPolicy(RetryPolicy.NoRetry)
+      assert(zipped)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], Any]("left", _.left, isSubtype[GetItem](anything)) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], Any]("right", _.right, failsAsUnsupported("withRetryPolicy"))
+        )
+      )
+    },
+    test("withClientRequestToken reaches a transaction through map") {
+      val tx = DynamoDBQuery.transactWriteItems(PutItem(table1, item1)).map(identity).withClientRequestToken("tok")
+      assert(tx)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField[DynamoDBQuery.Map[_, _], Any](
+            "query",
+            _.query,
+            isSubtype[DynamoDBQuery.TransactWriteItems](
+              hasField("clientRequestToken", _.clientRequestToken, isSome(equalTo("tok")))
+            )
+          )
+        )
+      )
+    },
+    test("withClientRequestToken on a zipPar fails rather than sharing one token between transactions") {
+      val zipped = DynamoDBQuery.transactWriteItems(PutItem(table1, item1)) zipPar
+        DynamoDBQuery.transactWriteItems(PutItem(table2, item1))
+      assert(zipped.withClientRequestToken("tok"))(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField(
+            "error",
+            _.error(),
+            isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+              hasField("message", _.message, containsString("a token identifies a single transaction"))
+            )
+          )
+        )
+      )
+    },
+    test("withClientRequestToken fails with UnsupportedModifier outside a transaction") {
+      assert(GetItem(table1, pk).withClientRequestToken("tok"))(failsAsUnsupported("withClientRequestToken"))
+    },
+    test("batchGetItem builds, then fails when run, for a get with a modifier it doesn't support") {
+      val batch =
+        DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).segment(1, 2))
+      assert(runFailure(batch))(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+    },
+    test("batchGetItem fails with UnbatchableQuery when run, for a callback that doesn't return a getItem") {
+      val batch =
+        DynamoDBQuery.batchGetItem(List("a"))(id =>
+          DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).map(_.isDefined)
+        )
+      assert(runFailure(batch))(
+        isSubtype[DynamoDBError.QueryBuilderError.UnbatchableQuery](
+          hasField("message", _.message, containsString("must return a getItem"))
+        )
+      )
+    },
+    test("an item's capacity, metrics or retry policy inside batchWriteItem fails the batch when run") {
+      def failsOn(
+        modifier: String
+      )(f: ItemWriteBuilder[Any, Unit, WriteOp.Put] => ItemWriteBuilder[Any, Unit, WriteOp.Put]) =
+        assert(runFailure(DynamoDBQuery.batchWriteItem(List(item1))(i => f(DynamoDBQuery.putItem(table1, i)))))(
+          isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+            hasField(
+              "message",
+              _.message,
+              containsString(s"'.$modifier' has no effect on an item inside batchWriteItem")
+            )
+          )
+        )
+      failsOn("capacity")(_.capacity(total)) &&
+      failsOn("metrics")(_.metrics(sizeMetrics)) &&
+      failsOn("withRetryPolicy")(_.withRetryPolicy(RetryPolicy.NoRetry))
+    },
+    test("an item's capacity, consistency or retry policy inside batchGetItem fails the batch when run") {
+      def failsOn(modifier: String)(f: GetItem => GetItem) =
+        assert(runFailure(DynamoDBQuery.batchGetItem(List("a"))(id => f(GetItem(table1, PrimaryKey("id" -> id))))))(
+          isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+            hasField("message", _.message, containsString(s"'.$modifier' has no effect on an item inside batchGetItem"))
+          )
+        )
+      failsOn("capacity")(_.copy(capacity = total)) &&
+      failsOn("consistency")(_.copy(consistency = strong)) &&
+      failsOn("withRetryPolicy")(_.copy(retryPolicy = Some(RetryPolicy.NoRetry)))
+    },
+    test("the first item problem is the one reported") {
+      val batch = DynamoDBQuery.batchWriteItem(List(1, 2)) { n =>
+        if (n == 1) DynamoDBQuery.putItem(table1, item1).metrics(sizeMetrics)
+        else DynamoDBQuery.putItem(table1, item1).capacity(total)
+      }
+      assert(runFailure(batch))(hasField("message", _.getMessage, containsString("'.metrics'")))
+    },
+    test("an item's retry policy is no longer copied onto the batch") {
+      val batch = DynamoDBQuery.batchWriteItem(List(item1))(i =>
+        DynamoDBQuery.putItem(table1, i).withRetryPolicy(RetryPolicy.NoRetry)
+      )
+      assert(batch)(isSubtype[DynamoDBQuery.BatchWriteItem](hasField("retryPolicy", _.retryPolicy, isNone)))
+    },
+    test("capacity, metrics and retry policy on the batch itself still run") {
+      val write = DynamoDBQuery
+        .batchWriteItem(List(item1))(DynamoDBQuery.putItem(table1, _))
+        .capacity(total)
+        .metrics(sizeMetrics)
+        .withRetryPolicy(RetryPolicy.NoRetry)
+      val get   = DynamoDBQuery
+        .batchGetItem(List("a"))(id => DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)))
+        .capacity(total)
+        .withRetryPolicy(RetryPolicy.NoRetry)
+      assert(DummyIOInterpreter.run(write).unsafeRun())(isSubtype[Batch.WriteResult.Complete](anything)) &&
+      assert(DummyIOInterpreter.run(get).unsafeRun())(isSubtype[Batch.GetResult.Complete](anything))
+    },
+    test("sortOrder reaches both legs of a zipPar") {
+      val zipped = (DynamoDBQuery.Query(table1, 10) zipPar DynamoDBQuery.Query(table2, 10)).sortOrder(ascending = false)
+      assert(zipped)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], Any](
+            "left",
+            _.left,
+            isSubtype[DynamoDBQuery.Query](hasField("ascending", _.ascending, isFalse))
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], Any](
+              "right",
+              _.right,
+              isSubtype[DynamoDBQuery.Query](hasField("ascending", _.ascending, isFalse))
+            )
+        )
+      )
+    }
+  )
+
   def spec = suite("DynamoDBQuerySpec")(
+    unsupportedModifierSuite,
     batchingSuite,
     capacitySuite,
     consistencySuite,
@@ -250,13 +410,13 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("capacity is a no-op for constructors without a capacity field") {
+    test("capacity fails with UnsupportedModifier on constructors without a capacity field") {
       val q = DynamoDBQuery.createTable(
         table1,
         KeySchema("id"),
         AttributeDefinition.attrDefnString("id")
       )(BillingMode.PayPerRequest)
-      assertTrue(q.capacity(total) eq q)
+      assert(q.capacity(total))(failsAsUnsupported("capacity"))
     }
   )
 
@@ -310,9 +470,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("consistency is a no-op for constructors without a consistency field") {
+    test("consistency fails with UnsupportedModifier on constructors without a consistency field") {
       val q = PutItem(table1, item1)
-      assertTrue(q.consistency(strong) eq q)
+      assert(q.consistency(strong))(failsAsUnsupported("consistency"))
     }
   )
 
@@ -354,9 +514,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("returns is a no-op for constructors without a returnValues field") {
+    test("returns fails with UnsupportedModifier on constructors without a returnValues field") {
       val q = GetItem(table1, pk)
-      assertTrue(q.returns(allOld) eq q)
+      assert(q.returns(allOld))(failsAsUnsupported("returns"))
     }
   )
 
@@ -389,6 +549,11 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[DynamoDBQuery.BatchWriteItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
       )
     },
+    test("metrics sets TransactWriteItems") {
+      assert(DynamoDBQuery.transactWriteItems(PutItem(table1, item1)).metrics(sizeMetrics))(
+        isSubtype[DynamoDBQuery.TransactWriteItems](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
+      )
+    },
     test("metrics propagates through ZipPar") {
       val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).metrics(sizeMetrics)
       assert(q)(
@@ -406,9 +571,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("metrics is a no-op for constructors without an itemMetrics field") {
+    test("metrics fails with UnsupportedModifier on constructors without an itemMetrics field") {
       val q = GetItem(table1, pk)
-      assertTrue(q.metrics(sizeMetrics) eq q)
+      assert(q.metrics(sizeMetrics))(failsAsUnsupported("metrics"))
     }
   )
 
@@ -475,9 +640,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("startKey is a no-op for constructors without an exclusiveStartKey field") {
+    test("startKey fails with UnsupportedModifier on constructors without an exclusiveStartKey field") {
       val q = GetItem(table1, pk)
-      assertTrue(q.startKey(someKey) eq q)
+      assert(q.startKey(someKey))(failsAsUnsupported("startKey"))
     }
   )
 
@@ -544,9 +709,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("select is a no-op for non-scan/query constructors") {
+    test("select fails with UnsupportedModifier on non-scan/query constructors, naming the method called") {
       val q = GetItem(table1, key1)
-      assertTrue(q.selectCount eq q)
+      assert(q.selectCount)(failsAsUnsupported("selectCount"))
     }
   )
 
@@ -587,9 +752,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[CreateTable](hasField("globalSecondaryIndexes", _.globalSecondaryIndexes.size, equalTo(2)))
       )
     },
-    test("gsi is a no-op for non-CreateTable queries") {
+    test("gsi fails with UnsupportedModifier on non-CreateTable queries") {
       val q = GetItem(table1, key1)
-      assertTrue(q.gsi("score-index", KeySchema("score"), ProjectionType.All) eq q)
+      assert(q.gsi("score-index", KeySchema("score"), ProjectionType.All))(failsAsUnsupported("gsi"))
     }
   )
 
@@ -614,9 +779,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[CreateTable](hasField("localSecondaryIndexes", _.localSecondaryIndexes.size, equalTo(2)))
       )
     },
-    test("lsi is a no-op for non-CreateTable queries") {
+    test("lsi fails with UnsupportedModifier on non-CreateTable queries") {
       val q = GetItem(table1, key1)
-      assertTrue(q.lsi("score-index", KeySchema("id", "score")) eq q)
+      assert(q.lsi("score-index", KeySchema("id", "score")))(failsAsUnsupported("lsi"))
     }
   )
 
@@ -743,9 +908,11 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("is a no-op for constructors without the field") {
+    test("fails with UnsupportedModifier on constructors without the field") {
       val q = GetItem(table1, key1)
-      assertTrue(q.returnValuesOnConditionCheckFailure(allOldRVOCCF) eq q)
+      assert(q.returnValuesOnConditionCheckFailure(allOldRVOCCF))(
+        failsAsUnsupported("returnValuesOnConditionCheckFailure")
+      )
     }
   )
 
@@ -850,13 +1017,13 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("is a no-op for constructors without a retryPolicy field") {
+    test("fails with UnsupportedModifier on constructors without a retryPolicy field") {
       val q = DynamoDBQuery.createTable(
         table1,
         KeySchema("id"),
         AttributeDefinition.attrDefnString("id")
       )(BillingMode.PayPerRequest)
-      assertTrue(q.withRetryPolicy(RetryPolicy.NoRetry) eq q)
+      assert(q.withRetryPolicy(RetryPolicy.NoRetry))(failsAsUnsupported("withRetryPolicy"))
     }
   )
 
@@ -963,9 +1130,11 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         )
       )
     },
-    test("is a no-op for constructors without a unprocessedRetryPolicy field") {
+    test("fails with UnsupportedModifier on constructors without an unprocessedRetryPolicy field") {
       val q = GetItem(table1, pk)
-      assertTrue(q.withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry) eq q)
+      assert(q.withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry))(
+        failsAsUnsupported("withBatchUnprocessedRetryPolicy")
+      )
     }
   )
 }

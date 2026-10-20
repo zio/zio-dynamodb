@@ -476,6 +476,47 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
+  // A transaction runs as one request and encodes only each item's target, expressions and
+  // returnValuesOnConditionCheckFailure; capacity and metrics are set on the transaction itself.
+  // A get item's consistency isn't checked: transactional reads are serializable, which satisfies it.
+  private def validateTransactItemModifiers(
+    items: Chunk[DynamoDBQuery[Any, Any]]
+  ): Option[DynamoDBError.QueryBuilderError.UnsupportedModifier] = {
+    def write(
+      name: String,
+      retryPolicy: Option[RetryPolicy],
+      capacity: ReturnConsumedCapacity,
+      itemMetrics: ReturnItemCollectionMetrics
+    ): List[String] =
+      (if (retryPolicy.isDefined) List(s"$name.withRetryPolicy") else Nil) ++
+        (if (capacity != ReturnConsumedCapacity.None) List(s"$name.capacity") else Nil) ++
+        (if (itemMetrics != ReturnItemCollectionMetrics.None) List(s"$name.metrics") else Nil)
+    val ignored     = items.toList.flatMap {
+      case g: DynamoDBQuery.GetItem    =>
+        (if (g.retryPolicy.isDefined) List("getItem.withRetryPolicy") else Nil) ++
+          (if (g.capacity != ReturnConsumedCapacity.None) List("getItem.capacity") else Nil)
+      case p: DynamoDBQuery.PutItem    => write("putItem", p.retryPolicy, p.capacity, p.itemMetrics)
+      case u: DynamoDBQuery.UpdateItem => write("updateItem", u.retryPolicy, u.capacity, u.itemMetrics)
+      case d: DynamoDBQuery.DeleteItem => write("deleteItem", d.retryPolicy, d.capacity, d.itemMetrics)
+      case _                           => Nil
+    }
+    if (ignored.isEmpty) None
+    else {
+      val hasRetry = ignored.exists(_.endsWith(".withRetryPolicy"))
+      val hasOther = ignored.exists(m => !m.endsWith(".withRetryPolicy"))
+      val remedies =
+        (if (hasOther) List("set capacity / metrics on the transaction itself") else Nil) ++
+          (if (hasRetry) List("zio-dynamodb doesn't retry transactions (the AWS SDK's own retries still apply)")
+           else Nil)
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          s"a transaction runs as one request, so these item-level modifiers have no effect: ${ignored.mkString(", ")}" +
+            s"; ${remedies.mkString("; ")}"
+        )
+      )
+    }
+  }
+
   // Builds the onRetry closure RetryInterceptor.onRetry threads through withRetry/withRetryF —
   // a no-op F[Unit] when no RetryInterceptor is attached, so callers never branch on it.
   private def onRetryFor(meta: DynamoDBRetryMetadata): (Throwable, Int) => F[Unit] =
@@ -535,17 +576,25 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
-          runBatchGetItemRetrying(q, getDelay, attempt = 0)
-        ).asInstanceOf[F[Any]]
+        q.itemError match {
+          case Some(err) => fail(err)
+          case None      =>
+            flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
+              runBatchGetItemRetrying(q, getDelay, attempt = 0)
+            ).asInstanceOf[F[Any]]
+        }
       case q: DynamoDBQuery.BatchWriteItem     =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
-          runBatchWriteItemRetrying(q, getDelay, attempt = 0)
-        ).asInstanceOf[F[Any]]
+        q.itemError match {
+          case Some(err) => fail(err)
+          case None      =>
+            flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
+              runBatchWriteItemRetrying(q, getDelay, attempt = 0)
+            ).asInstanceOf[F[Any]]
+        }
       case q: DynamoDBQuery.TransactGetItems   =>
-        validateTransactionSize(q.getItems.length).fold(
-          runTransactGetItems(q).asInstanceOf[F[Any]]
-        )(err => fail(err))
+        validateTransactionSize(q.getItems.length)
+          .orElse(validateTransactItemModifiers(q.getItems))
+          .fold(runTransactGetItems(q).asInstanceOf[F[Any]])(err => fail(err))
       case q: DynamoDBQuery.TransactWriteItems =>
         q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
           acc.flatMap(leaves => unwrapMappedWriteItem(item).map(leaves :+ _))
@@ -556,6 +605,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             validateTransactionSize(unwrapped.writeItems.length)
               .orElse(validateTransactWriteItems(unwrapped.writeItems))
               .orElse(validateTransactWriteReturnValues(unwrapped.writeItems))
+              .orElse(validateTransactItemModifiers(unwrapped.writeItems))
               .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }

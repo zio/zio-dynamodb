@@ -205,6 +205,10 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .catchSome { case DynamoDBError.ItemError.ConditionFailed(_, existing) => zio.ZIO.debug(existing) }
 ```
 
+A modifier applied to an operation it doesn't affect — `.consistency` on a `put`, `.segment` on a
+`get` — fails the query with `DynamoDBError.QueryBuilderError.UnsupportedModifier` when it runs,
+naming the modifier and where it applies.
+
 ## Query
 
 `query`/`scan` return the same `Page[A]` type as their Low-Level counterparts, just

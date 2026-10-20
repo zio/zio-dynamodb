@@ -77,9 +77,13 @@ object ScanSegmentSpec extends ZIOSpecDefault {
       assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("segment", _.segment, equalTo(seg)))) &&
       assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("totalSegments", _.totalSegments, equalTo(tot))))
     },
-    test("no-op on non-Scan queries") {
+    test("fails with UnsupportedModifier on non-Scan queries") {
       val base = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x"))
-      assertTrue(base.segment(1, 4).eq(base))
+      assert(base.segment(1, 4))(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField("error", _.error(), isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+        )
+      )
     },
     test("propagates through Map") {
       val q        = DynamoDBQuery.scan(table, limit = 100).map(_.items).segment(1, 4)

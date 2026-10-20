@@ -127,11 +127,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case d: DynamoDBQuery.DeleteItem      =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                =>
-        DynamoDBQuery.fail(
-          DynamoDBError.QueryBuilderError.UnsupportedModifier(
-            s"'.where' has no effect on ${self.getClass.getSimpleName}; condition expressions are only " +
-              s"supported on putItem/updateItem/deleteItem — did you mean '.filter'?"
-          )
+        failUnsupported(
+          s"'.where' has no effect on ${self.getClass.getSimpleName}; condition expressions are only " +
+            s"supported on putItem/updateItem/deleteItem — did you mean '.filter'?"
         )
     }
 
@@ -156,11 +154,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case s: DynamoDBQuery.Query =>
         s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                      =>
-        DynamoDBQuery.fail(
-          DynamoDBError.QueryBuilderError.UnsupportedModifier(
-            s"'.whereKey' has no effect on ${self.getClass.getSimpleName}; key condition expressions are " +
-              s"only supported on query"
-          )
+        failUnsupported(
+          s"'.whereKey' has no effect on ${self.getClass.getSimpleName}; key condition expressions are " +
+            s"only supported on query"
         )
     }
 
@@ -188,14 +184,26 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         d.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
       case c: DynamoDBQuery.ConditionCheck  =>
         c.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                =>
+        unsupportedModifier("returnValuesOnConditionCheckFailure", "putItem/updateItem/deleteItem/conditionCheck")
     }
 
+  // A token identifies one request to AWS, which treats a repeat as the same request, so it can't
+  // be shared across the legs of a zipPar. Unlike other modifiers it fails on the whole zipPar rather
+  // than per leg: a zip has at least two legs and a token can apply to at most one, so no zip can take it.
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
+      case _: ZipPar[_, _, _]                   =>
+        failUnsupported(
+          "'.withClientRequestToken' has no effect on a zipPar: a token identifies a single transaction, so set " +
+            "one on each transactWriteItems instead"
+        )
+      case b: BuilderNode[_, _]                 => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].withClientRequestToken(token)
+      case DynamoDBQuery.Map(query, mapper)     => DynamoDBQuery.Map(query.withClientRequestToken(token), mapper)
+      case DynamoDBQuery.Absolve(query)         => DynamoDBQuery.Absolve(query.withClientRequestToken(token))
       case tw: DynamoDBQuery.TransactWriteItems =>
         tw.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                    => self
+      case _                                    => unsupportedModifier("withClientRequestToken", "transactWriteItems")
     }
 
   def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
@@ -215,15 +223,19 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case u: DynamoDBQuery.UpdateItem            => u.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: DynamoDBQuery.Scan                  => s.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: DynamoDBQuery.Query                 => q.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                      => self
+      case _                                      =>
+        unsupportedModifier(
+          "withRetryPolicy",
+          "getItem/putItem/updateItem/deleteItem/query/scan/batchGetItem/batchWriteItem"
+        )
     }
 
   /**
    * Sets the retry policy governing only the resubmission of `BatchGetItem` / `BatchWriteItem`'s
    * unprocessed keys / items, independent of `.withRetryPolicy`'s effect-level retry. Overrides
    * the interpreter's `defaultBatchUnprocessedRetryPolicy`; `RetryPolicy.NoRetry` turns the
-   * resubmission off for this call. No-op on every other operation, since only batch operations
-   * have unprocessed keys / items. See `docs/reference/retries.md`.
+   * resubmission off for this call. Fails with `UnsupportedModifier` on every other operation,
+   * since only batch operations have unprocessed keys / items. See `docs/reference/retries.md`.
    */
   final def withBatchUnprocessedRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {
@@ -239,7 +251,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         bw.copy(unprocessedRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case bg: DynamoDBQuery.BatchGetItem   =>
         bg.copy(unprocessedRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                => unsupportedModifier("withBatchUnprocessedRetryPolicy", "batchGetItem/batchWriteItem")
     }
 
   /**
@@ -265,11 +277,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case s: DynamoDBQuery.Query =>
         s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                      =>
-        DynamoDBQuery.fail(
-          DynamoDBError.QueryBuilderError.UnsupportedModifier(
-            s"'.filter' has no effect on ${self.getClass.getSimpleName}; filter expressions are only " +
-              s"supported on scan/query — did you mean '.where'?"
-          )
+        failUnsupported(
+          s"'.filter' has no effect on ${self.getClass.getSimpleName}; filter expressions are only " +
+            s"supported on scan/query — did you mean '.where'?"
         )
     }
   }
@@ -284,7 +294,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         q.copy(indexName = Some(indexName)).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: DynamoDBQuery.Query           =>
         q.copy(indexName = Some(indexName)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                => unsupportedModifier("indexName", "query/scan")
     }
 
   def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
@@ -316,7 +326,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         tg.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case tw: DynamoDBQuery.TransactWriteItems =>
         tw.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                    => self
+      case _                                    =>
+        unsupportedModifier(
+          "capacity",
+          "getItem/putItem/updateItem/deleteItem/query/scan/batchGetItem/batchWriteItem/transactGetItems/transactWriteItems"
+        )
     }
 
   final def consistency(consistency: ConsistencyMode): DynamoDBQuery[In, Out] =
@@ -334,7 +348,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         s.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: DynamoDBQuery.Query           =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                => unsupportedModifier("consistency", "getItem/query/scan")
     }
 
   private[dynamodb] final def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
@@ -352,27 +366,29 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DynamoDBQuery.DeleteItem      =>
         d.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                => unsupportedModifier("returns", "putItem/updateItem/deleteItem")
     }
 
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)    =>
+      case ZipPar(left, right, zippable)        =>
         ZipPar(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
-      case b: BuilderNode[_, _]             => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].metrics(itemMetrics)
-      case DynamoDBQuery.Map(query, mapper) =>
+      case b: BuilderNode[_, _]                 => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].metrics(itemMetrics)
+      case DynamoDBQuery.Map(query, mapper)     =>
         DynamoDBQuery.Map(query.metrics(itemMetrics), mapper)
-      case DynamoDBQuery.Absolve(query)     =>
+      case DynamoDBQuery.Absolve(query)         =>
         DynamoDBQuery.Absolve(query.metrics(itemMetrics))
-      case p: DynamoDBQuery.PutItem         =>
+      case p: DynamoDBQuery.PutItem             =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem      =>
+      case u: DynamoDBQuery.UpdateItem          =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem      =>
+      case d: DynamoDBQuery.DeleteItem          =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bw: DynamoDBQuery.BatchWriteItem =>
+      case bw: DynamoDBQuery.BatchWriteItem     =>
         bw.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case tw: DynamoDBQuery.TransactWriteItems =>
+        tw.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                    => unsupportedModifier("metrics", "putItem/updateItem/deleteItem/batchWriteItem/transactWriteItems")
     }
 
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[In, Out] =
@@ -386,26 +402,28 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: DynamoDBQuery.Query                      =>
         s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                           => self
+      case _                                           => unsupportedModifier("startKey", "query/scan")
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
     self match {
+      case ZipPar(left, right, zippable)    => ZipPar(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case q: DynamoDBQuery.Query           => q.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case b: BuilderNode[_, _]             => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].sortOrder(ascending)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.sortOrder(ascending), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.sortOrder(ascending))
-      case _                                => self
+      case _                                => unsupportedModifier("sortOrder", "query")
     }
 
   def segment(index: Int, total: Int): DynamoDBQuery[In, Out] =
     self match {
+      case ZipPar(left, right, zippable)    => ZipPar(left.segment(index, total), right.segment(index, total), zippable)
       case b: BuilderNode[_, _]             => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].segment(index, total)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.segment(index, total), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.segment(index, total))
       case s: DynamoDBQuery.Scan            =>
         s.copy(segment = index, totalSegments = total).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                => unsupportedModifier("segment", "scan")
     }
 
   def gsi(
@@ -440,7 +458,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
             Some(ProvisionedThroughput(readCapacityUnit, writeCapacityUnit))
           )
         ).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                           => self
+      case _                                           => unsupportedModifier("gsi", "createTable")
     }
 
   def gsi(
@@ -467,7 +485,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
             None
           )
         ).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                           => self
+      case _                                           => unsupportedModifier("gsi", "createTable")
     }
 
   def lsi(
@@ -493,25 +511,40 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
             projection
           )
         ).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                           => self
+      case _                                           => unsupportedModifier("lsi", "createTable")
     }
 
-  def selectAllAttributes: DynamoDBQuery[In, Out]          = select(Select.AllAttributes)
-  def selectAllProjectedAttributes: DynamoDBQuery[In, Out] = select(Select.AllProjectedAttributes)
-  def selectSpecificAttributes: DynamoDBQuery[In, Out]     = select(Select.SpecificAttributes)
-  def selectCount: DynamoDBQuery[In, Out]                  = select(Select.Count)
+  def selectAllAttributes: DynamoDBQuery[In, Out]          = select(Select.AllAttributes, "selectAllAttributes")
+  def selectAllProjectedAttributes: DynamoDBQuery[In, Out] =
+    select(Select.AllProjectedAttributes, "selectAllProjectedAttributes")
+  def selectSpecificAttributes: DynamoDBQuery[In, Out]     = select(Select.SpecificAttributes, "selectSpecificAttributes")
+  def selectCount: DynamoDBQuery[In, Out]                  = select(Select.Count, "selectCount")
 
-  private def select(select: Select): DynamoDBQuery[In, Out] =
+  private def select(select: Select, modifier: String): DynamoDBQuery[In, Out] =
     self match {
       case DynamoDBQuery.ZipPar(left, right, zippable) =>
-        DynamoDBQuery.ZipPar(left.select(select), right.select(select), zippable)
-      case b: BuilderNode[_, _]                        => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].select(select)
-      case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.select(select), mapper)
-      case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.select(select))
+        DynamoDBQuery.ZipPar(left.select(select, modifier), right.select(select, modifier), zippable)
+      case b: BuilderNode[_, _]                        => b.asQuery.asInstanceOf[DynamoDBQuery[In, Out]].select(select, modifier)
+      case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.select(select, modifier), mapper)
+      case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.select(select, modifier))
       case s: DynamoDBQuery.Scan                       => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: DynamoDBQuery.Query                      => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                           => self
+      case _                                           => unsupportedModifier(modifier, "query/scan")
     }
+
+  // A modifier on an operation it doesn't affect fails the query when it runs instead of being dropped.
+  // A Fail keeps its own error, and a Succeed sends no request for a modifier to affect.
+  private def failUnsupported(message: => String): DynamoDBQuery[In, Out] =
+    self match {
+      case _: DynamoDBQuery.Fail | _: DynamoDBQuery.Succeed[_] => self
+      case _                                                   =>
+        DynamoDBQuery.fail(DynamoDBError.QueryBuilderError.UnsupportedModifier(message))
+    }
+
+  private def unsupportedModifier(modifier: String, supportedOn: String): DynamoDBQuery[In, Out] =
+    failUnsupported(
+      s"'.$modifier' has no effect on ${self.getClass.getSimpleName}; it is only supported on $supportedOn"
+    )
 
 }
 
@@ -558,9 +591,23 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
 
+  // `body`'s type doesn't restrict it to a get, so anything else fails the batch when it runs: a
+  // failed query (e.g. a modifier a get doesn't support) with its own error, any other query with
+  // `UnbatchableQuery`.
   def batchGetItem[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery.BatchGetItem =
     values.foldLeft(BatchGetItem()) { (batch, a) =>
-      batch + body(a).asInstanceOf[GetItem]
+      body(a) match {
+        case g: GetItem => batch + g
+        case f: Fail    => batch.withItemError(Some(f.error()))
+        case other      =>
+          batch.withItemError(
+            Some(
+              DynamoDBError.QueryBuilderError.UnbatchableQuery(
+                s"batchGetItem's callback must return a getItem, got ${other.getClass.getSimpleName}"
+              )
+            )
+          )
+      }
     }
 
   def batchWriteItem[A](values: Iterable[A])(
@@ -722,8 +769,13 @@ object DynamoDBQuery {
     retryPolicy: Option[RetryPolicy] = None,
     // Governs only the batch unprocessed retry — independent of
     // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
-    unprocessedRetryPolicy: Option[RetryPolicy] = None
+    unprocessedRetryPolicy: Option[RetryPolicy] = None,
+    // The first item problem found while building; the batch fails with it when run.
+    itemError: Option[DynamoDBError] = None
   ) extends Constructor[Any, Batch.GetResult] { self =>
+
+    private[dynamodb] def withItemError(error: Option[DynamoDBError]): BatchGetItem =
+      if (itemError.isDefined || error.isEmpty) self else copy(itemError = error)
 
     def +(getItem: GetItem): BatchGetItem = {
       val tableName                                                     = getItem.tableName
@@ -738,13 +790,9 @@ object DynamoDBQuery {
               BatchGetItem.TableGet(t.keysSet + key, t.projectionExpressionSet ++ projectionExpressionSet)
             )
           )
-      BatchGetItem(
-        self.requestItems + newEntry,
-        self.capacity,
-        self.orderedGetItems :+ getItem,
-        self.retryPolicy.orElse(getItem.retryPolicy), // inherit retry policy from GetItem if not set
-        self.unprocessedRetryPolicy
-      )
+      self
+        .copy(requestItems = self.requestItems + newEntry, orderedGetItems = self.orderedGetItems :+ getItem)
+        .withItemError(BatchGetItem.unsupportedItemSetting(getItem))
     }
 
     def addAll(entries: GetItem*): BatchGetItem =
@@ -772,6 +820,21 @@ object DynamoDBQuery {
 
   }
   private[dynamodb] object BatchGetItem {
+    // A batch get sends only each item's table, key and projections: capacity and retry policy
+    // belong on the batch, and per-table consistent reads aren't supported yet.
+    private[dynamodb] def unsupportedItemSetting(g: GetItem): Option[DynamoDBError] =
+      if (g.retryPolicy.isDefined) unsupported("withRetryPolicy", "set it on the batch")
+      else if (g.capacity != ReturnConsumedCapacity.None) unsupported("capacity", "set it on the batch")
+      else if (g.consistency != ConsistencyMode.Weak)
+        unsupported("consistency", "batchGetItem doesn't support consistent reads yet")
+      else None
+
+    private def unsupported(modifier: String, hint: String): Option[DynamoDBError] =
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          s"'.$modifier' has no effect on an item inside batchGetItem; $hint"
+        )
+      )
     final case class TableGet(
       keysSet: ScalaSet[PrimaryKey],
       projectionExpressionSet: ScalaSet[ProjectionExpression[_, _]]
@@ -791,8 +854,13 @@ object DynamoDBQuery {
     retryPolicy: Option[RetryPolicy] = None,
     // Governs only the batch unprocessed retry — independent of
     // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
-    unprocessedRetryPolicy: Option[RetryPolicy] = None
+    unprocessedRetryPolicy: Option[RetryPolicy] = None,
+    // The first item problem found while building; the batch fails with it when run.
+    itemError: Option[DynamoDBError] = None
   ) extends Constructor[Any, Batch.WriteResult] { self =>
+    private def withItemError(error: Option[DynamoDBError]): BatchWriteItem =
+      if (itemError.isDefined || error.isEmpty) self else copy(itemError = error)
+
     // Only a plain put / delete builder is accepted (no condition, no ReturnValues - a batch supports
     // neither), and those always hold a PutItem / DeleteItem node, so the cast to Write is safe.
     def +(writeItem: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]): BatchWriteItem =
@@ -805,31 +873,49 @@ object DynamoDBQuery {
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>
           val write = Put(putItem.item)
-          BatchWriteItem(
-            self.requestItems
-              .updated(putItem.tableName, self.requestItems.getOrElse(putItem.tableName, Chunk.empty) :+ write),
-            self.capacity,
-            self.itemMetrics,
-            self.addList :+ write,
-            self.retryPolicy.orElse(putItem.retryPolicy), // inherit retry policy from PutItem if not set
-            self.unprocessedRetryPolicy
-          )
+          self
+            .copy(
+              requestItems = self.requestItems
+                .updated(putItem.tableName, self.requestItems.getOrElse(putItem.tableName, Chunk.empty) :+ write),
+              addList = self.addList :+ write
+            )
+            .withItemError(
+              BatchWriteItem.unsupportedItemSetting(putItem.retryPolicy, putItem.capacity, putItem.itemMetrics)
+            )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _, _) =>
           val write = Delete(deleteItem.key)
-          BatchWriteItem(
-            self.requestItems
-              .updated(deleteItem.tableName, self.requestItems.getOrElse(deleteItem.tableName, Chunk.empty) :+ write),
-            self.capacity,
-            self.itemMetrics,
-            self.addList :+ write,
-            self.retryPolicy.orElse(deleteItem.retryPolicy), // inherit retry policy from DeleteItem if not set
-            self.unprocessedRetryPolicy
-          )
+          self
+            .copy(
+              requestItems = self.requestItems
+                .updated(deleteItem.tableName, self.requestItems.getOrElse(deleteItem.tableName, Chunk.empty) :+ write),
+              addList = self.addList :+ write
+            )
+            .withItemError(
+              BatchWriteItem.unsupportedItemSetting(deleteItem.retryPolicy, deleteItem.capacity, deleteItem.itemMetrics)
+            )
       }
 
   }
 
   private[dynamodb] object BatchWriteItem {
+    // A batch write sends only each item (put) or key (delete); capacity, metrics and retry policy
+    // belong on the batch.
+    private[dynamodb] def unsupportedItemSetting(
+      retryPolicy: Option[RetryPolicy],
+      capacity: ReturnConsumedCapacity,
+      itemMetrics: ReturnItemCollectionMetrics
+    ): Option[DynamoDBError] =
+      if (retryPolicy.isDefined) unsupported("withRetryPolicy")
+      else if (capacity != ReturnConsumedCapacity.None) unsupported("capacity")
+      else if (itemMetrics != ReturnItemCollectionMetrics.None) unsupported("metrics")
+      else None
+
+    private def unsupported(modifier: String): Option[DynamoDBError] =
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          s"'.$modifier' has no effect on an item inside batchWriteItem; set it on the batch"
+        )
+      )
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write

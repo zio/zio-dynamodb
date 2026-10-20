@@ -126,10 +126,20 @@ object WriteBuilderSpec extends ZIOSpecDefault {
       test(".withoutItemOnConditionFailure turns it off") {
         assert(check.withoutItemOnConditionFailure.check)(itemOnFailureIs(ReturnValuesOnConditionCheckFailure.None))
       },
-      test("the opt-out is still available after the general modifiers") {
+      test("general modifiers keep the builder type but fail, since a condition check has none of them") {
         val afterModifiers: ConditionCheckBuilder[Any] =
           check.capacity(total).metrics(size).withRetryPolicy(RetryPolicy.NoRetry).withoutItemOnConditionFailure
-        assert(afterModifiers.check)(itemOnFailureIs(ReturnValuesOnConditionCheckFailure.None))
+        assert(afterModifiers.check)(
+          isSubtype[DynamoDBQuery.Fail](
+            hasField(
+              "error",
+              _.error(),
+              isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+                hasField("message", _.message, containsString("'.capacity'"))
+              )
+            )
+          )
+        )
       },
       test("runs inside a transaction") {
         val tx = DynamoDBQuery.transactWriteItems(check.withoutItemOnConditionFailure, put)
