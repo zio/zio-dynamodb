@@ -59,8 +59,7 @@ object DynamoDBError {
    * Raised for a query built wrong: a modifier applied to an operation it doesn't affect (e.g.
    * `.where` on a `scan`, `.consistency` on a `putItem`), a `query` with no `.whereKey`, or a
    * query that can't go in a batch. The query still builds; the error is raised when it's run,
-   * before any request is sent. The exception is `UnbatchableQuery` from `batchGetItem`, which is
-   * thrown while building, since the method must return a `BatchGetItem`.
+   * before any request is sent.
    */
   sealed trait QueryBuilderError extends DynamoDBError
 

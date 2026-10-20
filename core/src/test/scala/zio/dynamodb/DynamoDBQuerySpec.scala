@@ -34,6 +34,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
   private val key1 = PrimaryKey("id" -> "a")
   private val key2 = PrimaryKey("id" -> "b")
 
+  private def runFailure(q: DynamoDBQuery[_, _]): Throwable =
+    scala.util.Try(DummyIOInterpreter.run(q).unsafeRun()).failed.get
+
   private def failsAsUnsupported(modifier: String): Assertion[Any] =
     isSubtype[DynamoDBQuery.Fail](
       hasField(
@@ -86,23 +89,75 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("withClientRequestToken fails with UnsupportedModifier outside a transaction") {
       assert(GetItem(table1, pk).withClientRequestToken("tok"))(failsAsUnsupported("withClientRequestToken"))
     },
-    test("batchGetItem rethrows the error of a get with a modifier it doesn't support") {
-      val result = scala.util.Try(
+    test("batchGetItem builds, then fails when run, for a get with a modifier it doesn't support") {
+      val batch =
         DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).segment(1, 2))
-      )
-      assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+      assert(runFailure(batch))(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
     },
-    test("batchGetItem rejects a callback that doesn't return a getItem with UnbatchableQuery") {
-      val result = scala.util.Try(
+    test("batchGetItem fails with UnbatchableQuery when run, for a callback that doesn't return a getItem") {
+      val batch =
         DynamoDBQuery.batchGetItem(List("a"))(id =>
           DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)).map(_.isDefined)
         )
-      )
-      assert(result.failed.get)(
+      assert(runFailure(batch))(
         isSubtype[DynamoDBError.QueryBuilderError.UnbatchableQuery](
           hasField("message", _.message, containsString("must return a getItem"))
         )
       )
+    },
+    test("an item's capacity, metrics or retry policy inside batchWriteItem fails the batch when run") {
+      def failsOn(
+        modifier: String
+      )(f: ItemWriteBuilder[Any, Unit, WriteOp.Put] => ItemWriteBuilder[Any, Unit, WriteOp.Put]) =
+        assert(runFailure(DynamoDBQuery.batchWriteItem(List(item1))(i => f(DynamoDBQuery.putItem(table1, i)))))(
+          isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+            hasField(
+              "message",
+              _.message,
+              containsString(s"'.$modifier' has no effect on an item inside batchWriteItem")
+            )
+          )
+        )
+      failsOn("capacity")(_.capacity(total)) &&
+      failsOn("metrics")(_.metrics(sizeMetrics)) &&
+      failsOn("withRetryPolicy")(_.withRetryPolicy(RetryPolicy.NoRetry))
+    },
+    test("an item's capacity, consistency or retry policy inside batchGetItem fails the batch when run") {
+      def failsOn(modifier: String)(f: GetItem => GetItem) =
+        assert(runFailure(DynamoDBQuery.batchGetItem(List("a"))(id => f(GetItem(table1, PrimaryKey("id" -> id))))))(
+          isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+            hasField("message", _.message, containsString(s"'.$modifier' has no effect on an item inside batchGetItem"))
+          )
+        )
+      failsOn("capacity")(_.copy(capacity = total)) &&
+      failsOn("consistency")(_.copy(consistency = strong)) &&
+      failsOn("withRetryPolicy")(_.copy(retryPolicy = Some(RetryPolicy.NoRetry)))
+    },
+    test("the first item problem is the one reported") {
+      val batch = DynamoDBQuery.batchWriteItem(List(1, 2)) { n =>
+        if (n == 1) DynamoDBQuery.putItem(table1, item1).metrics(sizeMetrics)
+        else DynamoDBQuery.putItem(table1, item1).capacity(total)
+      }
+      assert(runFailure(batch))(hasField("message", _.getMessage, containsString("'.metrics'")))
+    },
+    test("an item's retry policy is no longer copied onto the batch") {
+      val batch = DynamoDBQuery.batchWriteItem(List(item1))(i =>
+        DynamoDBQuery.putItem(table1, i).withRetryPolicy(RetryPolicy.NoRetry)
+      )
+      assert(batch)(isSubtype[DynamoDBQuery.BatchWriteItem](hasField("retryPolicy", _.retryPolicy, isNone)))
+    },
+    test("capacity, metrics and retry policy on the batch itself still run") {
+      val write = DynamoDBQuery
+        .batchWriteItem(List(item1))(DynamoDBQuery.putItem(table1, _))
+        .capacity(total)
+        .metrics(sizeMetrics)
+        .withRetryPolicy(RetryPolicy.NoRetry)
+      val get   = DynamoDBQuery
+        .batchGetItem(List("a"))(id => DynamoDBQuery.getItem(table1, PrimaryKey("id" -> id)))
+        .capacity(total)
+        .withRetryPolicy(RetryPolicy.NoRetry)
+      assert(DummyIOInterpreter.run(write).unsafeRun())(isSubtype[Batch.WriteResult.Complete](anything)) &&
+      assert(DummyIOInterpreter.run(get).unsafeRun())(isSubtype[Batch.GetResult.Complete](anything))
     },
     test("sortOrder reaches both legs of a zipPar") {
       val zipped = (DynamoDBQuery.Query(table1, 10) zipPar DynamoDBQuery.Query(table2, 10)).sortOrder(ascending = false)

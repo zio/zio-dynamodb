@@ -569,13 +569,21 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
-          runBatchGetItemRetrying(q, getDelay, attempt = 0)
-        ).asInstanceOf[F[Any]]
+        q.itemError match {
+          case Some(err) => fail(err)
+          case None      =>
+            flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
+              runBatchGetItemRetrying(q, getDelay, attempt = 0)
+            ).asInstanceOf[F[Any]]
+        }
       case q: DynamoDBQuery.BatchWriteItem     =>
-        flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
-          runBatchWriteItemRetrying(q, getDelay, attempt = 0)
-        ).asInstanceOf[F[Any]]
+        q.itemError match {
+          case Some(err) => fail(err)
+          case None      =>
+            flatMap(newUnprocessedDelayFn(q.unprocessedRetryPolicy))(getDelay =>
+              runBatchWriteItemRetrying(q, getDelay, attempt = 0)
+            ).asInstanceOf[F[Any]]
+        }
       case q: DynamoDBQuery.TransactGetItems   =>
         validateTransactionSize(q.getItems.length)
           .orElse(validateTransactItemModifiers(q.getItems))

@@ -585,16 +585,21 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
 
-  // `body`'s type doesn't restrict it to a get, so anything else is rejected here, while building;
-  // a failed query (e.g. a modifier a get doesn't support) throws its own, more specific error.
+  // `body`'s type doesn't restrict it to a get, so anything else fails the batch when it runs: a
+  // failed query (e.g. a modifier a get doesn't support) with its own error, any other query with
+  // `UnbatchableQuery`.
   def batchGetItem[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery.BatchGetItem =
     values.foldLeft(BatchGetItem()) { (batch, a) =>
       body(a) match {
         case g: GetItem => batch + g
-        case f: Fail    => throw f.error()
+        case f: Fail    => batch.withItemError(Some(f.error()))
         case other      =>
-          throw DynamoDBError.QueryBuilderError.UnbatchableQuery(
-            s"batchGetItem's callback must return a getItem, got ${other.getClass.getSimpleName}"
+          batch.withItemError(
+            Some(
+              DynamoDBError.QueryBuilderError.UnbatchableQuery(
+                s"batchGetItem's callback must return a getItem, got ${other.getClass.getSimpleName}"
+              )
+            )
           )
       }
     }
@@ -758,8 +763,13 @@ object DynamoDBQuery {
     retryPolicy: Option[RetryPolicy] = None,
     // Governs only the batch unprocessed retry — independent of
     // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
-    unprocessedRetryPolicy: Option[RetryPolicy] = None
+    unprocessedRetryPolicy: Option[RetryPolicy] = None,
+    // The first item problem found while building; the batch fails with it when run.
+    itemError: Option[DynamoDBError] = None
   ) extends Constructor[Any, Batch.GetResult] { self =>
+
+    private[dynamodb] def withItemError(error: Option[DynamoDBError]): BatchGetItem =
+      if (itemError.isDefined || error.isEmpty) self else copy(itemError = error)
 
     def +(getItem: GetItem): BatchGetItem = {
       val tableName                                                     = getItem.tableName
@@ -774,13 +784,9 @@ object DynamoDBQuery {
               BatchGetItem.TableGet(t.keysSet + key, t.projectionExpressionSet ++ projectionExpressionSet)
             )
           )
-      BatchGetItem(
-        self.requestItems + newEntry,
-        self.capacity,
-        self.orderedGetItems :+ getItem,
-        self.retryPolicy.orElse(getItem.retryPolicy), // inherit retry policy from GetItem if not set
-        self.unprocessedRetryPolicy
-      )
+      self
+        .copy(requestItems = self.requestItems + newEntry, orderedGetItems = self.orderedGetItems :+ getItem)
+        .withItemError(BatchGetItem.unsupportedItemSetting(getItem))
     }
 
     def addAll(entries: GetItem*): BatchGetItem =
@@ -808,6 +814,20 @@ object DynamoDBQuery {
 
   }
   private[dynamodb] object BatchGetItem {
+    // A batch get sends only each item's table, key and projections; capacity and retry policy
+    // belong on the batch, and it has no per-item consistency.
+    private[dynamodb] def unsupportedItemSetting(g: GetItem): Option[DynamoDBError] =
+      if (g.retryPolicy.isDefined) unsupported("withRetryPolicy", "set it on the batch")
+      else if (g.capacity != ReturnConsumedCapacity.None) unsupported("capacity", "set it on the batch")
+      else if (g.consistency != ConsistencyMode.Weak) unsupported("consistency", "batch gets are eventually consistent")
+      else None
+
+    private def unsupported(modifier: String, hint: String): Option[DynamoDBError] =
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          s"'.$modifier' has no effect on an item inside batchGetItem; $hint"
+        )
+      )
     final case class TableGet(
       keysSet: ScalaSet[PrimaryKey],
       projectionExpressionSet: ScalaSet[ProjectionExpression[_, _]]
@@ -827,8 +847,13 @@ object DynamoDBQuery {
     retryPolicy: Option[RetryPolicy] = None,
     // Governs only the batch unprocessed retry — independent of
     // `retryPolicy`, which governs the effect-level loop. See `.withBatchUnprocessedRetryPolicy`.
-    unprocessedRetryPolicy: Option[RetryPolicy] = None
+    unprocessedRetryPolicy: Option[RetryPolicy] = None,
+    // The first item problem found while building; the batch fails with it when run.
+    itemError: Option[DynamoDBError] = None
   ) extends Constructor[Any, Batch.WriteResult] { self =>
+    private def withItemError(error: Option[DynamoDBError]): BatchWriteItem =
+      if (itemError.isDefined || error.isEmpty) self else copy(itemError = error)
+
     // Only a plain put / delete builder is accepted (no condition, no ReturnValues - a batch supports
     // neither), and those always hold a PutItem / DeleteItem node, so the cast to Write is safe.
     def +(writeItem: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]): BatchWriteItem =
@@ -841,31 +866,49 @@ object DynamoDBQuery {
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>
           val write = Put(putItem.item)
-          BatchWriteItem(
-            self.requestItems
-              .updated(putItem.tableName, self.requestItems.getOrElse(putItem.tableName, Chunk.empty) :+ write),
-            self.capacity,
-            self.itemMetrics,
-            self.addList :+ write,
-            self.retryPolicy.orElse(putItem.retryPolicy), // inherit retry policy from PutItem if not set
-            self.unprocessedRetryPolicy
-          )
+          self
+            .copy(
+              requestItems = self.requestItems
+                .updated(putItem.tableName, self.requestItems.getOrElse(putItem.tableName, Chunk.empty) :+ write),
+              addList = self.addList :+ write
+            )
+            .withItemError(
+              BatchWriteItem.unsupportedItemSetting(putItem.retryPolicy, putItem.capacity, putItem.itemMetrics)
+            )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _, _) =>
           val write = Delete(deleteItem.key)
-          BatchWriteItem(
-            self.requestItems
-              .updated(deleteItem.tableName, self.requestItems.getOrElse(deleteItem.tableName, Chunk.empty) :+ write),
-            self.capacity,
-            self.itemMetrics,
-            self.addList :+ write,
-            self.retryPolicy.orElse(deleteItem.retryPolicy), // inherit retry policy from DeleteItem if not set
-            self.unprocessedRetryPolicy
-          )
+          self
+            .copy(
+              requestItems = self.requestItems
+                .updated(deleteItem.tableName, self.requestItems.getOrElse(deleteItem.tableName, Chunk.empty) :+ write),
+              addList = self.addList :+ write
+            )
+            .withItemError(
+              BatchWriteItem.unsupportedItemSetting(deleteItem.retryPolicy, deleteItem.capacity, deleteItem.itemMetrics)
+            )
       }
 
   }
 
   private[dynamodb] object BatchWriteItem {
+    // A batch write sends only each item (put) or key (delete); capacity, metrics and retry policy
+    // belong on the batch.
+    private[dynamodb] def unsupportedItemSetting(
+      retryPolicy: Option[RetryPolicy],
+      capacity: ReturnConsumedCapacity,
+      itemMetrics: ReturnItemCollectionMetrics
+    ): Option[DynamoDBError] =
+      if (retryPolicy.isDefined) unsupported("withRetryPolicy")
+      else if (capacity != ReturnConsumedCapacity.None) unsupported("capacity")
+      else if (itemMetrics != ReturnItemCollectionMetrics.None) unsupported("metrics")
+      else None
+
+    private def unsupported(modifier: String): Option[DynamoDBError] =
+      Some(
+        DynamoDBError.QueryBuilderError.UnsupportedModifier(
+          s"'.$modifier' has no effect on an item inside batchWriteItem; set it on the batch"
+        )
+      )
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
