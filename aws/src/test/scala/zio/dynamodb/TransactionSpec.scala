@@ -463,7 +463,11 @@ object TransactionSpec extends ZIOSpecDefault {
         DynamoDBQuery.transactWriteItems(DynamoDBQuery.putItem(table, item).withRetryPolicy(RetryPolicy.NoRetry))
       )
       assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
-      assertTrue(result.failed.get.getMessage.contains("putItem"))
+      assertTrue(
+        result.failed.get.getMessage.contains("putItem.withRetryPolicy"),
+        result.failed.get.getMessage.contains("doesn't retry transactions"),
+        !result.failed.get.getMessage.contains("set capacity / metrics")
+      )
     },
     test("capacity and metrics on the transaction itself are sent with the request") {
       var captured: TransactWriteItemsRequest = null
@@ -492,7 +496,9 @@ object TransactionSpec extends ZIOSpecDefault {
       assert(result.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything)) &&
       assertTrue(
         result.failed.get.getMessage.contains("putItem.capacity"),
-        result.failed.get.getMessage.contains("putItem.metrics")
+        result.failed.get.getMessage.contains("putItem.metrics"),
+        result.failed.get.getMessage.contains("set capacity / metrics on the transaction itself"),
+        !result.failed.get.getMessage.contains("doesn't retry transactions")
       )
     },
     test("a retry policy on an item inside transactGetItems fails with UnsupportedModifier") {

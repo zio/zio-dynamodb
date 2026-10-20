@@ -501,13 +501,20 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case _                           => Nil
     }
     if (ignored.isEmpty) None
-    else
+    else {
+      val hasRetry = ignored.exists(_.endsWith(".withRetryPolicy"))
+      val hasOther = ignored.exists(m => !m.endsWith(".withRetryPolicy"))
+      val remedies =
+        (if (hasOther) List("set capacity / metrics on the transaction itself") else Nil) ++
+          (if (hasRetry) List("zio-dynamodb doesn't retry transactions (the AWS SDK's own retries still apply)")
+           else Nil)
       Some(
         DynamoDBError.QueryBuilderError.UnsupportedModifier(
-          "a transaction runs as one request, so these item-level modifiers have no effect - set " +
-            s"capacity / metrics on the transaction itself instead; got: ${ignored.mkString(", ")}"
+          s"a transaction runs as one request, so these item-level modifiers have no effect: ${ignored.mkString(", ")}" +
+            s"; ${remedies.mkString("; ")}"
         )
       )
+    }
   }
 
   // Builds the onRetry closure RetryInterceptor.onRetry threads through withRetry/withRetryF —

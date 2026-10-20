@@ -104,8 +104,8 @@ A transaction returns no items, so a write with `.returning` is rejected
 with `TransactionValidationError` before any request is sent.
 
 A transaction runs as one request, so `.capacity`, `.metrics` and `.withRetryPolicy` on an item
-inside it are rejected with `UnsupportedModifier`; set `.capacity` / `.metrics` on the
-transaction itself.
+inside it are rejected with `UnsupportedModifier`. Set `.capacity` / `.metrics` on the
+transaction itself; zio-dynamodb doesn't retry transactions (the AWS SDK's own retries still apply).
 
 ## Errors
 
