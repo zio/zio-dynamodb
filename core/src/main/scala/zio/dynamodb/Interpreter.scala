@@ -657,7 +657,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         if (response.unprocessedKeys.isEmpty)
           creditUnprocessedRetries(attempt, Batch.GetResult.Complete(response.copy(responses = merged)))
         else {
-          def incomplete = pure[Batch.GetResult](Batch.GetResult.Incomplete(response.copy(responses = merged)))
+          // AWS's unprocessed keys are decoded as keys only; each table's projection and consistency
+          // come from the request that was sent.
+          val unprocessedKeys = response.unprocessedKeys.map { case (tableName, leftover) =>
+            tableName -> (q.requestItems.get(tableName) match {
+              case Some(sent) => sent.copy(keysSet = leftover.keysSet)
+              case None       => leftover
+            })
+          }
+          def incomplete      = pure[Batch.GetResult](
+            Batch.GetResult.Incomplete(response.copy(responses = merged, unprocessedKeys = unprocessedKeys))
+          )
           flatMap(getDelay(attempt)) {
             case None    => incomplete
             case Some(d) =>
@@ -665,7 +675,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                 if (!granted) incomplete
                 else {
                   val unprocessed: Map[String, Set[PrimaryKey]] =
-                    response.unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
+                    unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
                   val notify: F[Unit]                           =
                     batchUnprocessedRetryInterceptor.fold(pure(()))(_.onUnprocessedKeysRetry(unprocessed, attempt))
                   flatMap(notify) { _ =>
@@ -673,7 +683,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                       // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
                       // retryPolicy from the original query across the retry.
                       runBatchGetItemRetrying(
-                        q.copy(requestItems = response.unprocessedKeys),
+                        q.copy(requestItems = unprocessedKeys),
                         getDelay,
                         attempt + 1,
                         merged

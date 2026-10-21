@@ -26,10 +26,14 @@ even with the SDK client's own retries left on.
 
 AWS takes capacity and item collection metrics only for the whole batch: an entry in a batch write
 is just an item (put) or a key (delete), and a batch get lists keys per table. So set `.capacity`,
-`.metrics` and `.withRetryPolicy` on the batch. The same settings on an individual item — or
-`.consistency` on a get, since zio-dynamodb doesn't yet send AWS's per-table `ConsistentRead` — fail the batch with
-`DynamoDBError.QueryBuilderError.UnsupportedModifier` when it runs, before any request is sent. A
-`batchGetItem` callback that doesn't return a `getItem` fails it with `UnbatchableQuery`.
+`.metrics` and `.withRetryPolicy` on the batch; the same settings on an individual item fail the
+batch with `DynamoDBError.QueryBuilderError.UnsupportedModifier` when it runs, before any request is
+sent.
+
+A get's `.consistency(ConsistencyMode.Strong)` is sent as AWS's per-table `ConsistentRead`, so every
+get on a table must ask for the same consistency; gets on one table that differ fail the batch with
+`UnbatchableQuery`. A `batchGetItem` callback that doesn't return a `getItem` fails it with
+`UnbatchableQuery` too.
 
 ## Building a batch
 

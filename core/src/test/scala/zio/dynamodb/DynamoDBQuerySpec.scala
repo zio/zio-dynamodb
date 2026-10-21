@@ -137,7 +137,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       failsOn("metrics")(_.metrics(sizeMetrics)) &&
       failsOn("withRetryPolicy")(_.withRetryPolicy(RetryPolicy.NoRetry))
     },
-    test("an item's capacity, consistency or retry policy inside batchGetItem fails the batch when run") {
+    test("an item's capacity or retry policy inside batchGetItem fails the batch when run") {
       def failsOn(modifier: String)(f: GetItem => GetItem) =
         assert(runFailure(DynamoDBQuery.batchGetItem(List("a"))(id => f(GetItem(table1, PrimaryKey("id" -> id))))))(
           isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
@@ -145,8 +145,37 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
           )
         )
       failsOn("capacity")(_.copy(capacity = total)) &&
-      failsOn("consistency")(_.copy(consistency = strong)) &&
       failsOn("withRetryPolicy")(_.copy(retryPolicy = Some(RetryPolicy.NoRetry)))
+    },
+    test("a get's consistency is carried to its table") {
+      val batch = DynamoDBQuery
+        .batchGetItem(List("a", "b"))(id => GetItem(table1, PrimaryKey("id" -> id)).copy(consistency = strong))
+        .addAll(GetItem(table2, PrimaryKey("id" -> "c")))
+      assert(batch)(
+        isSubtype[DynamoDBQuery.BatchGetItem](
+          hasField[DynamoDBQuery.BatchGetItem, Option[ConsistencyMode]](
+            "table1 consistency",
+            _.requestItems.get(table1).map(_.consistency),
+            isSome(equalTo(strong))
+          ) &&
+            hasField[DynamoDBQuery.BatchGetItem, Option[ConsistencyMode]](
+              "table2 consistency",
+              _.requestItems.get(table2).map(_.consistency),
+              isSome(equalTo(ConsistencyMode.Weak: ConsistencyMode))
+            )
+        )
+      ) && assert(batch.itemError)(isNone)
+    },
+    test("gets on one table with different consistency fail the batch with UnbatchableQuery when run") {
+      val batch = DynamoDBQuery.batchGetItem(List("a", "b")) { id =>
+        val get = GetItem(table1, PrimaryKey("id" -> id))
+        if (id == "a") get.copy(consistency = strong) else get
+      }
+      assert(runFailure(batch))(
+        isSubtype[DynamoDBError.QueryBuilderError.UnbatchableQuery](
+          hasField("message", _.message, containsString(s"gets on table '$table1' ask for different consistency"))
+        )
+      )
     },
     test("the first item problem is the one reported") {
       val batch = DynamoDBQuery.batchWriteItem(List(1, 2)) { n =>

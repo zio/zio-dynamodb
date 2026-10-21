@@ -170,6 +170,29 @@ object BatchSpec extends DynamoDBLocalSpec {
         } yield result
       },
 
+      test("strongly consistent gets read back items just written") {
+        for {
+          client <- ZIO.service[DynamoDbAsyncClient]
+          interp = ZioInterpreter.fromAsyncClient(client)
+          result <- withTable(interp) { (table, interp) =>
+                      val ids   = List("s1", "s2")
+                      val items = ids.map(id => Item("id" -> id, "score" -> 7))
+                      for {
+                        _      <- interp.run(DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i)))
+                        result <-
+                          interp.run(
+                            DynamoDBQuery.batchGetItem(ids)(id =>
+                              DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)).consistency(ConsistencyMode.Strong)
+                            )
+                          )
+                        found = result match {
+                                  case Batch.GetResult.Complete(r) => r.responses.getOrElse(table, Chunk.empty)
+                                  case _                           => Chunk.empty
+                                }
+                      } yield assertTrue(found.size == 2)
+                    }
+        } yield result
+      },
       test("absent keys return Complete with empty responses") {
         for {
           client <- ZIO.service[DynamoDbAsyncClient]
