@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.test._
-import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
+import zio.test.Assertion.{ anything, containsString, equalTo, hasField, isSubtype }
 
 import java.util.UUID
 
@@ -190,6 +190,38 @@ object BatchSpec extends DynamoDBLocalSpec {
                                   case _                           => Chunk.empty
                                 }
                       } yield assertTrue(found.size == 2)
+                    }
+        } yield result
+      },
+      test("gets from two tables in one batch come back grouped by table") {
+        sealed trait Lookup
+        final case class Order(id: String)    extends Lookup
+        final case class Customer(id: String) extends Lookup
+        for {
+          client <- ZIO.service[DynamoDbAsyncClient]
+          interp = ZioInterpreter.fromAsyncClient(client)
+          result <- withTable(interp) { (orders, interp) =>
+                      withTable(interp) { (customers, interp) =>
+                        val lookups: List[Lookup] = List(Order("o1"), Customer("c1"), Order("o2"))
+                        for {
+                          _      <- interp.run(DynamoDBQuery.batchWriteItem(lookups) {
+                                      case Order(id)    => DynamoDBQuery.putItem(orders, Item("id" -> id))
+                                      case Customer(id) => DynamoDBQuery.putItem(customers, Item("id" -> id))
+                                    })
+                          result <- interp.run(DynamoDBQuery.batchGetItem(lookups) {
+                                      case Order(id)    => DynamoDBQuery.getItem(orders, PrimaryKey("id" -> id))
+                                      case Customer(id) => DynamoDBQuery.getItem(customers, PrimaryKey("id" -> id))
+                                    })
+                        } yield assert(result)(
+                          isSubtype[Batch.GetResult.Complete](
+                            hasField[Batch.GetResult.Complete, Map[String, Int]](
+                              "item counts per table",
+                              _.response.responses.map { case (table, items) => table -> items.size },
+                              equalTo(Map(orders -> 2, customers -> 1))
+                            )
+                          )
+                        )
+                      }
                     }
         } yield result
       },

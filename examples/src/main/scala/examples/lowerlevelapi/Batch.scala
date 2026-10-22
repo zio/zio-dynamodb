@@ -16,7 +16,9 @@
 
 package examples.lowerlevelapi
 
-import zio.dynamodb.{ Batch => DynamoDBBatch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
+import zio.dynamodb.{ Batch => DynamoDBBatch, ConsistencyMode, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
+
+import zio.blocks.chunk.Chunk
 
 import scala.concurrent.duration.DurationInt
 
@@ -39,6 +41,12 @@ object Batch {
         DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
       }
       .withBatchUnprocessedRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 3, initialDelay = 50.millis))
+
+  // Consistency is sent per table
+  val batchGetStrong: DynamoDBQuery[Any, DynamoDBBatch.GetResult] =
+    DynamoDBQuery.batchGetItem(orderIds) { id =>
+      DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)).consistency(ConsistencyMode.Strong)
+    }
 
   val batchWrite: DynamoDBQuery[Any, DynamoDBBatch.WriteResult] =
     DynamoDBQuery.batchWriteItem(orderIds) { id =>
@@ -63,5 +71,33 @@ object Batch {
     DynamoDBQuery.batchWriteItem(orderSyncs) {
       case OrderSync.Upsert(id) => DynamoDBQuery.putItem(table, Item("id" -> id, "status" -> "pending"))
       case OrderSync.Remove(id) => DynamoDBQuery.deleteItem(table, PrimaryKey("id" -> id))
+    }
+
+  // Gets from two tables in one batch, the table chosen by matching on the input's own shape.
+  private val customerTable = "customers"
+
+  sealed trait Lookup
+  object Lookup {
+    final case class Order(id: String)    extends Lookup
+    final case class Customer(id: String) extends Lookup
+  }
+
+  private val lookups: List[Lookup] = List(Lookup.Order("o1"), Lookup.Customer("c1"), Lookup.Order("o2"))
+
+  val batchGetMixed: DynamoDBQuery[Any, DynamoDBBatch.GetResult] =
+    DynamoDBQuery.batchGetItem(lookups) {
+      case Lookup.Order(id)    => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
+      case Lookup.Customer(id) => DynamoDBQuery.getItem(customerTable, PrimaryKey("id" -> id))
+    }
+
+  // Items come back grouped by table name (`responses: Map[String, Chunk[Item]]`); a key with no
+  // matching item is simply absent.
+  def ordersAndCustomers(result: DynamoDBBatch.GetResult): (Chunk[Item], Chunk[Item]) =
+    result match {
+      case DynamoDBBatch.GetResult.Complete(response)   =>
+        (response.responses.getOrElse(table, Chunk.empty), response.responses.getOrElse(customerTable, Chunk.empty))
+      case DynamoDBBatch.GetResult.Incomplete(response) => // what was read; response.unprocessedKeys holds the rest
+        (response.responses.getOrElse(table, Chunk.empty), response.responses.getOrElse(customerTable, Chunk.empty))
+      case DynamoDBBatch.GetResult.Failed(_, _, _)      => (Chunk.empty, Chunk.empty)
     }
 }

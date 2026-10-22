@@ -35,6 +35,18 @@ get on a table must ask for the same consistency; gets on one table that differ 
 `UnbatchableQuery`. A `batchGetItem` callback that doesn't return a `getItem` fails it with
 `UnbatchableQuery` too.
 
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+
+def strongReads(personIds: List[String])(implicit interp: Interpreter[zio.Task]) =
+  DynamoDBQuery
+    .batchGetItem(personIds)(id =>
+      DynamoDBQuery.getItem("customers", PrimaryKey("customerId" -> id)).consistency(ConsistencyMode.Strong)
+    )
+    .execute
+```
+
 ## Building a batch
 
 ```scala mdoc:compile-only

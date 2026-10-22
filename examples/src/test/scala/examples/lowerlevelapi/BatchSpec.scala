@@ -28,9 +28,11 @@ object BatchSpec extends ZIOSpecDefault {
     test("all batch queries execute") {
       val ran = for {
         _ <- Batch.batchGet.execute
+        _ <- Batch.batchGetStrong.execute
         _ <- Batch.batchWrite.execute
         _ <- Batch.batchDelete.execute
         _ <- Batch.batchWriteMixed.execute
+        _ <- Batch.batchGetMixed.execute
       } yield assertCompletes
       ran.unsafeRun()
     }
