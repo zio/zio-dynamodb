@@ -48,10 +48,11 @@ import software.amazon.awssdk.services.dynamodb.model.{
 }
 import zio.blocks.chunk.Chunk
 import zio.test._
-import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, hasField, isSome, isSubtype }
 
 import java.util.{ List => JList, Map => JMap }
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.DurationInt
 
 object BatchGetItemSpec extends ZIOSpecDefault {
 
@@ -104,6 +105,36 @@ object BatchGetItemSpec extends ZIOSpecDefault {
       def transactGetItems(req: TransactGetItemsRequest): DummyIO[TransactGetItemsResponse]       = DummyIO.succeed(???)
       def transactWriteItems(req: TransactWriteItemsRequest): DummyIO[TransactWriteItemsResponse] = DummyIO.succeed(???)
     }
+
+  // Replays `responses` in order and records every BatchGetItemRequest it receives.
+  private def recordingClient(
+    responses: BatchGetItemResponse*
+  ): (AwsDynamoDB[DummyIO], () => List[BatchGetItemRequest]) = {
+    var remaining = responses.toList
+    var requests  = List.empty[BatchGetItemRequest]
+    val client    = new AwsDynamoDB[DummyIO] {
+      def getItem(req: GetItemRequest): DummyIO[GetItemResponse]                                  = DummyIO.succeed(???)
+      def putItem(req: PutItemRequest): DummyIO[PutItemResponse]                                  = DummyIO.succeed(???)
+      def updateItem(req: UpdateItemRequest): DummyIO[UpdateItemResponse]                         = DummyIO.succeed(???)
+      def deleteItem(req: DeleteItemRequest): DummyIO[DeleteItemResponse]                         = DummyIO.succeed(???)
+      def batchGetItem(req: BatchGetItemRequest): DummyIO[BatchGetItemResponse]                   =
+        DummyIO { () =>
+          requests = requests :+ req
+          val next = remaining.headOption.getOrElse(notSetResponse)
+          remaining = remaining.drop(1)
+          next
+        }
+      def batchWriteItem(req: BatchWriteItemRequest): DummyIO[BatchWriteItemResponse]             = DummyIO.succeed(???)
+      def query(req: QueryRequest): DummyIO[QueryResponse]                                        = DummyIO.succeed(???)
+      def scan(req: ScanRequest): DummyIO[ScanResponse]                                           = DummyIO.succeed(???)
+      def createTable(req: CreateTableRequest): DummyIO[CreateTableResponse]                      = DummyIO.succeed(???)
+      def deleteTable(req: DeleteTableRequest): DummyIO[DeleteTableResponse]                      = DummyIO.succeed(???)
+      def describeTable(req: DescribeTableRequest): DummyIO[AwsDescribeTableResponse]             = DummyIO.succeed(???)
+      def transactGetItems(req: TransactGetItemsRequest): DummyIO[TransactGetItemsResponse]       = DummyIO.succeed(???)
+      def transactWriteItems(req: TransactWriteItemsRequest): DummyIO[TransactWriteItemsResponse] = DummyIO.succeed(???)
+    }
+    (client, () => requests)
+  }
 
   private def failingClient(t: Throwable): AwsDynamoDB[DummyIO] =
     new AwsDynamoDB[DummyIO] {
@@ -233,5 +264,65 @@ object BatchGetItemSpec extends ZIOSpecDefault {
     }
   )
 
-  def spec = suite("BatchGetItem")(codecSuite, interpreterSuite, errorPropagationSuite)
+  private val strongGet: String => DynamoDBQuery.GetItem = id =>
+    DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id), List(ProjectionExpression.$("v")), ConsistencyMode.Strong)
+
+  private val consistencySuite = suite("per-table consistency and unprocessed keys")(
+    test("a strongly consistent get sends ConsistentRead for its table only") {
+      val (client, requests) = recordingClient(notSetResponse)
+      val query              = DynamoDBQuery
+        .batchGetItem(List("a"))(strongGet)
+        .addAll(DynamoDBQuery.GetItem("t2", PrimaryKey("id" -> "b")))
+      new DummyIOInterpreter(client).run(query).unsafeRun()
+      val sent               = requests().head.requestItems
+      assertTrue(sent.get("t").consistentRead() == java.lang.Boolean.TRUE, sent.get("t2").consistentRead() == null)
+    },
+    test("a resubmission of unprocessed keys keeps the table's projection and consistency") {
+      val (client, requests) = recordingClient(responseWithUnprocessedKeys("t", sampleAwsKey), notSetResponse)
+      val query              = DynamoDBQuery
+        .batchGetItem(List("a", "b"))(strongGet)
+        .withBatchUnprocessedRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 1, initialDelay = 1.millis))
+      new DummyIOInterpreter(client).run(query).unsafeRun()
+      val resubmitted        = requests()(1).requestItems.get("t")
+      assertTrue(
+        requests().size == 2,
+        resubmitted.keys.asScala.toList == List(sampleAwsKey),
+        resubmitted.projectionExpression() != null,
+        resubmitted.consistentRead() == java.lang.Boolean.TRUE
+      )
+    },
+    test("Incomplete's unprocessed keys keep the table's projection and consistency") {
+      val (client, _) = recordingClient(responseWithUnprocessedKeys("t", sampleAwsKey))
+      val query       =
+        DynamoDBQuery.batchGetItem(List("a", "b"))(strongGet).withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry)
+      val result      = new DummyIOInterpreter(client).run(query).unsafeRun()
+      assert(result)(
+        isSubtype[Batch.GetResult.Incomplete](
+          hasField[Batch.GetResult.Incomplete, Option[DynamoDBQuery.BatchGetItem.TableGet]](
+            "unprocessed t",
+            _.response.unprocessedKeys.get("t"),
+            isSome(
+              hasField[DynamoDBQuery.BatchGetItem.TableGet, ConsistencyMode](
+                "consistency",
+                _.consistency,
+                equalTo(ConsistencyMode.Strong: ConsistencyMode)
+              ) &&
+                hasField[DynamoDBQuery.BatchGetItem.TableGet, Boolean](
+                  "projected",
+                  _.projectionExpressionSet.nonEmpty,
+                  equalTo(true)
+                ) &&
+                hasField[DynamoDBQuery.BatchGetItem.TableGet, Set[PrimaryKey]](
+                  "keys",
+                  _.keysSet,
+                  equalTo(Set(PrimaryKey("id" -> "a")))
+                )
+            )
+          )
+        )
+      )
+    }
+  )
+
+  def spec = suite("BatchGetItem")(codecSuite, interpreterSuite, errorPropagationSuite, consistencySuite)
 }

@@ -636,6 +636,7 @@ private[dynamodb] object AwsCodecs {
         b.projectionExpression(projections.mkString(", "))
         if (names.nonEmpty) b.expressionAttributeNames(names.asJava)
       }
+      if (tableGet.consistency == ConsistencyMode.Strong) b.consistentRead(true)
       tableName -> b.build()
     }.asJava
     BatchGetItemRequest

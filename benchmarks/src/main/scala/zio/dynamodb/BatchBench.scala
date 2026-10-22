@@ -41,6 +41,11 @@ class BatchBench {
   @Benchmark def batchGet100ConstructOnly: DynamoDBQuery[_, _] =
     DynamoDBQuery.batchGetItem(ids)(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
 
+  @Benchmark def batchGet100StrongConstructOnly: DynamoDBQuery[_, _] =
+    DynamoDBQuery.batchGetItem(ids)(id =>
+      DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)).consistency(ConsistencyMode.Strong)
+    )
+
   @Benchmark def batchWrite25RunPrebuilt: Batch.WriteResult =
     DummyIOInterpreter.run(prebuiltWrite).unsafeRun()
 

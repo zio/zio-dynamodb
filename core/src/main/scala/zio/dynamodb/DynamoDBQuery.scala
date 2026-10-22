@@ -779,20 +779,23 @@ object DynamoDBQuery {
 
     def +(getItem: GetItem): BatchGetItem = {
       val tableName                                                     = getItem.tableName
-      val key                                                           = getItem.key
       val projectionExpressionSet: ScalaSet[ProjectionExpression[_, _]] = getItem.projections.toSet
-      val newEntry: (String, BatchGetItem.TableGet)                     =
-        self.requestItems
-          .get(tableName)
-          .fold((tableName, BatchGetItem.TableGet(ScalaSet(key), getItem.projections.toSet)))(t =>
-            (
-              tableName,
-              BatchGetItem.TableGet(t.keysSet + key, t.projectionExpressionSet ++ projectionExpressionSet)
-            )
+      val existing                                                      = self.requestItems.get(tableName)
+      val tableGet                                                      = existing match {
+        case None    => BatchGetItem.TableGet(ScalaSet(getItem.key), projectionExpressionSet, getItem.consistency)
+        case Some(t) =>
+          t.copy(
+            keysSet = t.keysSet + getItem.key,
+            projectionExpressionSet = t.projectionExpressionSet ++ projectionExpressionSet
           )
+      }
       self
-        .copy(requestItems = self.requestItems + newEntry, orderedGetItems = self.orderedGetItems :+ getItem)
+        .copy(
+          requestItems = self.requestItems.updated(tableName, tableGet),
+          orderedGetItems = self.orderedGetItems :+ getItem
+        )
         .withItemError(BatchGetItem.unsupportedItemSetting(getItem))
+        .withItemError(BatchGetItem.consistencyConflict(existing, getItem))
     }
 
     def addAll(entries: GetItem*): BatchGetItem =
@@ -820,24 +823,37 @@ object DynamoDBQuery {
 
   }
   private[dynamodb] object BatchGetItem {
-    // A batch get sends only each item's table, key and projections: capacity and retry policy
-    // belong on the batch, and per-table consistent reads aren't supported yet.
+    // A batch get sends each item's key, and per table its projections and consistency; capacity and
+    // retry policy belong on the batch.
     private[dynamodb] def unsupportedItemSetting(g: GetItem): Option[DynamoDBError] =
-      if (g.retryPolicy.isDefined) unsupported("withRetryPolicy", "set it on the batch")
-      else if (g.capacity != ReturnConsumedCapacity.None) unsupported("capacity", "set it on the batch")
-      else if (g.consistency != ConsistencyMode.Weak)
-        unsupported("consistency", "batchGetItem doesn't support consistent reads yet")
+      if (g.retryPolicy.isDefined) unsupported("withRetryPolicy")
+      else if (g.capacity != ReturnConsumedCapacity.None) unsupported("capacity")
       else None
 
-    private def unsupported(modifier: String, hint: String): Option[DynamoDBError] =
+    private def unsupported(modifier: String): Option[DynamoDBError] =
       Some(
         DynamoDBError.QueryBuilderError.UnsupportedModifier(
-          s"'.$modifier' has no effect on an item inside batchGetItem; $hint"
+          s"'.$modifier' has no effect on an item inside batchGetItem; set it on the batch"
         )
       )
+
+    // AWS takes one ConsistentRead per table, so gets on one table must agree on it.
+    private[dynamodb] def consistencyConflict(existing: Option[TableGet], g: GetItem): Option[DynamoDBError] =
+      existing match {
+        case Some(t) if t.consistency != g.consistency =>
+          Some(
+            DynamoDBError.QueryBuilderError.UnbatchableQuery(
+              s"gets on table '${g.tableName}' ask for different consistency; batchGetItem sends one " +
+                "ConsistentRead per table"
+            )
+          )
+        case _                                         => None
+      }
+
     final case class TableGet(
       keysSet: ScalaSet[PrimaryKey],
-      projectionExpressionSet: ScalaSet[ProjectionExpression[_, _]]
+      projectionExpressionSet: ScalaSet[ProjectionExpression[_, _]],
+      consistency: ConsistencyMode = ConsistencyMode.Weak
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
