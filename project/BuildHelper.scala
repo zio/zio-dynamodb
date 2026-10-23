@@ -6,7 +6,7 @@ import sbtbuildinfo.BuildInfoKeys.*
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
   val Scala213                = "2.13.18"
-  val Scala3                  = "3.3.8"
+  val Scala3                  = "3.9.0"
   private val SilencerVersion = "1.7.19"
 
   private val stdOptions = Seq(
@@ -18,7 +18,7 @@ object BuildHelper {
     "-language:existentials",
     "-unchecked",
     "-deprecation",
-    "-Xfatal-warnings"
+    "-Werror"
   )
 
   private val stdOpts2 = Seq(
@@ -53,15 +53,12 @@ object BuildHelper {
 
   private def extraOptions(scalaVersion: String) =
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((3, 3))  =>
+      case Some((3, _))  =>
         List(
           "-language:implicitConversions",
-          "-Xignore-scala2-macros"
-        )
-      case Some((3, 2))  =>
-        List(
-          "-language:implicitConversions",
-          "-Xignore-scala2-macros"
+          "-Xignore-scala2-macros",
+          // Built by the 3.9 compiler at the 3.3 source level, so the sources stay in syntax 2.13 accepts.
+          "-source:3.3"
         )
       case Some((2, 13)) =>
         stdOpts213 ++ stdOpts2

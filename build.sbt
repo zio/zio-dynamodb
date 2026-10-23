@@ -63,7 +63,7 @@ inThisBuild(
         name = "Test",
         strategy = Some(
           Strategy(
-            matrix = Map("java" -> ciTargetJavaVersions.value.toList, "scala" -> List("2.13", "3.3")),
+            matrix = Map("java" -> ciTargetJavaVersions.value.toList, "scala" -> List("2.13", "3.9")),
             failFast = false
           )
         ),
@@ -347,6 +347,10 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
 
 lazy val examples = module("zio-dynamodb-examples", "examples")
   .settings(
+    // Scala 3.8 deprecated `trait App`; the examples still extend it.
+    scalacOptions ++= (if (scalaVersion.value.startsWith("3."))
+                         Seq("-Wconf:msg=trait App in package scala is deprecated:s")
+                       else Nil),
     resolvers ++= Resolver.sonatypeOssRepos("releases"),
     publish / skip := true,
     fork := true,
@@ -446,7 +450,7 @@ lazy val docs = project
     fork := false,
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
-    scalacOptions -= "-Xfatal-warnings",
+    scalacOptions -= "-Werror",
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Development,
