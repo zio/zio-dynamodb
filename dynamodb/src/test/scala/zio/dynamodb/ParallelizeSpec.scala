@@ -13,12 +13,11 @@ object ParallelizeSpec extends ZIOSpecDefault with DynamoDBFixtures {
   private val parallelizeSuite =
     suite(label = "parallelize")(
       test(label = "should process Zipped GetItems") {
-        val (constructors, assembler): (
+        val (constructors, assembler) = (parallelize(getItemT1 zip getItemT1_2): (
           Chunk[Constructor[Any, Any]],
           Chunk[Any] => (Option[AttrMap], Option[AttrMap])
-        )             =
-          parallelize(getItemT1 zip getItemT1_2)
-        val assembled = assembler(Chunk(Some(itemT1), Some(itemT1_2)))
+        ))
+        val assembled                 = assembler(Chunk(Some(itemT1), Some(itemT1_2)))
 
         assert(constructors)(equalTo(Chunk(getItemT1, getItemT1_2))) && assert(assembled)(
           equalTo((Some(itemT1), Some(itemT1_2)))
