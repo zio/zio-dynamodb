@@ -49,6 +49,8 @@ jobs:
       run: sbt --no-colors +publishLocal
     - name: Check website build process
       run: sbt --no-colors docs/clean; sbt --no-colors docs/buildWebsite
+    - name: Check docs build on a fresh ZIO website
+      run: sbt --no-colors docs/checkDocsOnFreshWebsite
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -87,7 +89,7 @@ jobs:
         - '25'
         scala:
         - '2.13'
-        - '3.3'
+        - '3.9'
     steps:
     - name: Git Checkout
       uses: actions/checkout@v7.0.1
