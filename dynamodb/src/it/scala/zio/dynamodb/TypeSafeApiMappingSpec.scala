@@ -70,9 +70,9 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
         for {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
           invoice <- // invoice is of type InvoiceWithDiscriminatorName
-                     get(invoiceTable)(
-                       (InvoiceWithDiscriminatorName.unpaid >>> InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
-                     ).execute.absolve
+            get(invoiceTable)(
+              (InvoiceWithDiscriminatorName.unpaid >>> InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
+            ).execute.absolve
         } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
       }
     },

@@ -17,16 +17,15 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
 
   override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
     val result: ZIO[Any, DynamoDBError, A] = query match {
-      case BatchGetItem(requestItemsMap, _, _, _)                                 =>
+      case BatchGetItem(requestItemsMap, _, _, _) =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
         val foundItems: IO[DynamoDBError, Seq[(TableName, Option[Item])]] =
           ZIO
-            .foreach(requestItems) {
-              case (tableName, tableGet) =>
-                ZIO.foreach(tableGet.keysSet) { key =>
-                  fakeGetItem(tableName, key).map((tableName, _))
-                }
+            .foreach(requestItems) { case (tableName, tableGet) =>
+              ZIO.foreach(tableGet.keysSet) { key =>
+                fakeGetItem(tableName, key).map((tableName, _))
+              }
             }
             .map(_.flatten)
 
@@ -40,7 +39,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
 
         response
 
-      case BatchWriteItem(requestItems, _, _, _, _)                               =>
+      case BatchWriteItem(requestItems, _, _, _, _) =>
         val results: ZIO[Any, DynamoDBError, Unit] = ZIO.foreachDiscard(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreachDiscard(setOfWrite) { write =>
@@ -55,32 +54,32 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         }
         results.map(_ => BatchWriteItem.Response(None))
 
-      case GetItem(tableName, key, _, _, _, _)                                    =>
+      case GetItem(tableName, key, _, _, _, _) =>
         fakeGetItem(tableName, key)
 
-      case PutItem(tableName, item, _, _, _, _, _)                                =>
+      case PutItem(tableName, item, _, _, _, _, _) =>
         fakePut(tableName, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
 
-      case DeleteItem(tableName, key, _, _, _, _, _)                              =>
+      case DeleteItem(tableName, key, _, _, _, _, _) =>
         fakeDelete(tableName, key)
 
-      case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)        =>
+      case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _) =>
         fakeScanSome(tableName, exclusiveStartKey, Some(limit))
 
-      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _, _)                 =>
+      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _, _) =>
         fakeScanAll(tableName, maybeLimit)
 
       case QuerySome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _, _, _) =>
         fakeScanSome(tableName, exclusiveStartKey, Some(limit))
 
-      case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)             =>
+      case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _) =>
         fakeScanAll(tableName, maybeLimit)
 
       // TODO: implement CreateTable
 
-      case unknown                                                                =>
+      case unknown =>
         ZIO.die(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
@@ -143,12 +142,11 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     ZIO.succeed(
       ZStream
         .paginateZIO(start) { lek =>
-          fakeScanSome(tableName, lek, maybeLimit).map {
-            case (chunk, lek) =>
-              lek match {
-                case None => (chunk, None)
-                case lek  => (chunk, Some(lek))
-              }
+          fakeScanSome(tableName, lek, maybeLimit).map { case (chunk, lek) =>
+            lek match {
+              case None => (chunk, None)
+              case lek  => (chunk, Some(lek))
+            }
           }
         }
         .flattenChunks
@@ -157,12 +155,11 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
   }
 
   private def sort(xs: Seq[PkAndItem], pkName: String): Seq[PkAndItem] =
-    xs.toList.sortWith {
-      case ((pkL, _), (pkR, _)) =>
-        (pkL.map.get(pkName), pkR.map.get(pkName)) match {
-          case (Some(left), Some(right)) => attributeValueOrdering(left, right)
-          case _                         => false
-        }
+    xs.toList.sortWith { case ((pkL, _), (pkR, _)) =>
+      (pkL.map.get(pkName), pkR.map.get(pkName)) match {
+        case (Some(left), Some(right)) => attributeValueOrdering(left, right)
+        case _                         => false
+      }
     }
 
   private def slice(
@@ -218,8 +215,8 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     (for {
       _    <- tablePkNameMap.put(TableName(tableName), pkFieldName)
       tmap <- TMap.empty[PrimaryKey, Item]
-      _    <- STM.foreach(pkAndItems) {
-                case (pk, item) => tmap.put(pk, item)
+      _    <- STM.foreach(pkAndItems) { case (pk, item) =>
+                tmap.put(pk, item)
               }
       _    <- tableMap.put(TableName(tableName), tmap)
     } yield ()).commit
@@ -227,8 +224,8 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
   override def addItems(tableName: String, pkAndItems: (PrimaryKey, Item)*): ZIO[Any, DynamoDBError, Unit] =
     (for {
       (tableMap, _) <- tableMapAndPkName(TableName(tableName))
-      _             <- STM.foreach(pkAndItems) {
-                         case (pk, item) => tableMap.put(pk, item)
+      _             <- STM.foreach(pkAndItems) { case (pk, item) =>
+                         tableMap.put(pk, item)
                        }
     } yield ()).commit
 

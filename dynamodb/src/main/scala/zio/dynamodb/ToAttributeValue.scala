@@ -31,8 +31,8 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
     (attrMap: AttrMap) =>
       AttributeValue.Map {
-        attrMap.map.map {
-          case (key, value) => (AttributeValue.String(key), value)
+        attrMap.map.map { case (key, value) =>
+          (AttributeValue.String(key), value)
         }
       }
 

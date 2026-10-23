@@ -17,26 +17,24 @@ private[dynamodb] final case class MapOfSet[K, V] private (private val map: Scal
 
   def ++(that: MapOfSet[K, V]): MapOfSet[K, V] = {
     val xs: Seq[(K, Set[V])]   = that.map.toList
-    val m: ScalaMap[K, Set[V]] = xs.foldRight(map) {
-      case ((key, set), map) =>
-        val newEntry: (K, Set[V]) =
-          map.get(key).fold((key, set))(s => (key, s ++ set))
-        map + newEntry
+    val m: ScalaMap[K, Set[V]] = xs.foldRight(map) { case ((key, set), map) =>
+      val newEntry: (K, Set[V]) =
+        map.get(key).fold((key, set))(s => (key, s ++ set))
+      map + newEntry
     }
     new MapOfSet(m)
   }
 
   def ++(entries: (K, Iterable[V])): MapOfSet[K, V] = {
     val (key, values) = entries
-    values.foldLeft(self) {
-      case (acc, value) =>
-        acc + ((key, value))
+    values.foldLeft(self) { case (acc, value) =>
+      acc + ((key, value))
     }
   }
 
   def addAll(entries: (K, V)*): MapOfSet[K, V] =
-    entries.foldLeft(self) {
-      case (map, (k, v)) => map + (k -> v)
+    entries.foldLeft(self) { case (map, (k, v)) =>
+      map + (k -> v)
     }
 
   def toOption: Option[MapOfSet[K, V]] =
