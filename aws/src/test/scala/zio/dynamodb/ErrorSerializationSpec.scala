@@ -102,6 +102,24 @@ object ErrorSerializationSpec extends ZIOSpecDefault {
       val item = AwsCodecs.fromAwsItem(awsItem)
       assertTrue(roundTrip(item) == Right(item))
     },
+    test("items built locally round-trip, whichever JMapView builder made them") {
+      val single  = Item("id" -> "a")
+      val multi   = Item("id" -> "a", "n" -> 1, "flag" -> true)
+      val linked  = AttrMap(
+        JMapView.linked
+          .builder[String, AttributeValue]
+          .addOne("id", AttributeValue.String("a"))
+          .addOne("n", AttributeValue.Number(BigDecimal(1)))
+          .result
+      )
+      val updated = AttrMap(multi.map.updated("extra", AttributeValue.String("x")))
+      assertTrue(
+        roundTrip(single) == Right(single),
+        roundTrip(multi) == Right(multi),
+        roundTrip(linked) == Right(linked),
+        roundTrip(updated) == Right(updated)
+      )
+    },
     test("ConditionFailed round-trips, item and AWS cause included") {
       val result = roundTrip(conditionFailed)
       assertTrue(
