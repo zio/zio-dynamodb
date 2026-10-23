@@ -29,7 +29,8 @@ import java.util.{ HashMap => JHashMap, LinkedHashMap => JLinkedHashMap, Map => 
 private[dynamodb] final class JMapView[K, V <: AnyRef](
   private[dynamodb] val underlying: JMap[K, V],
   private val cloneFn: JMap[K, V] => JMap[K, V]
-) extends scala.collection.immutable.AbstractMap[K, V] {
+) extends scala.collection.immutable.AbstractMap[K, V]
+    with Serializable {
 
   override def get(key: K): Option[V] = {
     val v = underlying.get(key)
