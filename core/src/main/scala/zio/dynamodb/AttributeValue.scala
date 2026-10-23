@@ -31,7 +31,7 @@ import scala.util.Try
  * constructors and the codec derived by `DynamoDBCodecDeriver` are the two paths that
  * actually build these values internally.
  */
-sealed trait AttributeValue { self =>
+sealed trait AttributeValue extends Serializable { self =>
   private[dynamodb] final val showType: String =
     self match {
       case _: AttributeValue.Binary    => "AttributeValue.Binary"
