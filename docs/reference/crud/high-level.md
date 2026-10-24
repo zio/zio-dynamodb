@@ -231,6 +231,45 @@ Each item in the returned page decodes independently, so `query`/`scan` return a
 `Either[DynamoDBError.ItemError, Order]` rather than failing the whole page if one item's
 decode fails.
 
+### Reading every page
+
+A `query` or `scan` returns one page at a time. To read them all, pass each page's
+`lastEvaluatedKey` to `.startKey(...)` on the next call, until it's `None`:
+
+```scala mdoc:compile-only
+import zio.ZIO
+import zio.blocks.chunk.Chunk
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def allOrders(customerId: String)(implicit
+  interp: Interpreter[zio.Task]
+): zio.Task[Chunk[Either[DynamoDBError.ItemError, Order]]] = {
+  def loop(
+    startKey: LastEvaluatedKey,
+    acc: Chunk[Either[DynamoDBError.ItemError, Order]]
+  ): zio.Task[Chunk[Either[DynamoDBError.ItemError, Order]]] =
+    query(orders, limit = 100)
+      .whereKey(Order.customerId.partitionKey === customerId)
+      .startKey(startKey)
+      .execute
+      .flatMap { page =>
+        val all = acc ++ page.items
+        page.lastEvaluatedKey match {
+          case None => ZIO.succeed(all)
+          case next => loop(next, all)
+        }
+      }
+  loop(None, Chunk.empty)
+}
+```
+
+The same loop works for `scan`, for the Low-Level API, and with Cats Effect or `Future` — only
+the `flatMap` and the "done" value change; `examples/.../highlevelapi/Pagination.scala` has both
+the ZIO and the Cats Effect versions. For a large result, process each page as it arrives
+instead of accumulating them all in memory.
+
 ## Scan
 
 ```scala mdoc:compile-only
@@ -252,6 +291,29 @@ directly on any `Lens` from a `CompanionOptics` object, including against `enum`
 fields (`Order.status === Status.Pending` above) — the interpreter derives the field's
 `DynamoDBCodec` from the embedded `Schema` at evaluation time, so encoding rules like
 `enumValuesAsStrings` are respected automatically, the same as `put`/`get` use.
+
+The other condition operators, for `.where` and `.filter`:
+
+| Operator | Applies to | Example |
+|---|---|---|
+| `in(a, b, ...)` | any field | `Order.status.in(Status.Pending, Status.Shipped)` |
+| `inSet(values)` | number, string or binary fields | `Order.customerId.inSet(Set("cust-1", "cust-2"))` |
+| `between(lo, hi)` | number, string or binary fields | `Order.total.between(10.0, 100.0)` |
+| `beginsWith(prefix)` / `contains(s)` | string fields | `Order.orderId.beginsWith("ord-2026")` |
+| `containsElement(e)` | set fields | for a `tags: Set[String]` field, `tags.containsElement("urgent")` |
+| `attributeExists` / `attributeNotExists` | any field | `Order.orderId.attributeNotExists` |
+| `&&` / `\|\|` / `!` | conditions | `Order.total > 50.0 && !(Order.status === Status.Shipped)` |
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  scan(orders, limit = 20)
+    .filter(Order.status.in(Status.Pending, Status.Shipped) && Order.total.between(10.0, 100.0))
+    .execute
+```
 
 ## Transactions
 

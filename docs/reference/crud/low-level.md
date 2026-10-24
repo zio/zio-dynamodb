@@ -157,7 +157,8 @@ final case class Page[A](items: Chunk[A], lastEvaluatedKey: LastEvaluatedKey, co
 
 - `items` — this page's results.
 - `lastEvaluatedKey` — pagination cursor; `None` means this was the last page. To continue,
-  pass it back as `exclusiveStartKey` on the next `query`/`scan` call.
+  pass it to `.startKey(...)` on the next `query`/`scan` call (see
+  [High-Level: Reading every page](high-level.md#reading-every-page) for the loop).
 - `count` — items matched after any filter expression.
 - `scannedCount` — items DynamoDB evaluated before applying the filter; `scannedCount > count`
   signals a filter-heavy query reading more than it returns.
