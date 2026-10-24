@@ -150,6 +150,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("a get's consistency is carried to its table") {
       val batch = DynamoDBQuery
         .batchGetItem(List("a", "b"))(id => GetItem(table1, PrimaryKey("id" -> id)).copy(consistency = strong))
+        .asInstanceOf[DynamoDBQuery.BatchGetItem]
         .addAll(GetItem(table2, PrimaryKey("id" -> "c")))
       assert(batch)(
         isSubtype[DynamoDBQuery.BatchGetItem](
@@ -238,30 +239,36 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     withResponseRetryPolicySuite
   )
 
+  // The public factory returns a DynamoDBQuery; these tests inspect the node it builds.
+  private def batchWriteNode[A](values: Iterable[A])(
+    body: A => ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]
+  ): BatchWriteItem =
+    DynamoDBQuery.batchWriteItem(values)(body).asInstanceOf[BatchWriteItem]
+
   private val batchingSuite = suite("batchWrite3")(
     test("empty iterable produces empty BatchWriteItem") {
-      val batch = DynamoDBQuery.batchWriteItem(List.empty[Item])(item => DynamoDBQuery.putItem(table1, item))
+      val batch = batchWriteNode(List.empty[Item])(item => DynamoDBQuery.putItem(table1, item))
       assertTrue(
         batch.requestItems.get(table1).isEmpty &&
           batch.addList == Chunk.empty
       )
     },
     test("single PutItem is added to requestItems and addList") {
-      val batch = DynamoDBQuery.batchWriteItem(List(item1))(item => DynamoDBQuery.putItem(table1, item))
+      val batch = batchWriteNode(List(item1))(item => DynamoDBQuery.putItem(table1, item))
       assertTrue(
         batch.requestItems.get(table1).contains(Chunk[BatchWriteItem.Write](BatchWriteItem.Put(item1))) &&
           batch.addList == Chunk(BatchWriteItem.Put(item1))
       )
     },
     test("single DeleteItem is added to requestItems and addList") {
-      val batch = DynamoDBQuery.batchWriteItem(List(key1))(key => DynamoDBQuery.deleteItem(table1, key))
+      val batch = batchWriteNode(List(key1))(key => DynamoDBQuery.deleteItem(table1, key))
       assertTrue(
         batch.requestItems.get(table1).contains(Chunk[BatchWriteItem.Write](BatchWriteItem.Delete(key1))) &&
           batch.addList == Chunk(BatchWriteItem.Delete(key1))
       )
     },
     test("multiple PutItems same table — all grouped under one key") {
-      val batch = DynamoDBQuery.batchWriteItem(List(item1, item2, item3))(item => DynamoDBQuery.putItem(table1, item))
+      val batch = batchWriteNode(List(item1, item2, item3))(item => DynamoDBQuery.putItem(table1, item))
       assertTrue(
         batch.requestItems
           .get(table1)
@@ -276,7 +283,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("multiple DeleteItems same table — all grouped under one key") {
-      val batch = DynamoDBQuery.batchWriteItem(List(key1, key2))(key => DynamoDBQuery.deleteItem(table1, key))
+      val batch = batchWriteNode(List(key1, key2))(key => DynamoDBQuery.deleteItem(table1, key))
       assertTrue(
         batch.requestItems
           .get(table1)
@@ -291,7 +298,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("mix of PutItem and DeleteItem same table — both types appear under same key") {
       val writes: List[Either[Item, PrimaryKey]] = List(Left(item1), Right(key2))
-      val batch                                  = DynamoDBQuery.batchWriteItem(writes) {
+      val batch                                  = batchWriteNode(writes) {
         case Left(item) => DynamoDBQuery.putItem(table1, item)
         case Right(key) => DynamoDBQuery.deleteItem(table1, key)
       }
@@ -309,7 +316,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("PutItems across different tables — bucketed under separate keys") {
       val entries = List(table1 -> item1, table2 -> item2)
-      val batch   = DynamoDBQuery.batchWriteItem(entries) { case (tbl, item) => DynamoDBQuery.putItem(tbl, item) }
+      val batch   = batchWriteNode(entries) { case (tbl, item) => DynamoDBQuery.putItem(tbl, item) }
       assertTrue(
         batch.requestItems.get(table1).contains(Chunk[BatchWriteItem.Write](BatchWriteItem.Put(item1))) &&
           batch.requestItems.get(table2).contains(Chunk[BatchWriteItem.Write](BatchWriteItem.Put(item2)))
@@ -317,7 +324,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("mix of PutItem and DeleteItem different tables — bucketed separately") {
       val writes: List[Either[Item, PrimaryKey]] = List(Left(item1), Right(key2))
-      val batch                                  = DynamoDBQuery.batchWriteItem(writes) {
+      val batch                                  = batchWriteNode(writes) {
         case Left(item) => DynamoDBQuery.putItem(table1, item)
         case Right(key) => DynamoDBQuery.deleteItem(table2, key)
       }
@@ -328,7 +335,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("addList preserves insertion order across mixed types") {
       val writes: List[Either[Item, PrimaryKey]] = List(Left(item1), Right(key1), Left(item2))
-      val batch                                  = DynamoDBQuery.batchWriteItem(writes) {
+      val batch                                  = batchWriteNode(writes) {
         case Left(item) => DynamoDBQuery.putItem(table1, item)
         case Right(key) => DynamoDBQuery.deleteItem(table1, key)
       }
@@ -370,13 +377,13 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("BatchGetItem defaults to None") {
-      assertTrue(
-        DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id))).capacity == noCapacity
+      assert(DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id))))(
+        isSubtype[DynamoDBQuery.BatchGetItem](hasField("capacity", _.capacity, equalTo(noCapacity)))
       )
     },
     test("BatchWriteItem defaults to None") {
-      assertTrue(
-        DynamoDBQuery.batchWriteItem(List(item1))(i => DynamoDBQuery.putItem(table1, i)).capacity == noCapacity
+      assert(DynamoDBQuery.batchWriteItem(List(item1))(i => DynamoDBQuery.putItem(table1, i)))(
+        isSubtype[BatchWriteItem](hasField("capacity", _.capacity, equalTo(noCapacity)))
       )
     },
     test("capacity sets GetItem") {
@@ -558,9 +565,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("BatchWriteItem defaults to None") {
       assertTrue(
-        DynamoDBQuery
-          .batchWriteItem(List(item1))(i => DynamoDBQuery.putItem(table1, i))
-          .itemMetrics == ReturnItemCollectionMetrics.None
+        batchWriteNode(List(item1))(i =>
+          DynamoDBQuery.putItem(table1, i)
+        ).itemMetrics == ReturnItemCollectionMetrics.None
       )
     },
     test("metrics sets PutItem") {

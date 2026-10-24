@@ -336,7 +336,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             Item("id" -> "c", "v" -> 3)
           )
           val batch =
-            DynamoDBQuery.batchGetItem(List("a", "b", "c"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
+            DynamoDBQuery
+              .batchGetItem(List("a", "b", "c"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
+              .asInstanceOf[DynamoDBQuery.BatchGetItem]
           for {
             _      <- interpreter.run(DynamoDBQuery.batchWriteItem(items)(item => DynamoDBQuery.putItem(table, item)))
             result <- interpreter.run(batch)
@@ -349,9 +351,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
       },
       test("batch get returns None for keys that do not exist") {
         withSingleIdKeyTable { (table, interpreter) =>
-          val batch = DynamoDBQuery.batchGetItem(List("missing-1", "missing-2"))(id =>
-            DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
-          )
+          val batch = DynamoDBQuery
+            .batchGetItem(List("missing-1", "missing-2"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
+            .asInstanceOf[DynamoDBQuery.BatchGetItem]
           for {
             result <- interpreter.run(batch)
             results = batch.toGetItemResponses(completeResponse(result))
@@ -360,9 +362,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
       },
       test("batch get mixed — present key resolves to Some, absent key resolves to None") {
         withSingleIdKeyTable { (table, interpreter) =>
-          val batch = DynamoDBQuery.batchGetItem(List("present", "absent"))(id =>
-            DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
-          )
+          val batch = DynamoDBQuery
+            .batchGetItem(List("present", "absent"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
+            .asInstanceOf[DynamoDBQuery.BatchGetItem]
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "present", "v" -> 42)))
             result <- interpreter.run(batch)

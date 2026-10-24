@@ -296,7 +296,7 @@ object MiscSpec extends ZIOSpecDefault {
     test("batchGetItem builds a BatchGetItem from items") {
       val people = List("id1", "id2")
       val batch  = DynamoDBQuery.batchGetItem(people)(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
-      assertTrue(batch.requestItems.size == 1)
+      assertTrue(batch.asInstanceOf[DynamoDBQuery.BatchGetItem].requestItems.size == 1)
     },
     test("BatchGetItem.toGetItemResponses returns None for missing keys") {
       val gi1     = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))

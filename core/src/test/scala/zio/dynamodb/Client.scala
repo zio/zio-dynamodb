@@ -26,14 +26,14 @@ object Client {
   val putItem: DynamoDBQuery[Any, Unit] = DynamoDBQuery.putItem("my-table", item)
   val putItemResult: DummyIO[Unit]      = DummyIOInterpreter.run(putItem)
 
-  val people: List[Person]                              = List(Person("123", "test"))
-  val batchWriteItems: DynamoDBQuery.BatchWriteItem     =
+  val people: List[Person]                                   = List(Person("123", "test"))
+  val batchWriteItems: DynamoDBQuery[Any, Batch.WriteResult] =
     DynamoDBQuery.batchWriteItem(people)(person =>
       DynamoDBQuery.putItem("my-table", Item("id" -> person.id, "name" -> person.name))
     )
-  val batchWriteItemsResult: DummyIO[Batch.WriteResult] = DummyIOInterpreter.run(batchWriteItems)
+  val batchWriteItemsResult: DummyIO[Batch.WriteResult]      = DummyIOInterpreter.run(batchWriteItems)
 
-  val batchGetItem: DynamoDBQuery.BatchGetItem =
+  val batchGetItem: DynamoDBQuery[Any, Batch.GetResult] =
     DynamoDBQuery.batchGetItem(people) { person =>
       DynamoDBQuery.getItem("my-table", PrimaryKey("id" -> person.id))
     }

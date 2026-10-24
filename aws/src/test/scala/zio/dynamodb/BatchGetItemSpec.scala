@@ -272,6 +272,7 @@ object BatchGetItemSpec extends ZIOSpecDefault {
       val (client, requests) = recordingClient(notSetResponse)
       val query              = DynamoDBQuery
         .batchGetItem(List("a"))(strongGet)
+        .asInstanceOf[DynamoDBQuery.BatchGetItem]
         .addAll(DynamoDBQuery.GetItem("t2", PrimaryKey("id" -> "b")))
       new DummyIOInterpreter(client).run(query).unsafeRun()
       val sent               = requests().head.requestItems
