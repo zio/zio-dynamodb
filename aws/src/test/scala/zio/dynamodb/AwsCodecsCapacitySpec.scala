@@ -106,7 +106,7 @@ object AwsCodecsCapacitySpec extends ZIOSpecDefault {
       },
       test("None → NONE") {
         val q   = DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem(table, PrimaryKey("id" -> id)))
-        val req = AwsCodecs.toBatchGetItemRequest(q)
+        val req = AwsCodecs.toBatchGetItemRequest(q.asInstanceOf[DynamoDBQuery.BatchGetItem])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.NONE)
       }
     ),
@@ -121,7 +121,7 @@ object AwsCodecsCapacitySpec extends ZIOSpecDefault {
       },
       test("None → NONE") {
         val q   = DynamoDBQuery.batchWriteItem(List(item))(i => DynamoDBQuery.putItem(table, i))
-        val req = AwsCodecs.toBatchWriteItemRequest(q)
+        val req = AwsCodecs.toBatchWriteItemRequest(q.asInstanceOf[DynamoDBQuery.BatchWriteItem])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.NONE)
       }
     )

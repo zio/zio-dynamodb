@@ -594,7 +594,9 @@ object DynamoDBQuery {
   // `body`'s type doesn't restrict it to a get, so anything else fails the batch when it runs: a
   // failed query (e.g. a modifier a get doesn't support) with its own error, any other query with
   // `UnbatchableQuery`.
-  def batchGetItem[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery.BatchGetItem =
+  def batchGetItem[In, A, B](
+    values: Iterable[A]
+  )(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[Any, Batch.GetResult] =
     values.foldLeft(BatchGetItem()) { (batch, a) =>
       body(a) match {
         case g: GetItem => batch + g
@@ -612,7 +614,7 @@ object DynamoDBQuery {
 
   def batchWriteItem[A](values: Iterable[A])(
     body: A => ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]
-  ): DynamoDBQuery.BatchWriteItem =
+  ): DynamoDBQuery[Any, Batch.WriteResult] =
     values.foldLeft(BatchWriteItem()) { (batch, a) =>
       batch + body(a)
     }
