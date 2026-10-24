@@ -17,17 +17,18 @@
 package examples.highlevelapi
 
 import cats.effect.IO
-import zio.{ Task, ZIO }
-import zio.blocks.chunk.Chunk
+import fs2.Stream
+import zio.Task
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.{ DynamoDBError, Interpreter, LastEvaluatedKey }
+import zio.dynamodb.{ DynamoDBError, Interpreter, LastEvaluatedKey, PrimaryKey }
 import zio.dynamodb.ExecuteSyntax._
 import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.stream.ZStream
 
 /**
- * Reading every page of a `query`: pass each page's `lastEvaluatedKey` to `.startKey(...)` on the
- * next call until it's `None`. The same loop works for `scan`; only `flatMap` and the "done" value
- * differ between ZIO and Cats Effect.
+ * Reading every page of a `query` as a stream: each page's `lastEvaluatedKey` is passed to
+ * `.startKey(...)` for the next page until it's `None`. Pages are fetched only as the stream is
+ * consumed, so a large result never has to fit in memory. The same shape works for `scan`.
  */
 object Pagination {
 
@@ -42,34 +43,27 @@ object Pagination {
 
   val events: Table[Event] = Table[Event]("events")
 
-  type Decoded = Either[DynamoDBError.ItemError, Event]
+  type ErrorOrDecoded = Either[DynamoDBError.ItemError, Event]
 
   private def page(streamId: String, pageSize: Int, startKey: LastEvaluatedKey) =
     query(events, limit = pageSize).whereKey(Event.streamId.partitionKey === streamId).startKey(startKey)
 
-  def allEventsZio(streamId: String, pageSize: Int = 100)(implicit
+  // The state is the cursor to start from; `Some(next)` continues, `None` ends the stream.
+  def eventsZio(streamId: String, pageSize: Int = 100)(implicit
     interpreter: Interpreter[Task]
-  ): Task[Chunk[Decoded]] = {
-    def loop(startKey: LastEvaluatedKey, acc: Chunk[Decoded]): Task[Chunk[Decoded]] =
-      page(streamId, pageSize, startKey).execute.flatMap { p =>
-        p.lastEvaluatedKey match {
-          case None => ZIO.succeed(acc ++ p.items)
-          case next => loop(next, acc ++ p.items)
-        }
+  ): ZStream[Any, Throwable, ErrorOrDecoded] =
+    ZStream
+      .paginateZIO(Option.empty[PrimaryKey]) { startKey =>
+        page(streamId, pageSize, startKey).execute.map(p => (p.items, p.lastEvaluatedKey.map(Option(_))))
       }
-    loop(None, Chunk.empty)
-  }
+      .mapConcat(identity)
 
-  def allEventsCE(streamId: String, pageSize: Int = 100)(implicit
+  def eventsCE(streamId: String, pageSize: Int = 100)(implicit
     interpreter: Interpreter[IO]
-  ): IO[Chunk[Decoded]] = {
-    def loop(startKey: LastEvaluatedKey, acc: Chunk[Decoded]): IO[Chunk[Decoded]] =
-      page(streamId, pageSize, startKey).execute.flatMap { p =>
-        p.lastEvaluatedKey match {
-          case None => IO.pure(acc ++ p.items)
-          case next => loop(next, acc ++ p.items)
-        }
+  ): Stream[IO, ErrorOrDecoded] =
+    Stream
+      .unfoldLoopEval(Option.empty[PrimaryKey]) { startKey =>
+        page(streamId, pageSize, startKey).execute.map(p => (p.items, p.lastEvaluatedKey.map(Option(_))))
       }
-    loop(None, Chunk.empty)
-  }
+      .flatMap(items => Stream.iterable(items))
 }

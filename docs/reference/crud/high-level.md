@@ -234,41 +234,35 @@ decode fails.
 ### Reading every page
 
 A `query` or `scan` returns one page at a time. To read them all, pass each page's
-`lastEvaluatedKey` to `.startKey(...)` on the next call, until it's `None`:
+`lastEvaluatedKey` to `.startKey(...)` on the next call, until it's `None`. Tables can be large,
+so read the pages as a stream rather than collecting them into one list — a page is fetched only
+when the stream needs it:
 
 ```scala mdoc:compile-only
-import zio.ZIO
-import zio.blocks.chunk.Chunk
+import zio.Task
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.stream.ZStream
 
 def allOrders(customerId: String)(implicit
-  interp: Interpreter[zio.Task]
-): zio.Task[Chunk[Either[DynamoDBError.ItemError, Order]]] = {
-  def loop(
-    startKey: LastEvaluatedKey,
-    acc: Chunk[Either[DynamoDBError.ItemError, Order]]
-  ): zio.Task[Chunk[Either[DynamoDBError.ItemError, Order]]] =
-    query(orders, limit = 100)
-      .whereKey(Order.customerId.partitionKey === customerId)
-      .startKey(startKey)
-      .execute
-      .flatMap { page =>
-        val all = acc ++ page.items
-        page.lastEvaluatedKey match {
-          case None => ZIO.succeed(all)
-          case next => loop(next, all)
-        }
-      }
-  loop(None, Chunk.empty)
-}
+  interp: Interpreter[Task]
+): ZStream[Any, Throwable, Either[DynamoDBError.ItemError, Order]] =
+  ZStream
+    .paginateZIO(Option.empty[PrimaryKey]) { startKey =>
+      query(orders, limit = 100)
+        .whereKey(Order.customerId.partitionKey === customerId)
+        .startKey(startKey)
+        .execute
+        .map(page => (page.items, page.lastEvaluatedKey.map(Option(_))))
+    }
+    .mapConcat(identity)
 ```
 
-The same loop works for `scan`, for the Low-Level API, and with Cats Effect or `Future` — only
-the `flatMap` and the "done" value change; `examples/.../highlevelapi/Pagination.scala` has both
-the ZIO and the Cats Effect versions. For a large result, process each page as it arrives
-instead of accumulating them all in memory.
+`paginateZIO`'s state is the start key; returning `Some(next)` fetches another page, `None` ends
+the stream. The same shape works for `scan` and for the Low-Level API.
+`examples/.../highlevelapi/Pagination.scala` has this and the fs2 equivalent for Cats Effect
+(`Stream.unfoldLoopEval`).
 
 ## Scan
 
