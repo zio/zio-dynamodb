@@ -291,6 +291,40 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                     )
           } yield assertTrue(page.items.size == 2 && page.lastEvaluatedKey.isDefined)
         }
+      },
+      test("following lastEvaluatedKey with startKey reads every page") {
+        final case class Event(id: String, year: String, title: String)
+        object Event extends CompanionOptics[Event] {
+          implicit val schema: Schema[Event] = Schema.derived
+          val id: Lens[Event, String]        = $(_.id)
+          val year: Lens[Event, String]      = $(_.year)
+        }
+
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table                                  = DdbExprApi.Table[Event](tableName)
+          val events                                 = (2021 to 2025).toList.map(y => Event("alice", y.toString, s"t$y"))
+          // page size 2 over 5 items: pages of 2, 2 and 1
+          def loop(
+            startKey: LastEvaluatedKey,
+            acc: List[Event],
+            requests: Int
+          ): ZIO[Any, Throwable, (List[Event], Int)] =
+            interpreter
+              .run(
+                DdbExprApi.query[Event](table, 2).whereKey(Event.id.partitionKey === "alice").toQuery.startKey(startKey)
+              )
+              .flatMap { page =>
+                val all = acc ++ page.items.collect { case Right(e) => e }
+                page.lastEvaluatedKey match {
+                  case None => ZIO.succeed((all, requests + 1))
+                  case next => loop(next, all, requests + 1)
+                }
+              }
+          for {
+            _      <- ZIO.foreach(events)(e => interpreter.run(DdbExprApi.put(table, e)))
+            result <- loop(None, Nil, 0)
+          } yield assertTrue(result._1.toSet == events.toSet, result._1.size == 5, result._2 >= 3)
+        }
       }
     )
 

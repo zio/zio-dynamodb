@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import examples.ZIOStreamingUtils
+import examples.ZIOBatchStreamingUtils
 import zio._
 import zio.stream.ZStream
 import zio.blocks.chunk.Chunk
@@ -25,7 +25,7 @@ import zio.test._
 import scala.collection.immutable.{ Map => ScalaMap }
 import scala.concurrent.duration.{ FiniteDuration, MILLISECONDS }
 
-object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
+object ZIOBatchStreamingUtilsSpec extends ZIOSpecDefault {
 
   private def makeInterp(
     batchGetResponses: List[DynamoDBQuery.BatchGetItem.Response] = Nil,
@@ -103,13 +103,13 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
       )
     )
 
-  def spec = suite("ZIOStreamingUtilsSpec")(
+  def spec = suite("ZIOBatchStreamingUtilsSpec")(
     test("emits all items from a single Complete batch") {
       val pks   = List("a", "b", "c").map(id => PrimaryKey("id" -> id))
       val items = List("a", "b", "c").map(id => Item("id" -> id))
       for {
         interp <- makeInterp(batchGetResponses = List(completeResponse("t", items: _*)))
-        result <- ZIOStreamingUtils.batchGetItems(interp, "t")(ZStream.fromIterable(pks)).runCollect
+        result <- ZIOBatchStreamingUtils.batchGetItems(interp, "t")(ZStream.fromIterable(pks)).runCollect
       } yield assertTrue(result.toSet == items.toSet)
     },
 
@@ -125,7 +125,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                       completeResponse("t", batch2: _*)
                     )
                   )
-        result <- ZIOStreamingUtils.batchGetItems(interp, "t")(ZStream.fromIterable(pks)).runCollect
+        result <- ZIOBatchStreamingUtils.batchGetItems(interp, "t")(ZStream.fromIterable(pks)).runCollect
       } yield assertTrue(result.size == 150)
     },
 
@@ -138,7 +138,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                       incompleteResponse("t", List(processed), Set(unprocessed))
                     )
                   )
-        result <- ZIOStreamingUtils
+        result <- ZIOBatchStreamingUtils
                     .batchGetItems(interp, "t")(
                       ZStream(PrimaryKey("id" -> "a"), unprocessed)
                     )
@@ -161,7 +161,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                     ),
                     batchUnprocessedDefault = Some(RetryPolicy.fullJitter())
                   )
-        fiber  <- ZIOStreamingUtils
+        fiber  <- ZIOBatchStreamingUtils
                     .batchGetItems(interp, "t")(ZStream(PrimaryKey("id" -> "a"), PrimaryKey("id" -> "b")))
                     .runCollect
                     .fork
@@ -181,7 +181,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                     batchUnprocessedDefault = Some(RetryPolicy.fullJitter())
                   )
         result <-
-          ZIOStreamingUtils
+          ZIOBatchStreamingUtils
             .batchGetItems(interp, "t", RetryPolicy.NoRetry)(ZStream(PrimaryKey("id" -> "a"), PrimaryKey("id" -> "b")))
             .runCollect
       } yield assertTrue(result.toSet == Set(itemA))
@@ -199,7 +199,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
                     )
                   )
         // Two batches: first fails, second succeeds
-        result <- ZIOStreamingUtils
+        result <- ZIOBatchStreamingUtils
                     .batchGetItems(interp, "t")(
                       ZStream.fromIterable(
                         (1 to 101).map(i => PrimaryKey("id" -> s"k$i"))

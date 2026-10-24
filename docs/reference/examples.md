@@ -10,7 +10,7 @@ external consumer does.
 
 ```sh
 sbt examples/compile   # exercises every example, including the Docker-free showcases below
-sbt examples/test      # runs the ones with real ZIO Test specs (ZIOStreamingUtils)
+sbt examples/test      # runs the ones with real ZIO Test specs (ZIOBatchStreamingUtils)
 ```
 
 ## `OrdersCE` / `OrdersZio`
@@ -63,7 +63,7 @@ no policy of its own. The batch's unprocessed keys are governed separately, by
 `defaultBatchUnprocessedRetryPolicy` (on by default; the no-retry interpreter sets it to `None`).
 See [Retries](retries.md#attachment-points).
 
-## `ZIOStreamingUtils`
+## `ZIOBatchStreamingUtils`
 
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to
 100, running each through `interp.run` (unprocessed keys resubmitted per the interpreter's default,
@@ -71,7 +71,7 @@ or an explicit `RetryPolicy` via an overload), and turning
 `Incomplete`/`Failed` batch outcomes into log output instead of a fatal stream error. See
 [Batch Operations](crud/batch.md) for the Low-Level batch API this builds on. Backed by a
 real `ZIOSpecDefault` test
-(`ZIOStreamingUtilsSpec`) against a stub interpreter.
+(`ZIOBatchStreamingUtilsSpec`) against a stub interpreter.
 
 Named `ZIO`-prefixed deliberately — this is a `zio.stream.ZStream`-specific implementation,
 not a cross-interpreter utility. The same grouping/retry/log-and-continue shape would be

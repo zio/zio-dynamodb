@@ -10,6 +10,7 @@ val zioPreludeVersion = "1.0.0-RC47"
 val zioBlocksVersion  = "0.0.55"
 val awsSdkVersion     = "2.56.0"
 val catsEffectVersion = "3.7.1"
+val fs2Version        = "3.14.0"
 val scala213Version   = "2.13.18"
 val scala3Version     = "3.3.8" // TODO: make scala3 = 3.9 ie produce only one artifact for 3.9+ and delete below
 val scala39Version    = "3.9.0" // zio-blocks' current default; published as zio-dynamodb-next-*
@@ -226,6 +227,7 @@ lazy val examples = (project in file("examples"))
     crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-streams"  % zioVersion,
+      "co.fs2"  %% "fs2-core"     % fs2Version, // Cats Effect streaming example
       "dev.zio" %% "zio-prelude"  % zioPreludeVersion, // Newtype/Subtype wrapped-scalar examples
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test
@@ -254,6 +256,7 @@ lazy val docs = project
       futureInterpreter,
       ceInterpreter
     ),
+    libraryDependencies += "dev.zio"           %% "zio-streams" % zioVersion, // pagination recipe
     publish / skip                             := true
   )
   .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter)
