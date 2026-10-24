@@ -126,7 +126,7 @@ pending-put/delete map) in place of `unprocessedKeys`.
 There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch is Low-Level only.
 `batchGetItem`/`batchWriteItem`, `RetryPolicy`, and `Batch.GetResult`/`Batch.WriteResult` are
 the building blocks for whatever you need on top. See
-[`ZIOStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
+[`ZIOBatchStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
 example: batching a stream of keys, running each batch with a retry policy, and turning
 `Incomplete`/`Failed` into log output rather than a fatal error.
 

@@ -20,22 +20,25 @@ import zio._
 import zio.stream.ZStream
 import zio.dynamodb.{ AwsInterpreter, Batch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
 
-object ZIOStreamingUtils {
+object ZIOBatchStreamingUtils {
 
   private val BatchSize = 100
 
   /**
-   * Reads items from DynamoDB for a stream of primary keys using batched reads.
+   * Reads items from a single DynamoDB table for a stream of primary keys using batched reads.
+   * Every key is looked up in `tableName`, so the emitted items carry no table name; for a batch
+   * across several tables, see `Batch.batchGetMixed` in `examples.lowerlevelapi`, where results
+   * stay grouped by table.
    *
-   *  Keys are grouped into batches of up to 100 and run via `interp.run`, which honors the
-   *  AWS batch retry contract internally (see [[Batch]]). The stream never fails: incomplete
-   *  and failed batches are logged (ZIO logger) and skipped, and pagination continues with
-   *  the next batch. Unprocessed keys are resubmitted per the interpreter's
-   *  `defaultBatchUnprocessedRetryPolicy`; the overload taking a [[RetryPolicy]] overrides it.
+   * Keys are grouped into batches of up to 100 and run via `interp.run`, which honors the
+   * AWS batch retry contract internally (see [[Batch]]). The stream never fails: incomplete
+   * and failed batches are logged (ZIO logger) and skipped, and pagination continues with
+   * the next batch. Unprocessed keys are resubmitted per the interpreter's
+   * `defaultBatchUnprocessedRetryPolicy`; the overload taking a [[RetryPolicy]] overrides it.
    *
-   *  @param interp     the effect interpreter to run each batch through
-   *  @param tableName  DynamoDB table to query
-   *  @param keys       source stream of primary keys to fetch
+   * @param interp     the effect interpreter to run each batch through
+   * @param tableName  the one DynamoDB table every key is read from
+   * @param keys       source stream of primary keys to fetch
    */
   def batchGetItems(interp: AwsInterpreter[Task], tableName: String)(
     keys: ZStream[Any, Nothing, PrimaryKey]
