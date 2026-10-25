@@ -83,8 +83,7 @@ object ProjectionExpressionParser {
   }
 
   /**
-   * Unsafe string parser — throws [[IllegalStateException]] on invalid input.
-   * Use [[parse]] for a safe alternative.
+   * An invalid path becomes a `ProjectionExpression.Failure` instead of throwing.
    *
    * Backtick-quoted segments allow dots and other special chars in attribute names.
    * Underscore and hyphen are allowed unquoted.
@@ -100,7 +99,7 @@ object ProjectionExpressionParser {
   private[dynamodb] def $(s: String): ProjectionExpression[Any, Unknown] =
     parse(s) match {
       case Right(pe) => pe.asInstanceOf[ProjectionExpression[Any, Unknown]]
-      case Left(msg) => throw new IllegalStateException(msg)
+      case Left(msg) => ProjectionExpression.Failure(s"invalid path '$s': $msg")
     }
 
   // Applies a sequence of list indexes on top of a base expression, left to right.

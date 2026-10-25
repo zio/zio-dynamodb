@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.dynamodb.ProjectionExpressionParser.{ $, parse }
 import zio.test._
+import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
 
 object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
@@ -122,11 +123,13 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
     test("backtick-quoted name") {
       assertTrue($("`foo.bar`").toString == "`foo.bar`")
     },
-    test("throws IllegalStateException for invalid input") {
-      assertTrue(scala.util.Try($("$$invalid")).isFailure)
+    test("returns a Failure naming the path for invalid input") {
+      assert($("$$invalid"))(
+        isSubtype[ProjectionExpression.Failure](hasField("message", _.message, containsString("'$$invalid'")))
+      )
     },
-    test("throws IllegalStateException for null") {
-      assertTrue(scala.util.Try($(null)).isFailure)
+    test("returns a Failure for null") {
+      assert($(null))(isSubtype[ProjectionExpression.Failure](anything))
     }
   )
 }

@@ -19,7 +19,10 @@ package zio.dynamodb
 import zio.dynamodb.KeyConditionExpr.{ ExtendedSortKeyExpr, SortKeyEquals }
 import zio.dynamodb.ProjectionExpression.Unknown
 
-private[dynamodb] final case class SortKey[-From, +To](keyName: String)
+private[dynamodb] final case class SortKey[-From, +To](
+  keyName: String,
+  private[dynamodb] val invalidPath: Option[String] = None
+)
 
 /**
  * Adds comparison operators (`===`, `<`, `>`, `between`, `beginsWith`, ...) to a

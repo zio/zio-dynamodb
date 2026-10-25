@@ -535,8 +535,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case other                        => Right(other)
     }
 
-  // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
+    InvalidPaths(query) match {
+      case Some(err) => fail(err)
+      case None      => runValidPaths(query)
+    }
+
+  // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
+  private def runValidPaths(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
       case q: DynamoDBQuery.GetItem            =>
         val meta = DynamoDBRetryMetadata.GetItem(q.tableName, CorrelationContext(Some(q.key)))

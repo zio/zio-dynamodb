@@ -68,6 +68,8 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
           loop(parent, tuple)
         case ProjectionExpression.ListElement(parent, index)                           =>
           loop(parent, (acc._1, acc._2 :+ s"[$index]"))
+        case ProjectionExpression.Failure(message)                                     =>
+          throw new IllegalStateException(s"library bug: an invalid path reached rendering ($message)")
       }
 
     val (aliasMap, xs) = loop(entry, (self, List.empty))

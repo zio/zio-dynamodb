@@ -16,9 +16,10 @@
 
 package examples.lowerlevelapi
 
-import zio.dynamodb.{ DummyIOInterpreter, Interpreter }
+import zio.dynamodb.{ DummyIOInterpreter, DynamoDBError, Interpreter }
 import zio.dynamodb.ExecuteSyntax._
 import zio.test._
+import zio.test.Assertion._
 
 object KeyConditionsSpec extends ZIOSpecDefault {
 
@@ -28,9 +29,9 @@ object KeyConditionsSpec extends ZIOSpecDefault {
     test("query with an extended composite key condition executes") {
       KeyConditions.queryQuery.execute.map(_ => assertCompletes).unsafeRun()
     },
-    test("live failure: .partitionKey on a nested path throws once evaluated, not at compile time") {
-      val thrown = scala.util.Try(KeyConditions.nestedPathAsKey).failed.toOption
-      assertTrue(thrown.exists(_.isInstanceOf[IllegalArgumentException]))
+    test("live failure: .partitionKey on a nested path fails with InvalidPath when run, not at compile time") {
+      val result = scala.util.Try(KeyConditions.nestedPathAsKey.execute.unsafeRun()).toEither
+      assert(result)(isLeft(isSubtype[DynamoDBError.QueryBuilderError.InvalidPath](anything)))
     }
   )
 }

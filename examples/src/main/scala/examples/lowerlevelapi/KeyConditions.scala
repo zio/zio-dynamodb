@@ -16,7 +16,7 @@
 
 package examples.lowerlevelapi
 
-import zio.dynamodb.{ DynamoDBQuery, Item, KeyConditionExpr }
+import zio.dynamodb.{ DynamoDBQuery, Item, KeyConditionExpr, Page }
 import zio.dynamodb.ProjectionExpression.$
 
 /**
@@ -41,10 +41,11 @@ object KeyConditions {
   val extendedBetween: KeyConditionExpr[Any] =
     $("customerId").partitionKey === "cust-1" && $("invoiceId").sortKey.between("inv-100", "inv-200")
 
-  // Compiles fine, throws IllegalArgumentException once evaluated — a def, not a val, so it
-  // isn't evaluated just by loading this object; see KeyConditionsSpec's "live failure" test.
-  def nestedPathAsKey = $("lineItems")(0).partitionKey
+  // Compiles, and fails with QueryBuilderError.InvalidPath when run: a key must be a single
+  // top-level attribute name.
+  val nestedPathAsKey: DynamoDBQuery[Any, Page[Item]] =
+    DynamoDBQuery.query(table, limit = 20).whereKey($("lineItems")(0).partitionKey === "cust-1")
 
-  val queryQuery: DynamoDBQuery[Any, zio.dynamodb.Page[Item]] =
+  val queryQuery: DynamoDBQuery[Any, Page[Item]] =
     DynamoDBQuery.query(table, limit = 20).whereKey(extendedRange)
 }

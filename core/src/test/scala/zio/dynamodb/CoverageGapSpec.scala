@@ -28,7 +28,6 @@ import zio.test.Assertion.{ anything, isSubtype }
  * - Actions.++ method
  * - SetOperand.+ and SetOperand.-
  * - ProjectionExpression.unsafeFrom
- * - ProjectionExpression.partitionKey/sortKey error branches
  * - KeySchema with sortKey
  * - ProjectionExpressionParser error recovery branch
  * - ToAttributeValue binary/binarySet cases
@@ -88,23 +87,6 @@ object CoverageGapSpec extends ZIOSpecDefault {
         ProjectionExpression.MapElement[String, Int](ProjectionExpression.Root, "x")
       val pe2: ProjectionExpression[Any, Int]   = pe.unsafeFrom[Any]
       assertTrue(pe2.toString == "x")
-    },
-    test("partitionKey on non-MapElement throws IllegalArgumentException") {
-      val pe: ProjectionExpression.Unknown                              = null.asInstanceOf[ProjectionExpression.Unknown]
-      val root: ProjectionExpression[Any, ProjectionExpression.Unknown] =
-        ProjectionExpression.Root.asInstanceOf[ProjectionExpression[Any, ProjectionExpression.Unknown]]
-      val attempt                                                       = scala.util.Try(
-        new ProjectionExpression.ProjectionExpressionSyntax(root).partitionKey
-      )
-      assertTrue(attempt.isFailure)
-    },
-    test("sortKey on non-MapElement throws IllegalArgumentException") {
-      val root: ProjectionExpression[Any, ProjectionExpression.Unknown] =
-        ProjectionExpression.Root.asInstanceOf[ProjectionExpression[Any, ProjectionExpression.Unknown]]
-      val attempt                                                       = scala.util.Try(
-        new ProjectionExpression.ProjectionExpressionSyntax(root).sortKey
-      )
-      assertTrue(attempt.isFailure)
     },
     test("mapElement helper builds MapElement") {
       val pe = ProjectionExpression.mapElement(ProjectionExpression.Root, "field")
