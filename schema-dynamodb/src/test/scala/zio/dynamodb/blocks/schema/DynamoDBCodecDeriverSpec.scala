@@ -1825,8 +1825,9 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
           dvCodec.encoder(outer) == AttributeValue.Map(Map(AttributeValue.String("a") -> dvCodec.encoder(inner)))
         )
       },
-      test("empty Map → empty AttributeValue.Map") {
-        assertTrue(dvCodec.encoder(new DynamicValue.Map(Chunk.empty)) == AttributeValue.Map.empty)
+      test("empty Map → empty AttributeValue.Map, which decodes as DynamicValue.unit") {
+        val encoded = dvCodec.encoder(new DynamicValue.Map(Chunk.empty))
+        assertTrue(encoded == AttributeValue.Map.empty, dvCodec.decoder(encoded) == Right(DynamicValue.unit))
       },
       test("Maps decode back as a Record (string keys) or a Sequence of key/value Records") {
         val stringKeyed = new DynamicValue.Map(Chunk(DynamicValue.string("a") -> DynamicValue.int(1)))

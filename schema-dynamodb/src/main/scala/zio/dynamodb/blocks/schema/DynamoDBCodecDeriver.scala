@@ -70,8 +70,9 @@ object DynamoDBCodecDeriver
    *   - `DynamicValue.Record`   → `AttributeValue.Map` (non-empty)
    *   - `DynamicValue.Sequence` → `AttributeValue.List`
    *   - `DynamicValue.Map`      → `AttributeValue.Map` when every key is a string, otherwise an
-   *     `AttributeValue.List` of `{"key": ..., "value": ...}` maps. Either decodes as a `Record` or
-   *     `Sequence`, not a `DynamicValue.Map`.
+   *     `AttributeValue.List` of `{"key": ..., "value": ...}` maps. A non-empty map decodes as a
+   *     `Record` or `Sequence`, not a `DynamicValue.Map`; an empty map encodes as
+   *     `AttributeValue.Map.empty` and so decodes as `DynamicValue.unit`.
    *   - `DynamicValue.boolean`  → `AttributeValue.Bool`
    *   - Numeric primitives      → `AttributeValue.Number`
    *   - String-like primitives  → `AttributeValue.String`
