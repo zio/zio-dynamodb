@@ -133,7 +133,7 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
  */
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
-  private[dynamodb] sealed trait Operand[-From, +To] { self =>
+  sealed trait Operand[-From, +To] { self =>
     def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From] =
       Between(self.asInstanceOf[Operand[From, To]], t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
     def inSet[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression[From]             =

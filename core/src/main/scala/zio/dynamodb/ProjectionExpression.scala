@@ -286,7 +286,7 @@ object ProjectionExpression {
      * elements in a List, Map or Set. Compare it with a number or another size, e.g.
      * `$("tags").size > 3` or `$("a").size === $("b").size`.
      */
-    def size: ConditionExpression.Operand.Size[From, Unknown] = ConditionExpression.Operand.Size(self)
+    def size: ConditionExpression.Operand[From, Long] = ConditionExpression.Operand.Size(self)
 
     def attributeExists: ConditionExpression[From] = ConditionExpression.AttributeExists(self)
 
