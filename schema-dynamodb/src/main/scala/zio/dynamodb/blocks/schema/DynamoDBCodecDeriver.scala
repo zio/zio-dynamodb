@@ -69,6 +69,10 @@ object DynamoDBCodecDeriver
    *   - `DynamicValue.unit`     → `AttributeValue.Map` (empty)
    *   - `DynamicValue.Record`   → `AttributeValue.Map` (non-empty)
    *   - `DynamicValue.Sequence` → `AttributeValue.List`
+   *   - `DynamicValue.Map`      → `AttributeValue.Map` when every key is a string, otherwise an
+   *     `AttributeValue.List` of `{"key": ..., "value": ...}` maps. A non-empty map decodes as a
+   *     `Record` or `Sequence`, not a `DynamicValue.Map`; an empty map encodes as
+   *     `AttributeValue.Map.empty` and so decodes as `DynamicValue.unit`.
    *   - `DynamicValue.boolean`  → `AttributeValue.Bool`
    *   - Numeric primitives      → `AttributeValue.Number`
    *   - String-like primitives  → `AttributeValue.String`
@@ -153,9 +157,38 @@ object DynamoDBCodecDeriver
                 builder.addOne(AttributeValue.String(kv._1), enc)
               }
               AttributeValue.Map(builder.result)
-            case _: DynamicValue.Map               =>
-              throw new IllegalStateException("DynamicValue.Map not supported")
+            case map: DynamicValue.Map             =>
+              val entries       = map.entries
+              val keys          = entries.iterator
+              var allStringKeys = true
+              while (allStringKeys && keys.hasNext) allStringKeys = stringKeyOrNull(keys.next()._1) ne null
+              if (allStringKeys) {
+                val builder = JMapView.linked.builder[AttributeValue.String, AttributeValue]
+                val it      = entries.iterator
+                while (it.hasNext) {
+                  val kv = it.next()
+                  builder.addOne(AttributeValue.String(stringKeyOrNull(kv._1)), encoder(kv._2))
+                }
+                AttributeValue.Map(builder.result)
+              } else {
+                val list = ChunkBuilder.make[AttributeValue]()
+                val all  = entries.iterator
+                while (all.hasNext) {
+                  val kv    = all.next()
+                  val entry = JMapView.linked.builder[AttributeValue.String, AttributeValue]
+                  entry.addOne(AttributeValue.String("key"), encoder(kv._1))
+                  entry.addOne(AttributeValue.String("value"), encoder(kv._2))
+                  list.addOne(AttributeValue.Map(entry.result))
+                }
+                AttributeValue.List(list.result())
+              }
           }
+
+      private def stringKeyOrNull(key: DynamicValue): String =
+        key match {
+          case DynamicValue.Primitive(k: PrimitiveValue.String) => k.value
+          case _                                                => null
+        }
 
       override def decoder: Decoder[DynamicValue] = {
         case m: AttributeValue.Map if m.value.isEmpty => Right(DynamicValue.unit)
