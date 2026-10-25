@@ -296,6 +296,7 @@ The other condition operators, for `.where` and `.filter`:
 | `beginsWith(prefix)` / `contains(s)` | string fields | `Order.orderId.beginsWith("ord-2026")` |
 | `containsElement(e)` | set fields | for a `tags: Set[String]` field, `tags.containsElement("urgent")` |
 | `attributeExists` / `attributeNotExists` | any field | `Order.orderId.attributeNotExists` |
+| `size` compared with `===` `!=` `<` `<=` `>` `>=` or `between` | string, binary, list, map and set fields | `Order.orderId.size <= 20` |
 | `&&` / `\|\|` / `!` | conditions | `Order.total > 50.0 && !(Order.status === Status.Shipped)` |
 
 ```scala mdoc:compile-only
@@ -305,7 +306,9 @@ import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   scan(orders, limit = 20)
-    .filter(Order.status.in(Status.Pending, Status.Shipped) && Order.total.between(10.0, 100.0))
+    .filter(
+      Order.status.in(Status.Pending, Status.Shipped) && Order.total.between(10.0, 100.0) && Order.orderId.size <= 20
+    )
     .execute
 ```
 

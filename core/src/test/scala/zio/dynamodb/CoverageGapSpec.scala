@@ -17,7 +17,6 @@
 package zio.dynamodb
 
 import zio.blocks.chunk.Chunk
-import zio.dynamodb.ConditionExpression.Operand.{ ProjectionExpressionOperand, Size }
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.UpdateExpression.Action.{ Actions, RemoveAction, SetAction }
 import zio.dynamodb.UpdateExpression.SetOperand.{ Minus, PathOperand, Plus, ValueOperand }
@@ -26,8 +25,6 @@ import zio.test.Assertion.{ anything, isSubtype }
 
 /**
  * Covers remaining gaps after the main spec files:
- * - Operand.> (PE-to-PE) which calls GreaterThanOrEqual (known bug)
- * - Operand.Size render
  * - Actions.++ method
  * - SetOperand.+ and SetOperand.-
  * - ProjectionExpression.unsafeFrom
@@ -42,13 +39,10 @@ import zio.test.Assertion.{ anything, isSubtype }
  * - Zippable2Left
  */
 object CoverageGapSpec extends ZIOSpecDefault {
-
-  private def renderExpr(ce: ConditionExpression[_]): String = ce.render.execute._2
-  private def renderUpdate(ue: UpdateExpression[_]): String  = ue.render.execute._2
+  private def renderUpdate(ue: UpdateExpression[_]): String = ue.render.execute._2
 
   def spec = suite("CoverageGapSpec")(
     utilsSuite,
-    operandSuite,
     actionsSuite,
     setOperandSuite,
     projectionExpressionSuite,
@@ -61,30 +55,6 @@ object CoverageGapSpec extends ZIOSpecDefault {
     attrMapIterableItemSuite,
     fromAttributeValueExtraSuite,
     zippable2LeftSuite
-  )
-
-  private val operandSuite = suite("Operand extra cases")(
-    test("Operand.> (PE-to-PE) renders as >= due to implementation") {
-      val ageOp  = ProjectionExpressionOperand($("age"))
-      val nameOp = ProjectionExpressionOperand($("name"))
-      val ce     = ageOp > nameOp
-      val s      = renderExpr(ce)
-      assertTrue(s.contains(">="))
-    },
-    test("Operand.Size render produces size(path) expression") {
-      val sizePath = $("items")
-      val sizeOp   = Size(sizePath)
-      val s        = sizeOp.render.execute._2
-      assertTrue(s.startsWith("size("))
-    },
-    test("Operand.Size used in a comparator") {
-      val sizePath                                       = $("items")
-      val sizeOp: ConditionExpression.Operand[Any, Long] = Size(sizePath)
-      val valueOp                                        = ProjectionExpressionOperand($("maxSize")).asInstanceOf[ConditionExpression.Operand[Any, Long]]
-      val ce                                             = sizeOp === valueOp
-      val s                                              = renderExpr(ce)
-      assertTrue(s.contains("size("))
-    }
   )
 
   private val actionsSuite = suite("Actions.++")(

@@ -196,6 +196,10 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .execute
 ```
 
+`$("path").size` is DynamoDB's `size(path)` - the length of a string or binary attribute, or the
+number of elements in a list, map or set. Compare it with a number or another size, e.g.
+`.filter($("items").size > 3)`, or use `.between(lo, hi)`.
+
 ## Transactions
 
 `transactGetItems`/`transactWriteItems` compose multiple single-item operations into one

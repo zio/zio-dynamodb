@@ -160,9 +160,7 @@ object ProjectionExpression {
       )
 
     def between[To](minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
-      ConditionExpression.Operand
-        .ProjectionExpressionOperand(self)
-        .between(to.toAttributeValue(minValue), to.toAttributeValue(maxValue))
+      ProjectionExpressionOperand(self).between(minValue, maxValue)
 
     /**
      * Remove all elements of parameter "set" from this set
@@ -175,16 +173,10 @@ object ProjectionExpression {
     }
 
     def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
-      ConditionExpression.Operand
-        .ProjectionExpressionOperand(self)
-        .in(values.map(to.toAttributeValue))
+      ProjectionExpressionOperand(self).inSet(values)
 
-    def in[To](value: To, values: To*)(implicit to: ToAttributeValue[To]): ConditionExpression[From] = {
-      val set: Set[To] = values.toSet + value
-      ConditionExpression.Operand
-        .ProjectionExpressionOperand(self)
-        .in(set.map(to.toAttributeValue))
-    }
+    def in[To](value: To, values: To*)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
+      ProjectionExpressionOperand(self).in(value, values: _*)
 
     /**
      * Applies to a String or Set
@@ -288,6 +280,13 @@ object ProjectionExpression {
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
+
+    /**
+     * DynamoDB's `size(path)`: the length of a String or Binary attribute, or the number of
+     * elements in a List, Map or Set. Compare it with a number or another size, e.g.
+     * `$("tags").size > 3` or `$("a").size === $("b").size`.
+     */
+    def size: ConditionExpression.Operand[From, Long] = ConditionExpression.Operand.Size(self)
 
     def attributeExists: ConditionExpression[From] = ConditionExpression.AttributeExists(self)
 

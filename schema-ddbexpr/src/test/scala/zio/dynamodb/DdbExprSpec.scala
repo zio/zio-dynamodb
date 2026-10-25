@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
@@ -33,6 +34,22 @@ object DdbExprSpec extends ZIOSpecDefault {
     val id: Lens[Score, String]        = $(_.id)
     val score: Lens[Score, Int]        = $(_.score)
     val tags: Lens[Score, Set[String]] = $(_.tags)
+  }
+
+  private case class Doc(
+    id: String,
+    items: List[String],
+    meta: Map[String, String],
+    tags: Set[String],
+    bytes: Chunk[Byte]
+  )
+  private object Doc extends CompanionOptics[Doc] {
+    implicit val schema: Schema[Doc]         = Schema.derived
+    val id: Lens[Doc, String]                = $(_.id)
+    val items: Lens[Doc, List[String]]       = $(_.items)
+    val meta: Lens[Doc, Map[String, String]] = $(_.meta)
+    val tags: Lens[Doc, Set[String]]         = $(_.tags)
+    val bytes: Lens[Doc, Chunk[Byte]]        = $(_.bytes)
   }
 
   // All-no-field sealed trait: DynamoDBCodecDeriver encodes each case as
@@ -230,6 +247,42 @@ object DdbExprSpec extends ZIOSpecDefault {
             _ => assertNever("interpreter failed"),
             s => assert(s)(containsString("contains") && containsString(":v"))
           )
+      }
+    ),
+    suite("size")(
+      test("compared with a number renders size(path) on each operator") {
+        assert(interpret(Doc.items.size === 3).map(render))(isRight(equalTo("(size(#n0)) = (:v1)"))) &&
+        assert(interpret(Doc.items.size != 3).map(render))(isRight(equalTo("(size(#n0)) <> (:v1)"))) &&
+        assert(interpret(Doc.items.size < 3).map(render))(isRight(equalTo("(size(#n0)) < (:v1)"))) &&
+        assert(interpret(Doc.items.size <= 3).map(render))(isRight(equalTo("(size(#n0)) <= (:v1)"))) &&
+        assert(interpret(Doc.items.size > 3).map(render))(isRight(equalTo("(size(#n0)) > (:v1)"))) &&
+        assert(interpret(Doc.items.size >= 3).map(render))(isRight(equalTo("(size(#n0)) >= (:v1)")))
+      },
+      test("between renders BETWEEN on size(path)") {
+        assert(interpret(Doc.id.size.between(1, 10)).map(render))(isRight(equalTo("size(#n0) BETWEEN :v1 AND :v2")))
+      },
+      test("the number is encoded as a DynamoDB Number") {
+        assert(interpret(Doc.meta.size > 2))(
+          isRight(
+            isSubtype[ConditionExpression.GreaterThan[_]](
+              hasField[ConditionExpression.GreaterThan[_], Any](
+                "right",
+                _.right,
+                equalTo(ConditionExpression.Operand.ValueOperand(AttributeValue.Number(BigDecimal(2))))
+              )
+            )
+          )
+        )
+      },
+      test("applies to string, binary, list, map and set fields, and combines with other conditions") {
+        val expr = Doc.id.size > 0 && Doc.bytes.size > 0 && Doc.items.size > 0 && Doc.meta.size > 0 && Doc.tags.size > 0
+        assert(interpret(expr))(isRight(anything))
+      },
+      test("doesn't compile on a number field") {
+        for {
+          onNumber <- typeCheck("Score.score.size > 1")
+          onString <- typeCheck("Score.id.size > 1")
+        } yield assertTrue(onNumber.isLeft, onString.isRight)
       }
     ),
     suite("inSet — scalar field IN a set of values")(
