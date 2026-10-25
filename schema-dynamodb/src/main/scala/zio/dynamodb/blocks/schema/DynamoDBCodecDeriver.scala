@@ -158,17 +158,18 @@ object DynamoDBCodecDeriver
               AttributeValue.Map(builder.result)
             case map: DynamicValue.Map             =>
               val entries       = map.entries
-              val builder       = JMapView.linked.builder[AttributeValue.String, AttributeValue]
-              val it            = entries.iterator
+              val keys          = entries.iterator
               var allStringKeys = true
-              while (allStringKeys && it.hasNext) {
-                val kv  = it.next()
-                val key = stringKeyOrNull(kv._1)
-                if (key eq null) allStringKeys = false
-                else builder.addOne(AttributeValue.String(key), encoder(kv._2))
-              }
-              if (allStringKeys) AttributeValue.Map(builder.result)
-              else {
+              while (allStringKeys && keys.hasNext) allStringKeys = stringKeyOrNull(keys.next()._1) ne null
+              if (allStringKeys) {
+                val builder = JMapView.linked.builder[AttributeValue.String, AttributeValue]
+                val it      = entries.iterator
+                while (it.hasNext) {
+                  val kv = it.next()
+                  builder.addOne(AttributeValue.String(stringKeyOrNull(kv._1)), encoder(kv._2))
+                }
+                AttributeValue.Map(builder.result)
+              } else {
                 val list = ChunkBuilder.make[AttributeValue]()
                 val all  = entries.iterator
                 while (all.hasNext) {
