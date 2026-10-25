@@ -63,9 +63,10 @@ object ProjectionExpressionParser {
           case indexedSegment(name, _) =>
             val indexes = captureIndexes
               .findAllMatchIn(seg.substring(seg.indexOf('[')))
-              .map(_.group(1).toInt)
+              .map(_.group(1).toIntOption)
               .toList
-            Right(parent => applyIndexes(MapElement(parent, name), indexes))
+            if (indexes.forall(_.isDefined)) Right(parent => applyIndexes(MapElement(parent, name), indexes.flatten))
+            else Left(s"list index out of range in '$seg'")
           case bareSegment(name)       =>
             Right(parent => MapElement(parent, name))
           case _                       =>

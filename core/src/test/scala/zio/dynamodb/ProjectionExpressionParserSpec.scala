@@ -128,6 +128,11 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
         isSubtype[ProjectionExpression.Failure](hasField("message", _.message, containsString("'$$invalid'")))
       )
     },
+    test("returns a Failure for a list index too large for an Int") {
+      assert($("a[99999999999]"))(
+        isSubtype[ProjectionExpression.Failure](hasField("message", _.message, containsString("out of range")))
+      )
+    },
     test("returns a Failure for null") {
       assert($(null))(isSubtype[ProjectionExpression.Failure](anything))
     }
