@@ -69,6 +69,9 @@ object DynamoDBCodecDeriver
    *   - `DynamicValue.unit`     → `AttributeValue.Map` (empty)
    *   - `DynamicValue.Record`   → `AttributeValue.Map` (non-empty)
    *   - `DynamicValue.Sequence` → `AttributeValue.List`
+   *   - `DynamicValue.Map`      → `AttributeValue.Map` when every key is a string, otherwise an
+   *     `AttributeValue.List` of `{"key": ..., "value": ...}` maps. Either decodes as a `Record` or
+   *     `Sequence`, not a `DynamicValue.Map`.
    *   - `DynamicValue.boolean`  → `AttributeValue.Bool`
    *   - Numeric primitives      → `AttributeValue.Number`
    *   - String-like primitives  → `AttributeValue.String`
@@ -153,9 +156,37 @@ object DynamoDBCodecDeriver
                 builder.addOne(AttributeValue.String(kv._1), enc)
               }
               AttributeValue.Map(builder.result)
-            case _: DynamicValue.Map               =>
-              throw new IllegalStateException("DynamicValue.Map not supported")
+            case map: DynamicValue.Map             =>
+              val entries       = map.entries
+              val builder       = JMapView.linked.builder[AttributeValue.String, AttributeValue]
+              val it            = entries.iterator
+              var allStringKeys = true
+              while (allStringKeys && it.hasNext) {
+                val kv  = it.next()
+                val key = stringKeyOrNull(kv._1)
+                if (key eq null) allStringKeys = false
+                else builder.addOne(AttributeValue.String(key), encoder(kv._2))
+              }
+              if (allStringKeys) AttributeValue.Map(builder.result)
+              else {
+                val list = ChunkBuilder.make[AttributeValue]()
+                val all  = entries.iterator
+                while (all.hasNext) {
+                  val kv    = all.next()
+                  val entry = JMapView.linked.builder[AttributeValue.String, AttributeValue]
+                  entry.addOne(AttributeValue.String("key"), encoder(kv._1))
+                  entry.addOne(AttributeValue.String("value"), encoder(kv._2))
+                  list.addOne(AttributeValue.Map(entry.result))
+                }
+                AttributeValue.List(list.result())
+              }
           }
+
+      private def stringKeyOrNull(key: DynamicValue): String =
+        key match {
+          case DynamicValue.Primitive(k: PrimitiveValue.String) => k.value
+          case _                                                => null
+        }
 
       override def decoder: Decoder[DynamicValue] = {
         case m: AttributeValue.Map if m.value.isEmpty => Right(DynamicValue.unit)

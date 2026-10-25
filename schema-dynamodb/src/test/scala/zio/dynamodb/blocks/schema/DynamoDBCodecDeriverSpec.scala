@@ -1789,9 +1789,60 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
           isSubtype[AttributeValue.String](hasField("value", _.value, equalTo("X")))
         )
       },
-      test("DynamicValue.Map is not supported and throws") {
-        val badDv = new DynamicValue.Map(Chunk.empty)
-        assertTrue(scala.util.Try(dvCodec.encoder(badDv)).isFailure)
+      test("Map with string keys → AttributeValue.Map keyed by those strings") {
+        val map = new DynamicValue.Map(Chunk(DynamicValue.string("a") -> DynamicValue.int(1)))
+        assertTrue(
+          dvCodec.encoder(map) == AttributeValue.Map(
+            Map(AttributeValue.String("a") -> AttributeValue.Number(BigDecimal.valueOf(1L)))
+          )
+        )
+      },
+      test("Map with non-string keys → List of key/value Maps") {
+        val map = new DynamicValue.Map(Chunk(DynamicValue.int(1) -> DynamicValue.string("one")))
+        assertTrue(
+          dvCodec.encoder(map) == AttributeValue.List(
+            Chunk(
+              AttributeValue.Map(
+                Map(
+                  AttributeValue.String("key")   -> AttributeValue.Number(BigDecimal.valueOf(1L)),
+                  AttributeValue.String("value") -> AttributeValue.String("one")
+                )
+              )
+            )
+          )
+        )
+      },
+      test("a single non-string key switches the whole Map to the key/value List") {
+        val map = new DynamicValue.Map(
+          Chunk(DynamicValue.string("a") -> DynamicValue.int(1), DynamicValue.int(2) -> DynamicValue.int(2))
+        )
+        assert(dvCodec.encoder(map))(isSubtype[AttributeValue.List](hasField("value", _.value, hasSize(equalTo(2)))))
+      },
+      test("nested Maps are encoded too") {
+        val inner = new DynamicValue.Map(Chunk(DynamicValue.string("b") -> DynamicValue.int(2)))
+        val outer = new DynamicValue.Map(Chunk(DynamicValue.string("a") -> inner))
+        assertTrue(
+          dvCodec.encoder(outer) == AttributeValue.Map(Map(AttributeValue.String("a") -> dvCodec.encoder(inner)))
+        )
+      },
+      test("empty Map → empty AttributeValue.Map") {
+        assertTrue(dvCodec.encoder(new DynamicValue.Map(Chunk.empty)) == AttributeValue.Map.empty)
+      },
+      test("Maps decode back as a Record (string keys) or a Sequence of key/value Records") {
+        val stringKeyed = new DynamicValue.Map(Chunk(DynamicValue.string("a") -> DynamicValue.int(1)))
+        val intKeyed    = new DynamicValue.Map(Chunk(DynamicValue.int(1) -> DynamicValue.string("one")))
+        assertTrue(
+          dvCodec.decoder(dvCodec.encoder(stringKeyed)) ==
+            Right(new DynamicValue.Record(Chunk("a" -> DynamicValue.int(1)))),
+          dvCodec.decoder(dvCodec.encoder(intKeyed)) ==
+            Right(
+              new DynamicValue.Sequence(
+                Chunk(
+                  new DynamicValue.Record(Chunk("key" -> DynamicValue.int(1), "value" -> DynamicValue.string("one")))
+                )
+              )
+            )
+        )
       }
     ),
     suite("decoder")(
