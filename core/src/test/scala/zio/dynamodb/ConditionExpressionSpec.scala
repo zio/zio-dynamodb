@@ -44,6 +44,7 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
     inSuite,
     logicalSuite,
     comparatorSuite,
+    sizeSuite,
     aliasReuseSuite
   )
 
@@ -104,22 +105,15 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
 
   private val betweenSuite = suite("between")(
     test("renders BETWEEN with path alias and two value aliases") {
-      val ce = ageOp.between(
-        AttributeValue.Number(BigDecimal(18)),
-        AttributeValue.Number(BigDecimal(65))
-      )
+      val ce = ageOp.between(18, 65)
       assertTrue(expr(ce) == "#n0 BETWEEN :v1 AND :v2")
     },
     test("uses exactly 3 aliases (path + min + max)") {
-      val ce = ageOp.between(
-        AttributeValue.Number(BigDecimal(18)),
-        AttributeValue.Number(BigDecimal(65))
-      )
+      val ce = ageOp.between(18, 65)
       assertTrue(aliasCount(ce) == 3)
     },
     test("same min and max value reuses a single alias") {
-      val v  = AttributeValue.Number(BigDecimal(42))
-      val ce = ageOp.between(v, v)
+      val ce = ageOp.between(42, 42)
       // min and max share :v1; only 2 unique aliases
       assertTrue(expr(ce) == "#n0 BETWEEN :v1 AND :v1" && aliasCount(ce) == 2)
     }
@@ -131,30 +125,20 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
 
   private val inSuite = suite("in")(
     test("single value — path IN (value)") {
-      val ce = ageOp.in(Set(AttributeValue.Number(BigDecimal(42))))
+      val ce = ageOp.inSet(Set(42))
       assertTrue(expr(ce) == "#n0 IN (:v1)")
     },
     test("single value — uses exactly 2 aliases") {
-      val ce = ageOp.in(Set(AttributeValue.Number(BigDecimal(42))))
+      val ce = ageOp.inSet(Set(42))
       assertTrue(aliasCount(ce) == 2)
     },
     test("multiple values — expression contains IN keyword and all value aliases") {
-      val ce = ageOp.in(
-        Set(
-          AttributeValue.Number(BigDecimal(1)),
-          AttributeValue.Number(BigDecimal(2))
-        )
-      )
+      val ce = ageOp.inSet(Set(1, 2))
       val e  = expr(ce)
       assertTrue(e.startsWith("#n0 IN (") && e.contains(":v1") && e.contains(":v2"))
     },
     test("multiple values — uses exactly 3 aliases") {
-      val ce = ageOp.in(
-        Set(
-          AttributeValue.Number(BigDecimal(1)),
-          AttributeValue.Number(BigDecimal(2))
-        )
-      )
+      val ce = ageOp.inSet(Set(1, 2))
       assertTrue(aliasCount(ce) == 3)
     }
   )
@@ -238,14 +222,47 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
         val ce = ageOp <= ProjectionExpressionOperand(namePE)
         assertTrue(expr(ce) == "(#n0) <= (#n1)")
       },
-      // NOTE: Operand.> (PE-to-PE form) currently delegates to GreaterThanOrEqual
-      // instead of GreaterThan — copy-paste bug in ConditionExpression.scala.
-      // Test left intentionally absent until fixed.
+      test("> renders >") {
+        val ce = ageOp > ProjectionExpressionOperand(namePE)
+        assertTrue(expr(ce) == "(#n0) > (#n1)")
+      },
       test(">= renders >=") {
         val ce = ageOp >= ProjectionExpressionOperand(namePE)
         assertTrue(expr(ce) == "(#n0) >= (#n1)")
       }
     )
+  )
+
+  // ---------------------------------------------------------------------------
+  // size(path)
+  // ---------------------------------------------------------------------------
+
+  private val tagsPE = $("tags")
+
+  private val sizeSuite = suite("size")(
+    test("compared with a number") {
+      assertTrue(
+        expr(tagsPE.size === 3) == "(size(#n0)) = (:v1)",
+        expr(tagsPE.size <> 3) == "(size(#n0)) <> (:v1)",
+        expr(tagsPE.size < 3) == "(size(#n0)) < (:v1)",
+        expr(tagsPE.size <= 3) == "(size(#n0)) <= (:v1)",
+        expr(tagsPE.size > 3) == "(size(#n0)) > (:v1)",
+        expr(tagsPE.size >= 3) == "(size(#n0)) >= (:v1)"
+      )
+    },
+    test("compared with another size") {
+      assertTrue(
+        expr(tagsPE.size === namePE.size) == "(size(#n0)) = (size(#n1))",
+        expr(tagsPE.size > namePE.size) == "(size(#n0)) > (size(#n1))"
+      )
+    },
+    test("between") {
+      val ce = tagsPE.size.between(1, 5)
+      assertTrue(expr(ce) == "size(#n0) BETWEEN :v1 AND :v2")
+    },
+    test("combines with other conditions") {
+      assertTrue(expr(tagsPE.size > 0 && namePE.attributeExists) == "((size(#n0)) > (:v1)) AND (attribute_exists(#n2))")
+    }
   )
 
   // ---------------------------------------------------------------------------
@@ -274,10 +291,7 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
       assertTrue(aliasCount(ce) == 2)
     },
     test("two distinct values in BETWEEN get two distinct aliases") {
-      val ce = ageOp.between(
-        AttributeValue.Number(BigDecimal(1)),
-        AttributeValue.Number(BigDecimal(2))
-      )
+      val ce = ageOp.between(1, 2)
       assertTrue(aliasCount(ce) == 3) // path + 2 values
     }
   )

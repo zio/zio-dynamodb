@@ -21,7 +21,7 @@ import software.amazon.awssdk.services.dynamodb.model.{ ConditionalCheckFailedEx
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps, SchemaExprBoolBridge }
@@ -345,6 +345,41 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             page <- interpreter.run(DdbExprApi.scan[Score](table, 100))
             decoded = page.items.collect { case Right(a) => a }
           } yield assertTrue(decoded.toSet == items.toSet && page.lastEvaluatedKey.isEmpty)
+        }
+      },
+      test("scan filtered by size returns only matching items") {
+        final case class Doc(id: String, name: String, items: List[Int], meta: Map[String, Int], tags: Set[String])
+        object Doc extends CompanionOptics[Doc] {
+          implicit val schema: Schema[Doc]      = Schema.derived
+          val name: Lens[Doc, String]           = $(_.name)
+          val items: Lens[Doc, List[Int]]       = $(_.items)
+          val meta: Lens[Doc, Map[String, Int]] = $(_.meta)
+          val tags: Lens[Doc, Set[String]]      = $(_.tags)
+        }
+
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table                                 = DdbExprApi.Table[Doc](tableName)
+          val small                                 = Doc("small", "ab", List(1), Map("a" -> 1), Set("x"))
+          val large                                 =
+            Doc("large", "abcdef", List(1, 2, 3), Map("a" -> 1, "b" -> 2, "c" -> 3), Set("x", "y", "z"))
+          def idsWhere(expr: DdbExpr[Doc, Boolean]) =
+            interpreter
+              .run(DdbExprApi.scan[Doc](table, 100).filter(expr))
+              .map(_.items.collect { case Right(d) => d.id }.toSet)
+          for {
+            _       <- ZIO.foreach(List(small, large))(d => interpreter.run(DdbExprApi.put(table, d)))
+            string  <- idsWhere(Doc.name.size > 2)
+            list    <- idsWhere(Doc.items.size >= 3)
+            map     <- idsWhere(Doc.meta.size === 1)
+            set     <- idsWhere(Doc.tags.size != 1)
+            between <- idsWhere(Doc.items.size.between(2, 5))
+          } yield assertTrue(
+            string == Set("large"),
+            list == Set("large"),
+            map == Set("small"),
+            set == Set("large"),
+            between == Set("large")
+          )
         }
       },
       test("scan with filter returns only matching items") {

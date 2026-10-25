@@ -103,6 +103,24 @@ private[dynamodb] object DdbExprInterpreter {
           ConditionExpression.Contains(p.asInstanceOf[ProjectionExpression[S, Any]], AttributeValue.String(value))
         }
 
+      case DdbExpr.SizeCompare(optic, op, value) =>
+        ctx.peOf(optic).map { p =>
+          toRelational[S](
+            ConditionExpression.Operand.Size(p.asInstanceOf[ProjectionExpression[S, Any]]),
+            ConditionExpression.Operand.ValueOperand[S](AttributeValue.Number(BigDecimal(value))),
+            op
+          )
+        }
+
+      case DdbExpr.SizeBetween(optic, lo, hi) =>
+        ctx.peOf(optic).map { p =>
+          ConditionExpression.Between(
+            ConditionExpression.Operand.Size(p.asInstanceOf[ProjectionExpression[S, Any]]),
+            AttributeValue.Number(BigDecimal(lo)),
+            AttributeValue.Number(BigDecimal(hi))
+          )
+        }
+
       case elem: DdbExpr.ContainsElement[S, _, b] =>
         ctx.peOf(elem.optic).map { p =>
           ConditionExpression.Contains(
@@ -112,22 +130,22 @@ private[dynamodb] object DdbExprInterpreter {
         }
     }
 
-  // Folds a DynamicSchemaExpr (from zio-blocks-schema) into a ConditionExpression directly.
-  private def fromDynamicSchemaExpr[A](dse: DynamicSchemaExpr, ctx: ExprCtx): ConditionExpression[A] = {
+  private def toRelational[A](
+    l: ConditionExpression.Operand[A, _],
+    r: ConditionExpression.Operand[A, _],
+    op: DynamicSchemaExpr.RelationalOperator
+  ): ConditionExpression[A] =
+    op match {
+      case DynamicSchemaExpr.RelationalOperator.Equal              => ConditionExpression.Equals(l, r)
+      case DynamicSchemaExpr.RelationalOperator.NotEqual           => ConditionExpression.NotEqual(l, r)
+      case DynamicSchemaExpr.RelationalOperator.LessThan           => ConditionExpression.LessThan(l, r)
+      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => ConditionExpression.LessThanOrEqual(l, r)
+      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ConditionExpression.GreaterThan(l, r)
+      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ConditionExpression.GreaterThanOrEqual(l, r)
+    }
 
-    def toRelational(
-      l: ConditionExpression.Operand[A, _],
-      r: ConditionExpression.Operand[A, _],
-      op: DynamicSchemaExpr.RelationalOperator
-    ): ConditionExpression[A] =
-      op match {
-        case DynamicSchemaExpr.RelationalOperator.Equal              => ConditionExpression.Equals(l, r)
-        case DynamicSchemaExpr.RelationalOperator.NotEqual           => ConditionExpression.NotEqual(l, r)
-        case DynamicSchemaExpr.RelationalOperator.LessThan           => ConditionExpression.LessThan(l, r)
-        case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => ConditionExpression.LessThanOrEqual(l, r)
-        case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ConditionExpression.GreaterThan(l, r)
-        case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ConditionExpression.GreaterThanOrEqual(l, r)
-      }
+  // Folds a DynamicSchemaExpr (from zio-blocks-schema) into a ConditionExpression directly.
+  private def fromDynamicSchemaExpr[A](dse: DynamicSchemaExpr, ctx: ExprCtx): ConditionExpression[A] =
 
     dse match {
       case DynamicSchemaExpr.Relational(
@@ -142,7 +160,7 @@ private[dynamodb] object DdbExprInterpreter {
               .ProjectionExpressionOperand[A](p.asInstanceOf[ProjectionExpression[A, Any]])
             val valOpd = ConditionExpression.Operand
               .ValueOperand[A](encodeFromSchema(dynValue, schema, ctx))
-            toRelational(peOpd, valOpd, op)
+            toRelational[A](peOpd, valOpd, op)
         }
 
       case DynamicSchemaExpr.Relational(DynamicSchemaExpr.Select(l), DynamicSchemaExpr.Select(r), op) =>
@@ -152,7 +170,7 @@ private[dynamodb] object DdbExprInterpreter {
               .ProjectionExpressionOperand[A](lpe.asInstanceOf[ProjectionExpression[A, Any]])
             val rOpd = ConditionExpression.Operand
               .ProjectionExpressionOperand[A](rpe.asInstanceOf[ProjectionExpression[A, Any]])
-            toRelational(lOpd, rOpd, op)
+            toRelational[A](lOpd, rOpd, op)
           case (Left(msg), _)           => ConditionExpression.Failure(msg)
           case (_, Left(msg))           => ConditionExpression.Failure(msg)
         }
@@ -171,7 +189,6 @@ private[dynamodb] object DdbExprInterpreter {
       case other =>
         ConditionExpression.Failure(s"unexpected DynamicSchemaExpr: $other")
     }
-  }
 
   private def encodeFromSchema(dv: DynamicValue, schema: Schema[_], ctx: ExprCtx): AttributeValue = {
     val s = schema.asInstanceOf[Schema[Any]]

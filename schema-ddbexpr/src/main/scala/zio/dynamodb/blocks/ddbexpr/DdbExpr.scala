@@ -16,7 +16,7 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.{ Optic, Schema, SchemaExpr }
+import zio.blocks.schema.{ DynamicSchemaExpr, Optic, Schema, SchemaExpr }
 import zio.blocks.schema.comptime.Allows
 import Allows.Wrapped
 import zio.dynamodb.blocks.DdbGrammar
@@ -108,6 +108,13 @@ trait DdbExprSyntax {
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
     ): DdbExpr[S, Boolean]                                                     =
       DdbExpr.ContainsElement(optic, element, elemSchema)
+    def size(implicit
+      @unused ev: Allows[
+        A,
+        DdbGrammar.S || DdbGrammar.B || DdbGrammar.L || DdbGrammar.M || DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS
+      ]
+    ): DdbExpr.Size[S, A]                                                      =
+      DdbExpr.Size(optic)
   }
 
   // String-specific DDB functions.
@@ -254,6 +261,24 @@ object DdbExpr extends DdbExprSyntax {
     values: Seq[A],
     schema: Schema[A]
   ) extends DdbExpr[S, Boolean]
+
+  // DynamoDB's `size(path)`: the length of a String or Binary, or the element count of a List, Map
+  // or Set. Not a condition itself - comparing it with a number builds one.
+  final case class Size[S, A](optic: Optic[S, A]) {
+    def ===(n: Long): DdbExpr[S, Boolean]                = SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.Equal, n)
+    def !=(n: Long): DdbExpr[S, Boolean]                 = SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.NotEqual, n)
+    def <(n: Long): DdbExpr[S, Boolean]                  = SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.LessThan, n)
+    def <=(n: Long): DdbExpr[S, Boolean]                 =
+      SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.LessThanOrEqual, n)
+    def >(n: Long): DdbExpr[S, Boolean]                  = SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.GreaterThan, n)
+    def >=(n: Long): DdbExpr[S, Boolean]                 =
+      SizeCompare(optic, DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual, n)
+    def between(lo: Long, hi: Long): DdbExpr[S, Boolean] = SizeBetween(optic, lo, hi)
+  }
+
+  final case class SizeCompare[S, A](optic: Optic[S, A], op: DynamicSchemaExpr.RelationalOperator, value: Long)
+      extends DdbExpr[S, Boolean]
+  final case class SizeBetween[S, A](optic: Optic[S, A], lo: Long, hi: Long) extends DdbExpr[S, Boolean]
 
   final case class Contains[S](optic: Optic[S, String], value: String)    extends DdbExpr[S, Boolean]
   final case class BeginsWith[S](optic: Optic[S, String], prefix: String) extends DdbExpr[S, Boolean]

@@ -622,6 +622,64 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             } yield assertTrue(page.items.isEmpty)
           }
         }
+      ),
+      suite("size")(
+        test("filters by the size of string, binary, list, map and set attributes") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            val small                                  = Item(
+              "id" -> "small",
+              "s"  -> "ab",
+              "b"  -> Chunk.fromArray("ab".getBytes),
+              "l"  -> List(1),
+              "m"  -> Map("a" -> true),
+              "ns" -> Set(1)
+            )
+            val large                                  = Item(
+              "id" -> "large",
+              "s"  -> "abcdef",
+              "b"  -> Chunk.fromArray("abcdef".getBytes),
+              "l"  -> List(1, 2, 3),
+              "m"  -> Map("a" -> true, "b" -> true, "c" -> true),
+              "ns" -> Set(1, 2, 3)
+            )
+            def idsWhere(ce: ConditionExpression[Any]) =
+              interpreter
+                .run(DynamoDBQuery.scan(table, limit = 10).filter(ce))
+                .map(_.items.flatMap(_.getOption[String]("id")).toSet)
+            for {
+              _       <- interpreter.run(DynamoDBQuery.putItem(table, small))
+              _       <- interpreter.run(DynamoDBQuery.putItem(table, large))
+              string  <- idsWhere($("s").size > 2)
+              binary  <- idsWhere($("b").size > 2)
+              list    <- idsWhere($("l").size >= 3)
+              map     <- idsWhere($("m").size === 1)
+              set     <- idsWhere($("ns").size < 3)
+              between <- idsWhere($("l").size.between(2, 5))
+              sizes   <- idsWhere($("l").size === $("ns").size)
+            } yield assertTrue(
+              string == Set("large"),
+              binary == Set("large"),
+              list == Set("large"),
+              map == Set("small"),
+              set == Set("small"),
+              between == Set("large"),
+              sizes == Set("small", "large")
+            )
+          }
+        },
+        test("works as a write condition") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            val item = Item("id" -> "c1", "l" -> List(1, 2))
+            for {
+              _       <- interpreter.run(DynamoDBQuery.putItem(table, item))
+              allowed <- interpreter.run(DynamoDBQuery.putItem(table, item).where($("l").size === 2)).either
+              refused <- interpreter.run(DynamoDBQuery.putItem(table, item).where($("l").size > 2)).either
+            } yield assertTrue(allowed.isRight) &&
+              assert(refused)(
+                Assertion.isLeft(Assertion.isSubtype[DynamoDBError.ItemError.ConditionFailed](Assertion.anything))
+              )
+          }
+        }
       )
     )
 

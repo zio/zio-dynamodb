@@ -16,8 +16,6 @@
 
 package zio.dynamodb
 
-//import zio.dynamodb.proofs.Sizable
-
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 In the following syntax summary, an operand can be the following:
@@ -136,9 +134,12 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
   private[dynamodb] sealed trait Operand[-From, +To] { self =>
-    def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[From] =
-      Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
-    def in(values: Set[AttributeValue]): ConditionExpression[From]                             = In(self.asInstanceOf[Operand[From, To]], values)
+    def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From] =
+      Between(self.asInstanceOf[Operand[From, To]], t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
+    def inSet[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression[From]             =
+      In(self.asInstanceOf[Operand[From, To]], values.map(t.toAttributeValue))
+    def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression[From]          =
+      inSet(values.toSet + value)
 
     def ===[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
@@ -149,7 +150,7 @@ object ConditionExpression {
     def <=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
       LessThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
     def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]   =
-      GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
+      GreaterThan(self.asInstanceOf[Operand[From2, To2]], that)
     def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
 
@@ -167,7 +168,7 @@ object ConditionExpression {
     def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
-    def render: AliasMapRender[String] =
+    private[dynamodb] def render: AliasMapRender[String] =
       self match {
         case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.getOrInsert(op.pe)
         case op: Operand.ValueOperand[_]                => AliasMapRender.getOrInsert(op.value).map(identity)
@@ -181,7 +182,6 @@ object ConditionExpression {
         extends Operand[From, Any] // TODO: Avi is Any OK?
     private[dynamodb] final case class ValueOperand[From](value: AttributeValue)
         extends Operand[From, Any] // TODO: Avi is Any OK?
-    // needs to extend Operand[From, Long]
     private[dynamodb] final case class Size[-From, To](path: ProjectionExpression[From, To]) extends Operand[From, Long]
 
   }
