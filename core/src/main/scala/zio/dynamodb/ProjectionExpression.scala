@@ -51,6 +51,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
         ProjectionExpression.MapElement(self >>> parent, key)
       case ProjectionExpression.ListElement(parent, index) =>
         ProjectionExpression.ListElement(self >>> parent, index)
+      case f: ProjectionExpression.Failure                 => f
     }
 
   def apply(index: Int): ProjectionExpression[From, ProjectionExpression.Unknown] =
@@ -68,6 +69,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           loop(ProjectionExpression.Root, acc :+ segment)
         case ProjectionExpression.MapElement(parent, key)                        => loop(parent, acc :+ s".$key")
         case ProjectionExpression.ListElement(parent, index)                     => loop(parent, acc :+ s"[$index]")
+        case ProjectionExpression.Failure(message)                               => acc :+ s"<$message>"
       }
     loop(self, Nil).reverse.mkString
   }
@@ -86,15 +88,15 @@ object ProjectionExpression {
   implicit class ProjectionExpressionSyntax[From](self: ProjectionExpression[From, Unknown]) {
 
     def partitionKey: PartitionKey[From, Unknown] =
-      self match {
-        case ProjectionExpression.MapElement(_, key) => PartitionKey[From, Unknown](key)
-        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
-      }
+      keyName(self, "partition key").fold(
+        error => PartitionKey[From, Unknown]("", Some(error)),
+        name => PartitionKey[From, Unknown](name)
+      )
     def sortKey: SortKey[From, Unknown]           =
-      self match {
-        case ProjectionExpression.MapElement(_, key) => SortKey[From, Unknown](key)
-        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
-      }
+      keyName(self, "sort key").fold(
+        error => SortKey[From, Unknown]("", Some(error)),
+        name => SortKey[From, Unknown](name)
+      )
 
     /**
      * Modify or Add an item Attribute
@@ -336,6 +338,26 @@ object ProjectionExpression {
     index: Int
   ) extends ProjectionExpression[From, To]
 
+  // A path that failed to parse. `$` returns it instead of throwing, and the interpreter fails the
+  // query with `InvalidPath` before any request is built; it never reaches rendering.
+  private[dynamodb] final case class Failure(message: String) extends ProjectionExpression[Any, Nothing]
+
+  @tailrec
+  private[dynamodb] def failureOf(pe: ProjectionExpression[_, _]): Option[String] =
+    pe match {
+      case Failure(message)       => Some(message)
+      case MapElement(parent, _)  => failureOf(parent)
+      case ListElement(parent, _) => failureOf(parent)
+      case Root                   => None
+    }
+
+  private def keyName(pe: ProjectionExpression[_, _], role: String): Either[String, String] =
+    pe match {
+      case MapElement(Root, name) => Right(name)
+      case other                  =>
+        Left(failureOf(other).getOrElse(s"a $role must be a single top-level attribute name, got '$other'"))
+    }
+
   private[dynamodb] def mapElement[A](
     parent: ProjectionExpression[A, _],
     key: String
@@ -348,5 +370,9 @@ object ProjectionExpression {
   ): ProjectionExpression[A, Unknown] =
     ListElement[A, Unknown](parent, index)
 
+  /**
+   * Parses an attribute path such as `"a.b[0].c"`. An invalid path doesn't throw: a query using it
+   * fails with `QueryBuilderError.InvalidPath` when it runs.
+   */
   def $(s: String): ProjectionExpression[Any, Unknown] = ProjectionExpressionParser.$(s)
 }

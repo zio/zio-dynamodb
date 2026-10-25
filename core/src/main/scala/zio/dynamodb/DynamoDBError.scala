@@ -67,6 +67,7 @@ object DynamoDBError {
     final case class UnsupportedModifier(message: String) extends QueryBuilderError
     final case class MissingKeyCondition(message: String) extends QueryBuilderError
     final case class UnbatchableQuery(message: String)    extends QueryBuilderError
+    final case class InvalidPath(message: String)         extends QueryBuilderError
   }
 
   sealed trait TransactionError extends DynamoDBError

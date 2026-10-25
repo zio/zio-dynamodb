@@ -19,7 +19,10 @@ package zio.dynamodb
 import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 import zio.dynamodb.ProjectionExpression.Unknown
 
-private[dynamodb] final case class PartitionKey[-From, +To](keyName: String)
+private[dynamodb] final case class PartitionKey[-From, +To](
+  keyName: String,
+  private[dynamodb] val invalidPath: Option[String] = None
+)
 
 /**
  * Adds `===` to a `ProjectionExpression` marked as a partition key (via `.partitionKey`),
