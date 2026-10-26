@@ -75,10 +75,10 @@ object DdbKeyExprSpec extends ZIOSpecDefault {
           )
       }
     ),
-    suite("extended (partitionKey + sortKey range / function)")(
-      test("partitionKey && sortKey > produces ExtendedCompositePrimaryKeyExpr") {
+    suite("key range (partitionKey + sortKey range / function)")(
+      test("partitionKey && sortKey > produces KeyRangeExpr") {
         val expr = Task.id.partitionKey === "alice" && Task.score.sortKey > 10
-        assert(interpret(expr))(isRight(isSubtype[KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[Task]](anything)))
+        assert(interpret(expr))(isRight(isSubtype[KeyConditionExpr.KeyRangeExpr[Task]](anything)))
       },
       test("partitionKey && sortKey > renders >") {
         val expr = Task.id.partitionKey === "alice" && Task.score.sortKey > 10

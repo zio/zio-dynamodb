@@ -260,10 +260,10 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
           isRight(isSubtype[KeyConditionExpr.CompositePrimaryKeyExpr[Invoice]](anything))
         )
       },
-      test("opaque String partitionKey + opaque Int sortKey range produces ExtendedCompositePrimaryKeyExpr") {
+      test("opaque String partitionKey + opaque Int sortKey range produces KeyRangeExpr") {
         val expr = Invoice.id.partitionKey === InvoiceId("INV-001") && Invoice.amount.sortKey > Amount(0)
         assert(interpretKey(expr))(
-          isRight(isSubtype[KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[Invoice]](anything))
+          isRight(isSubtype[KeyConditionExpr.KeyRangeExpr[Invoice]](anything))
         )
       },
       test("opaque String partitionKey + opaque Int sortKey range renders >") {

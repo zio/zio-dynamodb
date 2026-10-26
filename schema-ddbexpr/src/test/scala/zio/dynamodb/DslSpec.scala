@@ -18,7 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.blocks.ddbexpr.dsl._
-// Only needed here to reference the ADT node types (DdbKeyExpr.Extended, DdbExpr.And) in
+// Only needed here to reference the ADT node types (DdbKeyExpr.KeyRange, DdbExpr.And) in
 // isSubtype[...] assertions below — real call sites never need this, only tests that
 // inspect the internal expression shape do. put/get/scan/=== etc. all come from `dsl._`
 // alone, unqualified, since dsl extends DdbExprApiSyntax/DdbKeyExprSyntax/DdbExprSyntax directly.
@@ -93,9 +93,9 @@ object DslSpec extends ZIOSpecDefault {
       val getQuery = get(tasks)(Task.id.partitionKey === "t1")
       assertTrue(run(putQuery) == () && run(getQuery).isEmpty)
     },
-    test("partitionKey === plus sortKey > builds an Extended key expression (DdbKeyExpr syntax)") {
+    test("partitionKey === plus sortKey > builds a KeyRange key expression (DdbKeyExpr syntax)") {
       val keyExpr = Task.id.partitionKey === "t1" && Task.score.sortKey > 10
-      assert(keyExpr)(isSubtype[DdbKeyExpr.Extended[_, _]](anything))
+      assert(keyExpr)(isSubtype[DdbKeyExpr.KeyRange[_, _]](anything))
     },
     // SchemaExpr && SchemaExpr resolves via ZB's own native &&, producing a SchemaExpr —
     // it's mixing a SchemaExpr predicate with a DDB-specific one (.attributeExists) that

@@ -50,13 +50,13 @@ object Client {
   val peName: ProjectionExpression[Any, Unknown] = $("name")
 
   // Condition/Filter expressions
-  val expr: FilterExpression[Any]                                  = $("name") === "test" && $("age") > 18
+  val expr: FilterExpression[Any]                          = $("name") === "test" && $("age") > 18
   // KeyCondition expressions - primary keys
-  val expr1: KeyConditionExpr.PartitionKeyEquals[Any]              = $("name").partitionKey === "test"
-  val expr2: KeyConditionExpr.CompositePrimaryKeyExpr[Any]         =
+  val expr1: KeyConditionExpr.PartitionKeyEquals[Any]      = $("name").partitionKey === "test"
+  val expr2: KeyConditionExpr.CompositePrimaryKeyExpr[Any] =
     $("name").partitionKey === "test" && $("age").sortKey === 18
   // KeyCondition expressions - not a primary key but a key condition expression that can be used in Query operations
-  val expr3: KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[Any] =
+  val expr3: KeyConditionExpr.KeyRangeExpr[Any]            =
     $("name").partitionKey === "test" && $("age").sortKey > 18
 
   /*

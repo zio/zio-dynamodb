@@ -61,17 +61,17 @@ private[dynamodb] object DdbKeyExprInterpreter {
         }
     }
 
-  // -- Full DdbKeyExpr (adds Extended) --------------------------------------
+  // -- Full DdbKeyExpr (adds KeyRange) --------------------------------------
 
   def toKeyConditionExpr[S](expr: DdbKeyExpr[S], ctx: ExprCtx): Either[String, KeyConditionExpr[S]] =
     expr match {
-      case pk: DdbKeyExpr.PrimaryKey[S]       =>
+      case pk: DdbKeyExpr.PrimaryKey[S]         =>
         toPrimaryKeyExpr(pk, ctx)
-      case DdbKeyExpr.Extended(pkExpr, skExt) =>
+      case DdbKeyExpr.KeyRange(pkExpr, skRange) =>
         for {
           pkName <- fieldName(pkExpr.optic, ctx)
-          skNode <- toExtendedSortKey[S](skExt, ctx)
-        } yield KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S](
+          skNode <- toSortKeyRange[S](skRange, ctx)
+        } yield KeyConditionExpr.KeyRangeExpr[S](
           KeyConditionExpr.PartitionKeyEquals[S](
             PartitionKey[S, Any](pkName),
             ctx.encode(pkExpr.value, pkExpr.schema)
@@ -123,35 +123,35 @@ private[dynamodb] object DdbKeyExprInterpreter {
         Left(error)
     }
 
-  private def toExtendedSortKey[S](
-    sortKey: DdbKeyExpr.SortKeyExtended[S],
+  private def toSortKeyRange[S](
+    sortKey: DdbKeyExpr.SortKeyRange[S],
     ctx: ExprCtx
-  ): Either[String, KeyConditionExpr.ExtendedSortKeyExpr[S, _]] =
+  ): Either[String, KeyConditionExpr.SortKeyRange[S, _]] =
     sortKey match {
-      case DdbKeyExpr.SortKeyExtended.Gt(optic, value, schema)       =>
+      case DdbKeyExpr.SortKeyRange.Gt(optic, value, schema)       =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey[S, Any](n), ctx.encode(value, schema))
+          KeyConditionExpr.SortKeyRange.GreaterThan(SortKey[S, Any](n), ctx.encode(value, schema))
         )
-      case DdbKeyExpr.SortKeyExtended.Gte(optic, value, schema)      =>
+      case DdbKeyExpr.SortKeyRange.Gte(optic, value, schema)      =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr.GreaterThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
+          KeyConditionExpr.SortKeyRange.GreaterThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
         )
-      case DdbKeyExpr.SortKeyExtended.Lt(optic, value, schema)       =>
+      case DdbKeyExpr.SortKeyRange.Lt(optic, value, schema)       =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr.LessThan(SortKey[S, Any](n), ctx.encode(value, schema))
+          KeyConditionExpr.SortKeyRange.LessThan(SortKey[S, Any](n), ctx.encode(value, schema))
         )
-      case DdbKeyExpr.SortKeyExtended.Lte(optic, value, schema)      =>
+      case DdbKeyExpr.SortKeyRange.Lte(optic, value, schema)      =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr.LessThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
+          KeyConditionExpr.SortKeyRange.LessThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
         )
-      case DdbKeyExpr.SortKeyExtended.Between(optic, lo, hi, schema) =>
+      case DdbKeyExpr.SortKeyRange.Between(optic, lo, hi, schema) =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr
+          KeyConditionExpr.SortKeyRange
             .Between(SortKey[S, Any](n), ctx.encode(lo, schema), ctx.encode(hi, schema))
         )
-      case DdbKeyExpr.SortKeyExtended.BeginsWith(optic, prefix)      =>
+      case DdbKeyExpr.SortKeyRange.BeginsWith(optic, prefix)      =>
         fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.ExtendedSortKeyExpr.BeginsWith(SortKey[S, Any](n), AttributeValue.String(prefix))
+          KeyConditionExpr.SortKeyRange.BeginsWith(SortKey[S, Any](n), AttributeValue.String(prefix))
         )
     }
 }

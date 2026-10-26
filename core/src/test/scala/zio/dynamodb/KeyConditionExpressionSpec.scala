@@ -33,7 +33,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
   def spec = suite("KeyConditionExpression")(
     partitionKeyEqualsSuite,
     compositePrimaryKeySuite,
-    extendedCompositePrimaryKeySuite,
+    keyRangeSuite,
     sortKeyExprSuite,
     asAttrMapSuite
   )
@@ -51,7 +51,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
       val expr = pk === "alice" && sk === 30
       assertTrue(render(expr).contains("AND"))
     },
-    test("&& with ExtendedSortKeyExpr builds ExtendedCompositePrimaryKeyExpr") {
+    test("&& with SortKeyRange builds KeyRangeExpr") {
       val expr = pk === "alice" && sk > 18
       assertTrue(render(expr).contains("AND"))
     }
@@ -73,7 +73,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     }
   )
 
-  private val extendedCompositePrimaryKeySuite = suite("ExtendedCompositePrimaryKeyExpr")(
+  private val keyRangeSuite = suite("KeyRangeExpr")(
     test("renders pk AND sk > value") {
       val expr = pk === "alice" && sk > 18
       val s    = render(expr)
@@ -93,11 +93,6 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
       val expr = pk === "alice" && sk <= 18
       val s    = render(expr)
       assertTrue(s.contains("<="))
-    },
-    test("renders pk AND sk <> value") {
-      val expr = pk === "alice" && sk <> 18
-      val s    = render(expr)
-      assertTrue(s.contains("<>"))
     },
     test("renders pk AND sk BETWEEN min AND max") {
       val expr = pk === "alice" && sk.between(10, 20)

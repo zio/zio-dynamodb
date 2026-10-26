@@ -235,10 +235,10 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
           isRight(isSubtype[KeyConditionExpr.CompositePrimaryKeyExpr[Product]](anything))
         )
       },
-      test("Newtype partitionKey + Subtype sortKey range produces ExtendedCompositePrimaryKeyExpr") {
+      test("Newtype partitionKey + Subtype sortKey range produces KeyRangeExpr") {
         val expr = Product.userId.partitionKey === UserId("u-1") && Product.weight.sortKey > Weight(0)
         assert(interpretKey(expr))(
-          isRight(isSubtype[KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[Product]](anything))
+          isRight(isSubtype[KeyConditionExpr.KeyRangeExpr[Product]](anything))
         )
       },
       test("Newtype partitionKey + Subtype sortKey range renders >") {

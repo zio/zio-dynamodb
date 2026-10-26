@@ -168,7 +168,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         assertCompletes
       },
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:
-      // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
+      // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which KeyRange does not satisfy.
       test("updateAction accepts a raw core Action built with the low-level ProjectionExpression $ syntax") {
         // The escape hatch for an already-built core UpdateExpression.Action[From] — e.g. from
         // $("field").set(value), for a field with no Optic (dynamic name, or not part of

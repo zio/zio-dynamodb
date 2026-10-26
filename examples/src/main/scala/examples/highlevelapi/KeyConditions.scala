@@ -23,8 +23,8 @@ import zio.dynamodb.blocks.ddbexpr.dsl._
 
 /**
  * The three key-condition shapes: partition-key-only, `Composite` (partition + sort
- * equality — accepted by `get`/`update`/`deleteFrom`), and `Extended` (partition equality
- * plus a sort range — accepted only by `query`, since a range doesn't address a single item).
+ * equality — accepted by `get`/`update`/`deleteFrom`), and `KeyRange` (partition equality
+ * plus a sort-key range — accepted only by `query`, since a range doesn't address a single item).
  */
 object KeyConditions {
 
@@ -58,20 +58,20 @@ object KeyConditions {
   val composite: DdbKeyExpr.Composite[Event, String, Long] =
     Event.streamId.partitionKey === "s1" && Event.seq.sortKey === 1L
 
-  val extendedGt: DdbKeyExpr.Extended[Event, String]         = Event.streamId.partitionKey === "s1" && Event.seq.sortKey > 1L
-  val extendedGte: DdbKeyExpr.Extended[Event, String]        =
+  val rangeGt: DdbKeyExpr.KeyRange[Event, String]         = Event.streamId.partitionKey === "s1" && Event.seq.sortKey > 1L
+  val rangeGte: DdbKeyExpr.KeyRange[Event, String]        =
     Event.streamId.partitionKey === "s1" && Event.seq.sortKey >= 1L
-  val extendedLt: DdbKeyExpr.Extended[Event, String]         = Event.streamId.partitionKey === "s1" && Event.seq.sortKey < 100L
-  val extendedLte: DdbKeyExpr.Extended[Event, String]        =
+  val rangeLt: DdbKeyExpr.KeyRange[Event, String]         = Event.streamId.partitionKey === "s1" && Event.seq.sortKey < 100L
+  val rangeLte: DdbKeyExpr.KeyRange[Event, String]        =
     Event.streamId.partitionKey === "s1" && Event.seq.sortKey <= 100L
-  val extendedBetween: DdbKeyExpr.Extended[Event, String]    =
+  val rangeBetween: DdbKeyExpr.KeyRange[Event, String]    =
     Event.streamId.partitionKey === "s1" && Event.seq.sortKey.between(1L, 100L)
-  val extendedBeginsWith: DdbKeyExpr.Extended[Event, String] =
+  val rangeBeginsWith: DdbKeyExpr.KeyRange[Event, String] =
     Event.streamId.partitionKey === "s1" && Event.payload.sortKey.beginsWith("order-")
 
   // Wired into the six CRUD operations — see KeyConditionsSpec for these actually run. get/
   // update/deleteFrom need a PrimaryKey, so they use the Composite key; query alone can take
-  // the Extended range key.
+  // the KeyRange.
   val putQuery: DynamoDBQuery[Event, Unit] =
     put(events, Event("s1", 1L, "order-1"))
 
@@ -85,7 +85,7 @@ object KeyConditions {
     deleteFrom(events)(composite)
 
   val queryQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
-    query(events, limit = 20).whereKey(extendedBetween)
+    query(events, limit = 20).whereKey(rangeBetween)
 
   val scanQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
     scan(events, limit = 20).filter(Event.payload.attributeExists)

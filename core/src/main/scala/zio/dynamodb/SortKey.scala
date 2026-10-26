@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import zio.dynamodb.KeyConditionExpr.{ ExtendedSortKeyExpr, SortKeyEquals }
+import zio.dynamodb.KeyConditionExpr.{ SortKeyEquals, SortKeyRange }
 import zio.dynamodb.ProjectionExpression.Unknown
 
 private[dynamodb] final case class SortKey[-From, +To](
@@ -36,53 +36,46 @@ object SortKey {
   implicit class SortKeyUnknownToOps[-From](val sk: SortKey[From, Unknown]) {
     def ===[To: ToAttributeValue](
       value: To
-    ): SortKeyEquals[From]                                                             =
+    ): SortKeyEquals[From]                                                      =
       SortKeyEquals(sk, ToAttributeValue[To].toAttributeValue(value))
     def >[To: ToAttributeValue](
       value: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.GreaterThan(
+    ): SortKeyRange[From, To]                                                   =
+      SortKeyRange.GreaterThan(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def <[To: ToAttributeValue](
       value: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.LessThan(
-        sk.asInstanceOf[SortKey[From, To]],
-        ToAttributeValue[To].toAttributeValue(value)
-      )
-    def <>[To: ToAttributeValue](
-      value: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.NotEqual(
+    ): SortKeyRange[From, To]                                                   =
+      SortKeyRange.LessThan(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def <=[To: ToAttributeValue](
       value: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.LessThanOrEqual(
+    ): SortKeyRange[From, To]                                                   =
+      SortKeyRange.LessThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def >=[To: ToAttributeValue](
       value: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.GreaterThanOrEqual(
+    ): SortKeyRange[From, To]                                                   =
+      SortKeyRange.GreaterThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
-    def between[To: ToAttributeValue](min: To, max: To): ExtendedSortKeyExpr[From, To] =
-      ExtendedSortKeyExpr.Between[From, To](
+    def between[To: ToAttributeValue](min: To, max: To): SortKeyRange[From, To] =
+      SortKeyRange.Between[From, To](
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(min),
         ToAttributeValue[To].toAttributeValue(max)
       )
     def beginsWith[To: ToAttributeValue](
       prefix: To
-    ): ExtendedSortKeyExpr[From, To]                                                   =
-      ExtendedSortKeyExpr.BeginsWith[From, To](
+    ): SortKeyRange[From, To]                                                   =
+      SortKeyRange.BeginsWith[From, To](
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(prefix)
       )
@@ -91,53 +84,46 @@ object SortKey {
   implicit class SortKeyOps[-From, To: ToAttributeValue](val sk: SortKey[From, To]) {
     def ===(
       value: To
-    ): SortKeyEquals[From]                                       =
+    ): SortKeyEquals[From]                                =
       SortKeyEquals(sk, ToAttributeValue[To].toAttributeValue(value))
     def >(
       value: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.GreaterThan(
+    ): SortKeyRange[From, To]                             =
+      SortKeyRange.GreaterThan(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def <(
       value: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.LessThan(
-        sk.asInstanceOf[SortKey[From, To]],
-        ToAttributeValue[To].toAttributeValue(value)
-      )
-    def <>(
-      value: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.NotEqual(
+    ): SortKeyRange[From, To]                             =
+      SortKeyRange.LessThan(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def <=(
       value: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.LessThanOrEqual(
+    ): SortKeyRange[From, To]                             =
+      SortKeyRange.LessThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
     def >=(
       value: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.GreaterThanOrEqual(
+    ): SortKeyRange[From, To]                             =
+      SortKeyRange.GreaterThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(value)
       )
-    def between(min: To, max: To): ExtendedSortKeyExpr[From, To] =
-      ExtendedSortKeyExpr.Between[From, To](
+    def between(min: To, max: To): SortKeyRange[From, To] =
+      SortKeyRange.Between[From, To](
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(min),
         ToAttributeValue[To].toAttributeValue(max)
       )
     def beginsWith(
       prefix: To
-    ): ExtendedSortKeyExpr[From, To]                             =
-      ExtendedSortKeyExpr.BeginsWith[From, To](
+    ): SortKeyRange[From, To]                             =
+      SortKeyRange.BeginsWith[From, To](
         sk.asInstanceOf[SortKey[From, To]],
         ToAttributeValue[To].toAttributeValue(prefix)
       )
