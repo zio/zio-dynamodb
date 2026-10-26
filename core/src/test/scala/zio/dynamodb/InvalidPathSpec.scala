@@ -124,7 +124,7 @@ object InvalidPathSpec extends ZIOSpecDefault {
       test("inside map and zipPar") {
         val invalid = DynamoDBQuery.getItem(table, key, bad)
         failsWithInvalidPath(invalid.map(_.isDefined), "a..b") &&
-        failsWithInvalidPath(DynamoDBQuery.getItem(table, key) zipPar invalid, "a..b")
+        failsWithInvalidPath(DynamoDBQuery.getItem(table, key).zipPar(invalid), "a..b")
       },
       test("transactWriteItems conditions, through a conditionCheck") {
         failsWithInvalidPath(

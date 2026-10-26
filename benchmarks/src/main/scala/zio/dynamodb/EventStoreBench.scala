@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.compiletime.uninitialized
+
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.openjdk.jmh.annotations._
@@ -66,18 +68,18 @@ class EventStoreBench extends BaseBenchmark {
   private val ddbTable = DdbExprApi.Table[EventStoreRecord](TABLE)
 
   @Param(Array("1024", "65536"))
-  var payloadBytes: Int = _
+  var payloadBytes: Int = uninitialized
 
-  private var record: EventStoreRecord = _
+  private var record: EventStoreRecord = uninitialized
 
   // ── Scanamo ─────────────────────────────────────────────────────────────
 
-  private var scanamo: Scanamo                                  = _
-  private var scanamoTable: org.scanamo.Table[EventStoreRecord] = _
+  private var scanamo: Scanamo                                  = uninitialized
+  private var scanamoTable: org.scanamo.Table[EventStoreRecord] = uninitialized
 
   // ── blocks-dynamodb ──────────────────────────────────────────────────────
 
-  private var interpreter: CEInterpreter[IO] = _
+  private var interpreter: CEInterpreter[IO] = uninitialized
 
   private object EventRecordOps extends CompanionOptics[EventStoreRecord] {
     val id = $(_.id)

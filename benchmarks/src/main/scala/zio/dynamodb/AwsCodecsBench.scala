@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.compiletime.uninitialized
+
 import org.openjdk.jmh.annotations._
 import software.amazon.awssdk.services.dynamodb.model.{
   AttributeValue => AwsAttrValue,
@@ -33,12 +35,12 @@ import scala.collection.JavaConverters._
 class AwsCodecsBench extends BaseBenchmark {
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var getItemQueries: List[DynamoDBQuery.GetItem] = _
-  var putItemQueries: List[DynamoDBQuery.PutItem] = _
-  var getItemResponses: List[GetItemResponse]     = _
-  var putItemResponses: List[PutItemResponse]     = _
+  var getItemQueries: List[DynamoDBQuery.GetItem] = uninitialized
+  var putItemQueries: List[DynamoDBQuery.PutItem] = uninitialized
+  var getItemResponses: List[GetItemResponse]     = uninitialized
+  var putItemResponses: List[PutItemResponse]     = uninitialized
 
   @Setup
   def setup(): Unit = {

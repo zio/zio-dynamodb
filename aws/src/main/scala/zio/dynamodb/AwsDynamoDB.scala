@@ -799,6 +799,11 @@ private[dynamodb] object AwsCodecs {
           cb.returnValuesOnConditionCheckFailure(toAwsReturnValuesOnConditionCheckFailure(rv))
         )
         AwsTransactWriteItem.builder().conditionCheck(cb.build()).build()
+
+      case other =>
+        throw new IllegalStateException(
+          s"library bug: ${other.getClass.getSimpleName} reached a transaction write after item validation"
+        )
     }
 
   def toTransactWriteItemsRequest(q: DynamoDBQuery.TransactWriteItems): TransactWriteItemsRequest = {
