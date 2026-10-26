@@ -182,8 +182,8 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private val scanamo = Scanamo(stubSyncClient)
 
-  private val scanamoTable    = org.scanamo.Table[Person](TABLE)(ScanamoCodec.person)
-  private val bigScanamoTable = org.scanamo.Table[BigRecord](BIG_TABLE)(ScanamoCodec.bigRecord)
+  private val scanamoTable    = org.scanamo.Table[Person](TABLE)(using ScanamoCodec.person)
+  private val bigScanamoTable = org.scanamo.Table[BigRecord](BIG_TABLE)(using ScanamoCodec.bigRecord)
 
   private val personDdbTable = DdbExprApi.Table[Person](TABLE)
   private val bigDdbTable    = DdbExprApi.Table[BigRecord](BIG_TABLE)

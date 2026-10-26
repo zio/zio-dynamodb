@@ -141,7 +141,7 @@ class EventStoreBench extends BaseBenchmark {
       )
       .asInstanceOf[DynamoDbClient]
     scanamo = Scanamo(stubClient)
-    scanamoTable = org.scanamo.Table[EventStoreRecord](TABLE)(scanamoFormat)
+    scanamoTable = org.scanamo.Table[EventStoreRecord](TABLE)(using scanamoFormat)
   }
 
   // ── Benchmarks ──────────────────────────────────────────────────────────
