@@ -94,7 +94,7 @@ object DdbExprApiSpec extends ZIOSpecDefault {
         assert(result)(isNone)
       }
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
-      // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
+      // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which KeyRange does not satisfy.
     ),
     suite("write modifiers")(
       test("capacity / metrics / withRetryPolicy compose in any order with .where / .returning") {

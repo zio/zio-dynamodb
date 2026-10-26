@@ -31,7 +31,7 @@ import zio.blocks.schema.{ Optic, Schema }
  *     [[DdbKeyExpr.Composite]]; mirrors [[zio.dynamodb.KeyConditionExpr.PrimaryKeyExpr]];
  *     accepted by `get`, `update`, and `deleteFrom`.
  *     Passing a range expression to these operations is a compile-time error.
- *   - [[DdbKeyExpr]] (full ADT) — also includes [[DdbKeyExpr.Extended]] (range/function
+ *   - [[DdbKeyExpr]] (full ADT) — also includes [[DdbKeyExpr.KeyRange]] (range/function
  *     sort key); accepted by `query` and the implicit `.whereKey` conversion.
  *
  *  Construction (import `DdbKeyExpr._` for the extension methods).
@@ -77,7 +77,7 @@ trait DdbKeyExprSyntax {
   // ProjectionExpression.partitionKey/.sortKey:
   //   Task.id.partitionKey === "alice"                                   (partition key only)
   //   Task.id.partitionKey === "alice" && Task.score.sortKey === 42      (composite)
-  //   Task.id.partitionKey === "alice" && Task.score.sortKey > 10        (extended)
+  //   Task.id.partitionKey === "alice" && Task.score.sortKey > 10        (key range)
   // The apply() method on PartitionKeyBuilder also preserves:
   //   Task.id.partitionKey("alice")     (call-style, backward compatible)
   // Not `extends AnyVal`: value classes may only be top-level or object members, not
@@ -89,8 +89,8 @@ trait DdbKeyExprSyntax {
 
   // String-specific sort key ops — resolved via implicit class when B =:= String.
   implicit class SortKeyBuilderStrOps[S](private val b: DdbKeyExpr.SortKeyBuilder[S, String]) {
-    def beginsWith(prefix: String): DdbKeyExpr.SortKeyExtended[S] =
-      DdbKeyExpr.SortKeyExtended.BeginsWith(b.optic, prefix)
+    def beginsWith(prefix: String): DdbKeyExpr.SortKeyRange[S] =
+      DdbKeyExpr.SortKeyRange.BeginsWith(b.optic, prefix)
   }
 }
 
@@ -105,7 +105,7 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
    *  partition-key+sort-key-equality).
    *  Mirrors [[zio.dynamodb.KeyConditionExpr.PrimaryKeyExpr]].
    *  Accepted by `get`, `update`, and `deleteFrom` — operations that address a
-   *  single item. Range expressions ([[Extended]]) do not extend this trait, so
+   *  single item. Range expressions ([[KeyRange]]) do not extend this trait, so
    *  passing `sortKey > value` or `sortKey.between(...)` to those operations is a
    *  compile-time error.
    */
@@ -113,24 +113,24 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
 
   final case class PartitionKeyEquals[S, A](optic: Optic[S, A], value: A, schema: Schema[A]) extends PrimaryKey[S] {
     def &&[B](sortKey: SortKeyEquals[S, B]): Composite[S, A, B] = Composite(this, sortKey)
-    def &&(sortKey: SortKeyExtended[S]): Extended[S, A]         = Extended(this, sortKey)
+    def &&(sortKey: SortKeyRange[S]): KeyRange[S, A]            = KeyRange(this, sortKey)
   }
 
   final case class Composite[S, A, B](pk: PartitionKeyEquals[S, A], sk: SortKeyEquals[S, B]) extends PrimaryKey[S]
-  final case class Extended[S, A](pk: PartitionKeyEquals[S, A], sk: SortKeyExtended[S])      extends DdbKeyExpr[S]
+  final case class KeyRange[S, A](pk: PartitionKeyEquals[S, A], sk: SortKeyRange[S])         extends DdbKeyExpr[S]
 
   // ── Sort key intermediates ─────────────────────────────────────────────────
 
   final case class SortKeyEquals[S, B](optic: Optic[S, B], value: B, schema: Schema[B])
 
-  sealed trait SortKeyExtended[S]
-  object SortKeyExtended {
-    final case class Gt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyExtended[S]
-    final case class Gte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyExtended[S]
-    final case class Lt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyExtended[S]
-    final case class Lte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyExtended[S]
-    final case class Between[S, B](optic: Optic[S, B], lo: B, hi: B, schema: Schema[B]) extends SortKeyExtended[S]
-    final case class BeginsWith[S](optic: Optic[S, String], prefix: String)             extends SortKeyExtended[S]
+  sealed trait SortKeyRange[S]
+  object SortKeyRange {
+    final case class Gt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyRange[S]
+    final case class Gte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyRange[S]
+    final case class Lt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyRange[S]
+    final case class Lte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyRange[S]
+    final case class Between[S, B](optic: Optic[S, B], lo: B, hi: B, schema: Schema[B]) extends SortKeyRange[S]
+    final case class BeginsWith[S](optic: Optic[S, String], prefix: String)             extends SortKeyRange[S]
   }
 
   // ── Partition key builder ─────────────────────────────────────────────────
@@ -154,12 +154,12 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
   // ── Sort key builder ──────────────────────────────────────────────────────
 
   final class SortKeyBuilder[S, B](val optic: Optic[S, B]) {
-    def ===(value: B)(implicit schema: Schema[B]): SortKeyEquals[S, B]        = SortKeyEquals(optic, value, schema)
-    def >(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]           = SortKeyExtended.Gt(optic, value, schema)
-    def >=(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]          = SortKeyExtended.Gte(optic, value, schema)
-    def <(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]           = SortKeyExtended.Lt(optic, value, schema)
-    def <=(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]          = SortKeyExtended.Lte(optic, value, schema)
-    def between(lo: B, hi: B)(implicit schema: Schema[B]): SortKeyExtended[S] =
-      SortKeyExtended.Between(optic, lo, hi, schema)
+    def ===(value: B)(implicit schema: Schema[B]): SortKeyEquals[S, B]     = SortKeyEquals(optic, value, schema)
+    def >(value: B)(implicit schema: Schema[B]): SortKeyRange[S]           = SortKeyRange.Gt(optic, value, schema)
+    def >=(value: B)(implicit schema: Schema[B]): SortKeyRange[S]          = SortKeyRange.Gte(optic, value, schema)
+    def <(value: B)(implicit schema: Schema[B]): SortKeyRange[S]           = SortKeyRange.Lt(optic, value, schema)
+    def <=(value: B)(implicit schema: Schema[B]): SortKeyRange[S]          = SortKeyRange.Lte(optic, value, schema)
+    def between(lo: B, hi: B)(implicit schema: Schema[B]): SortKeyRange[S] =
+      SortKeyRange.Between(optic, lo, hi, schema)
   }
 }

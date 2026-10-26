@@ -18,7 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.ConditionExpression.Operand
-import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
+import zio.dynamodb.KeyConditionExpr.SortKeyRange
 import zio.dynamodb.UpdateExpression.{ Action, SetOperand }
 
 // Gathers the errors from invalid `$` paths and `.partitionKey` / `.sortKey` keys anywhere in a
@@ -136,21 +136,20 @@ private[dynamodb] object InvalidPaths {
 
   private def key(kce: KeyConditionExpr[_]): List[String] =
     kce match {
-      case k: KeyConditionExpr.PartitionKeyEquals[_]              => k.pk.invalidPath.toList
-      case k: KeyConditionExpr.CompositePrimaryKeyExpr[_]         =>
+      case k: KeyConditionExpr.PartitionKeyEquals[_]      => k.pk.invalidPath.toList
+      case k: KeyConditionExpr.CompositePrimaryKeyExpr[_] =>
         k.pk.pk.invalidPath.toList ++ k.sk.sortKey.invalidPath.toList
-      case k: KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[_] => k.pk.pk.invalidPath.toList ++ sortKey(k.sk)
-      case _: KeyConditionExpr.Failure[_]                         => Nil
+      case k: KeyConditionExpr.KeyRangeExpr[_]            => k.pk.pk.invalidPath.toList ++ sortKey(k.sk)
+      case _: KeyConditionExpr.Failure[_]                 => Nil
     }
 
-  private def sortKey(sk: ExtendedSortKeyExpr[_, _]): List[String] =
+  private def sortKey(sk: SortKeyRange[_, _]): List[String] =
     sk match {
-      case e: ExtendedSortKeyExpr.GreaterThan[_, _]        => e.sortKey.invalidPath.toList
-      case e: ExtendedSortKeyExpr.LessThan[_, _]           => e.sortKey.invalidPath.toList
-      case e: ExtendedSortKeyExpr.NotEqual[_, _]           => e.sortKey.invalidPath.toList
-      case e: ExtendedSortKeyExpr.LessThanOrEqual[_, _]    => e.sortKey.invalidPath.toList
-      case e: ExtendedSortKeyExpr.GreaterThanOrEqual[_, _] => e.sortKey.invalidPath.toList
-      case e: ExtendedSortKeyExpr.Between[_, _]            => e.left.invalidPath.toList
-      case e: ExtendedSortKeyExpr.BeginsWith[_, _]         => e.left.invalidPath.toList
+      case e: SortKeyRange.GreaterThan[_, _]        => e.sortKey.invalidPath.toList
+      case e: SortKeyRange.LessThan[_, _]           => e.sortKey.invalidPath.toList
+      case e: SortKeyRange.LessThanOrEqual[_, _]    => e.sortKey.invalidPath.toList
+      case e: SortKeyRange.GreaterThanOrEqual[_, _] => e.sortKey.invalidPath.toList
+      case e: SortKeyRange.Between[_, _]            => e.sortKey.invalidPath.toList
+      case e: SortKeyRange.BeginsWith[_, _]         => e.sortKey.invalidPath.toList
     }
 }

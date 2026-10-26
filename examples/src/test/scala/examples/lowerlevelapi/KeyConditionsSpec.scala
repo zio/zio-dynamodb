@@ -26,7 +26,7 @@ object KeyConditionsSpec extends ZIOSpecDefault {
   implicit val interpreter: Interpreter[zio.dynamodb.DummyIO] = DummyIOInterpreter
 
   def spec = suite("KeyConditions")(
-    test("query with an extended composite key condition executes") {
+    test("query with a key range condition executes") {
       KeyConditions.queryQuery.execute.map(_ => assertCompletes).unsafeRun()
     },
     test("live failure: .partitionKey on a nested path fails with InvalidPath when run, not at compile time") {

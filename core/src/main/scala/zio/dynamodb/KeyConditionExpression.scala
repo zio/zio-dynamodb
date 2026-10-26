@@ -20,7 +20,7 @@ package zio.dynamodb
  * This sum type models:
  * 1) partition key equality expressions
  * 2) composite primary key expressions where sort key expression is equality
- * 3) extended composite primary key expressions where sort key is not equality eg >, <, >=, <=, between, begins_with
+ * 3) key ranges: partition key equality plus a sort-key range (>, <, >=, <=, between, begins_with)
  *
  * Note 1), 2) and 3) are all valid key condition expressions used in Query DynamoDB queries
  * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
@@ -46,9 +46,9 @@ object KeyConditionExpr {
     def &&[From1 <: From](other: SortKeyEquals[From1]): CompositePrimaryKeyExpr[From1] =
       CompositePrimaryKeyExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1]], other)
     def &&[From1 <: From, Sk](
-      other: ExtendedSortKeyExpr[From1, Sk]
-    ): ExtendedCompositePrimaryKeyExpr[From1]                                          =
-      ExtendedCompositePrimaryKeyExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1]], other)
+      other: SortKeyRange[From1, Sk]
+    ): KeyRangeExpr[From1]                                                             =
+      KeyRangeExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1]], other)
 
     def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
@@ -88,9 +88,9 @@ object KeyConditionExpr {
     override def render: AliasMapRender[String] = AliasMapRender.succeed("")
   }
 
-  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From](
+  private[dynamodb] final case class KeyRangeExpr[-From](
     pk: PartitionKeyEquals[From],
-    sk: ExtendedSortKeyExpr[From, _]
+    sk: SortKeyRange[From, _]
   ) extends KeyConditionExpr[From] {
     self =>
 
@@ -102,66 +102,59 @@ object KeyConditionExpr {
 
   }
 
-  sealed trait ExtendedSortKeyExpr[-From, +Sk] { self =>
+  sealed trait SortKeyRange[-From, +Sk] { self =>
     def miniRender: AliasMapRender[String] =
       self match {
-        case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
+        case SortKeyRange.GreaterThan(sk, value)        =>
           for {
             v        <- AliasMapRender.getOrInsert(value)
             keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"${keyAlias} > $v"
-        case ExtendedSortKeyExpr.LessThan(sk, value)           =>
+        case SortKeyRange.LessThan(sk, value)           =>
           for {
             v        <- AliasMapRender.getOrInsert(value)
             keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"${keyAlias} < $v"
-        case ExtendedSortKeyExpr.NotEqual(sk, value)           =>
-          for {
-            v        <- AliasMapRender.getOrInsert(value)
-            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
-          } yield s"${keyAlias} <> $v"
-        case ExtendedSortKeyExpr.LessThanOrEqual(sk, value)    =>
+        case SortKeyRange.LessThanOrEqual(sk, value)    =>
           for {
             v        <- AliasMapRender.getOrInsert(value)
             keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"${keyAlias} <= $v"
-        case ExtendedSortKeyExpr.GreaterThanOrEqual(sk, value) =>
+        case SortKeyRange.GreaterThanOrEqual(sk, value) =>
           for {
             v        <- AliasMapRender.getOrInsert(value)
             keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"${keyAlias} >= $v"
-        case ExtendedSortKeyExpr.Between(left, min, max)       =>
+        case SortKeyRange.Between(sk, min, max)         =>
           for {
             min2     <- AliasMapRender.getOrInsert(min)
             max2     <- AliasMapRender.getOrInsert(max)
-            keyAlias <- KeyConditionExpr.getOrInsert(left.keyName)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"${keyAlias} BETWEEN $min2 AND $max2"
-        case ExtendedSortKeyExpr.BeginsWith(left, value)       =>
+        case SortKeyRange.BeginsWith(sk, value)         =>
           for {
             v        <- AliasMapRender.getOrInsert(value)
-            keyAlias <- KeyConditionExpr.getOrInsert(left.keyName)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
           } yield s"begins_with(${keyAlias}, $v)"
       }
 
   }
-  object ExtendedSortKeyExpr {
+  object SortKeyRange {
     private[dynamodb] final case class GreaterThan[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
+        extends SortKeyRange[From, To]
     private[dynamodb] final case class LessThan[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class NotEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
+        extends SortKeyRange[From, To]
     private[dynamodb] final case class LessThanOrEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
+        extends SortKeyRange[From, To]
     private[dynamodb] final case class GreaterThanOrEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
+        extends SortKeyRange[From, To]
     private[dynamodb] final case class Between[From, +To](
-      left: SortKey[From, To],
+      sortKey: SortKey[From, To],
       min: AttributeValue,
       max: AttributeValue
-    ) extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class BeginsWith[From, +To](left: SortKey[From, To], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From, To]
+    ) extends SortKeyRange[From, To]
+    private[dynamodb] final case class BeginsWith[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
+        extends SortKeyRange[From, To]
   }
 
 }

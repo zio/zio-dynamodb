@@ -204,18 +204,18 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         """).map(result => assertTrue(result.isRight))
       }
     ),
-    suite("PrimaryKey vs Extended")(
+    suite("PrimaryKey vs KeyRange")(
       // get/update/deleteFrom address a single item, so they require a DdbKeyExpr.PrimaryKey
       // (partition-only, or Composite — partition + sort equality). A sort-key range
-      // (Extended) doesn't identify one item, and query is the only operation that accepts
+      // (KeyRange) doesn't identify one item, and query is the only operation that accepts
       // it. Event/events come from KeyConditions.scala (already-compiled, top-level).
       //
-      // The Extended key expression is bound to its own `val` before being passed in, rather
+      // The KeyRange key expression is bound to its own `val` before being passed in, rather
       // than written inline — inline, get's expected parameter type (PrimaryKey[Event]) leaks
       // into overload resolution of the `&&` call that builds it, so the reported error is
-      // about the wrong `&&` overload instead of the PrimaryKey/Extended mismatch this test
+      // about the wrong `&&` overload instead of the PrimaryKey/KeyRange mismatch this test
       // means to check.
-      test("get rejects an Extended (sort-key range) key") {
+      test("get rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
           import zio.dynamodb.blocks.ddbexpr.dsl._
@@ -224,7 +224,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           get(events)(keyExpr)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("primarykey"))))
       },
-      test("update rejects an Extended (sort-key range) key") {
+      test("update rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
           import zio.dynamodb.blocks.ddbexpr.dsl._
@@ -233,7 +233,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           update(events)(keyExpr)(Event.payload.set("x"))
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("primarykey"))))
       },
-      test("deleteFrom rejects an Extended (sort-key range) key") {
+      test("deleteFrom rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
           import zio.dynamodb.blocks.ddbexpr.dsl._
@@ -432,7 +432,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       // No DDB-specific mechanism here — plain Scala overload resolution / type-checking on
       // ===/set/addSet's own type parameter, same as calling any other generic method with
       // the wrong argument type. Included for completeness: it's the most basic layer this
-      // catalog covers, underneath Allows/CanWhere-CanFilter/PrimaryKey-Extended.
+      // catalog covers, underneath Allows/CanWhere-CanFilter/PrimaryKey-KeyRange.
       test("=== rejects a value of the wrong type") {
         typeCheck("""
           import examples.highlevelapi.Scalars._

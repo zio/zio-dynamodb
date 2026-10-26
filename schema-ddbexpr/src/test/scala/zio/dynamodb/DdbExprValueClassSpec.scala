@@ -223,10 +223,10 @@ object DdbExprValueClassSpec extends ZIOSpecDefault {
           isRight(isSubtype[KeyConditionExpr.CompositePrimaryKeyExpr[Product]](anything))
         )
       },
-      test("value class String partitionKey + value class Int sortKey range produces ExtendedCompositePrimaryKeyExpr") {
+      test("value class String partitionKey + value class Int sortKey range produces KeyRangeExpr") {
         val expr = Product.userId.partitionKey === UserId("U-1") && Product.weight.sortKey > Weight(0)
         assert(interpretKey(expr))(
-          isRight(isSubtype[KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[Product]](anything))
+          isRight(isSubtype[KeyConditionExpr.KeyRangeExpr[Product]](anything))
         )
       },
       test("value class String partitionKey + value class Int sortKey range renders >") {

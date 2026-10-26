@@ -21,7 +21,7 @@ import zio.dynamodb.ProjectionExpression.$
 
 /**
  * `.partitionKey`/`.sortKey` mark a raw path for use in `query`'s `.whereKey`: partition-only
- * equality, a composite equality on both keys, or an extended composite with a sort-key range
+ * equality, a composite equality on both keys, or a key range: partition equality plus a sort-key range
  * (`between`/`beginsWith`/`>`/`<`/etc). `nestedPathAsKey` shows what happens when the path isn't
  * actually a top-level attribute.
  */
@@ -35,10 +35,10 @@ object KeyConditions {
   val composite: KeyConditionExpr[Any] =
     $("customerId").partitionKey === "cust-1" && $("invoiceId").sortKey === "inv-1"
 
-  val extendedRange: KeyConditionExpr[Any] =
+  val rangeGt: KeyConditionExpr[Any] =
     $("customerId").partitionKey === "cust-1" && $("invoiceId").sortKey > "inv-100"
 
-  val extendedBetween: KeyConditionExpr[Any] =
+  val rangeBetween: KeyConditionExpr[Any] =
     $("customerId").partitionKey === "cust-1" && $("invoiceId").sortKey.between("inv-100", "inv-200")
 
   // Compiles, and fails with QueryBuilderError.InvalidPath when run: a key must be a single
@@ -47,5 +47,5 @@ object KeyConditions {
     DynamoDBQuery.query(table, limit = 20).whereKey($("lineItems")(0).partitionKey === "cust-1")
 
   val queryQuery: DynamoDBQuery[Any, Page[Item]] =
-    DynamoDBQuery.query(table, limit = 20).whereKey(extendedRange)
+    DynamoDBQuery.query(table, limit = 20).whereKey(rangeGt)
 }

@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import zio.dynamodb.KeyConditionExpr.{ ExtendedSortKeyExpr, SortKeyEquals }
+import zio.dynamodb.KeyConditionExpr.{ SortKeyEquals, SortKeyRange }
 import zio.dynamodb.ProjectionExpression._
 import zio.dynamodb.ProjectionExpression.$
 import zio.test._
@@ -30,7 +30,7 @@ object SortKeySpec extends ZIOSpecDefault {
   // SortKeyOps (typed)
   private val typedSk: SortKey[Any, Int] = SortKey[Any, Int]("age")
 
-  private def renderSortKeyExpr(e: ExtendedSortKeyExpr[_, _]): String =
+  private def renderSortKeyExpr(e: SortKeyRange[_, _]): String =
     e.miniRender.execute._2
 
   def spec = suite("SortKey")(
@@ -51,9 +51,11 @@ object SortKeySpec extends ZIOSpecDefault {
       val expr = sk < 10
       assertTrue(renderSortKeyExpr(expr).contains("<"))
     },
-    test("<> builds NotEqual") {
-      val expr = sk <> 10
-      assertTrue(renderSortKeyExpr(expr).contains("<>"))
+    test("<> isn't offered: DynamoDB rejects it in a key condition") {
+      for {
+        notEqual <- typeCheck("sk <> 10")
+        lessThan <- typeCheck("sk < 10")
+      } yield assertTrue(notEqual.isLeft, lessThan.isRight)
     },
     test("<= builds LessThanOrEqual") {
       val expr = sk <= 10
@@ -85,10 +87,6 @@ object SortKeySpec extends ZIOSpecDefault {
     test("< builds LessThan") {
       val expr = typedSk < 5
       assertTrue(renderSortKeyExpr(expr).contains("<"))
-    },
-    test("<> builds NotEqual") {
-      val expr = typedSk <> 5
-      assertTrue(renderSortKeyExpr(expr).contains("<>"))
     },
     test("<= builds LessThanOrEqual") {
       val expr = typedSk <= 5
