@@ -104,7 +104,7 @@ object ConditionalWrites {
   // -- composing writes ---------------------------------------------------
 
   val twoWritesInParallel: DynamoDBQuery[Account, Unit] =
-    put(accounts, Account("a2", "open", 0)) zipPar deleteFrom(accounts)(Account.id.partitionKey === "a1")
+    put(accounts, Account("a2", "open", 0)).zipPar(deleteFrom(accounts)(Account.id.partitionKey === "a1"))
 
   // A conditionCheck guards the transaction without writing; it too returns the item on failure by
   // default, and has the same opt-out.

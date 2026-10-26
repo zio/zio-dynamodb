@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.compiletime.uninitialized
+
 import dynosaur.Schema.WriteError
 import dynosaur.{ DynamoValue => DynosaurValue }
 import org.openjdk.jmh.annotations._
@@ -55,11 +57,11 @@ class DynamoDBCodecBenchmarks extends BaseBenchmark {
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
   var size: Int                                              = 1
-  var listOfRecords: List[Person]                            = _
-  var encodedListOfRecordsForBlocks: List[AttributeValue]    = _
-  var encodedListOfRecordsForZioSchema: List[AttributeValue] = _
-  var encodedListOfRecordsForDynosaur: List[DynosaurValue]   = _
-  var encodedListOfRecordsForScanamo: List[ScanamoValue]     = _
+  var listOfRecords: List[Person]                            = uninitialized
+  var encodedListOfRecordsForBlocks: List[AttributeValue]    = uninitialized
+  var encodedListOfRecordsForZioSchema: List[AttributeValue] = uninitialized
+  var encodedListOfRecordsForDynosaur: List[DynosaurValue]   = uninitialized
+  var encodedListOfRecordsForScanamo: List[ScanamoValue]     = uninitialized
 
   @Setup
   def setup(): Unit = {

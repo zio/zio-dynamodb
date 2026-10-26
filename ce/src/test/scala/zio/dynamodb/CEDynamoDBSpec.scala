@@ -184,8 +184,9 @@ class CEDynamoDBSpec extends CatsEffectSuite {
     val client = clientFixture()
     val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
-      val q = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x")) zipPar
-        DynamoDBQuery.getItem(table, PrimaryKey("id" -> "y"))
+      val q = DynamoDBQuery
+        .getItem(table, PrimaryKey("id" -> "x"))
+        .zipPar(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "y")))
       for {
         _    <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "x")))
         pair <- interp.run(q)

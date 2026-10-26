@@ -32,6 +32,20 @@ ThisBuild / scmInfo       := Some(
   )
 )
 ThisBuild / headerLicense := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
+// Silences Scala 3 syntax deprecations whose replacements (`?`, `xs*`, `(using ...)`) don't compile on
+// 2.13, so shared sources keep the 2.13 forms.
+ThisBuild / scalacOptions ++= {
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((3, _)) =>
+      Seq(
+        "-Wconf:msg=`_` is deprecated for wildcard arguments:s",
+        "-Wconf:msg=Ignoring .*this.* qualifier:s",
+        "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
+        "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices:s"
+      )
+    case _            => Seq.empty
+  }
+}
 
 lazy val core = (project in file("core"))
   .settings(

@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.compiletime.uninitialized
+
 import org.openjdk.jmh.annotations._
 import org.scanamo._
 import org.scanamo.DynamoReadError.describe
@@ -62,9 +64,9 @@ class DynamoDBBinaryCodecBenchmarks extends BaseBenchmark {
   @Param(Array("100", "1000", "10000", "100000"))
   var payloadBytes: Int = 100
 
-  var record: EventStoreRecord         = _
-  var encodedForBlocks: AttributeValue = _
-  var encodedForScanamo: ScanamoValue  = _
+  var record: EventStoreRecord         = uninitialized
+  var encodedForBlocks: AttributeValue = uninitialized
+  var encodedForScanamo: ScanamoValue  = uninitialized
 
   @Setup
   def setup(): Unit = {

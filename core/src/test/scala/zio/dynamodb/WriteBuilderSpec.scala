@@ -151,7 +151,8 @@ object WriteBuilderSpec extends ZIOSpecDefault {
     },
     test("general modifiers reach builders nested in zipPar, and the pair still runs") {
       val pair: DynamoDBQuery[Any, Unit]                            =
-        (put zipPar DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "b")))
+        put
+          .zipPar(DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "b")))
           .capacity(total)
           .withRetryPolicy(RetryPolicy.NoRetry)
       def node(q: DynamoDBQuery[_, _]): Option[DynamoDBQuery[_, _]] = q match {
@@ -187,7 +188,7 @@ object WriteBuilderSpec extends ZIOSpecDefault {
         assert(put.toQuery.where(condition))(leafHasItemOnFailure)
       },
       test("on both sides of a zipPar") {
-        val pair = (put zipPar DynamoDBQuery.putItem("t", Item("id" -> "b"))).where(condition)
+        val pair = put.zipPar(DynamoDBQuery.putItem("t", Item("id" -> "b"))).where(condition)
         assert(pair)(
           isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
             hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]]("left", _.left, leafHasItemOnFailure) &&

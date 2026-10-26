@@ -16,6 +16,8 @@
 
 package zio.dynamodb
 
+import scala.compiletime.uninitialized
+
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.scanamo._
@@ -201,15 +203,15 @@ class CeEffectStackBench extends BaseBenchmark {
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
-  private var prebuiltGetQuery: DynamoDBQuery[Person, Option[Either[ItemError.DecodingError, Person]]]          = _
-  private var prebuiltPutQuery: DynamoDBQuery[Person, Unit]                     = _
-  private var prebuiltUpdateQuery: DynamoDBQuery[Person, Unit]                  = _
+  private var prebuiltGetQuery: DynamoDBQuery[Person, Option[Either[ItemError.DecodingError, Person]]]          = uninitialized
+  private var prebuiltPutQuery: DynamoDBQuery[Person, Unit]                     = uninitialized
+  private var prebuiltUpdateQuery: DynamoDBQuery[Person, Unit]                  = uninitialized
   // UpdateItem never falls back to defaultRetryPolicy (Interpreter.withExplicitRetryOnly) —
   // the only way it ever retries is an explicit request-level policy, so that's what this
   // isolates, unlike Get/Put's interpreterWithRetryPolicy counterparts below.
-  private var prebuiltUpdateQueryWithRetryPolicy: DynamoDBQuery[Person, Unit]   = _
-  private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Option[Either[ItemError.DecodingError, BigRecord]]] = _
-  private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Unit]            = _
+  private var prebuiltUpdateQueryWithRetryPolicy: DynamoDBQuery[Person, Unit]   = uninitialized
+  private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Option[Either[ItemError.DecodingError, BigRecord]]] = uninitialized
+  private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Unit]            = uninitialized
 
   @Setup def setup(): Unit = {
     prebuiltGetQuery = DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)

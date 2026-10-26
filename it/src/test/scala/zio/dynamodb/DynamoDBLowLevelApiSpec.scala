@@ -145,8 +145,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "x")))
-            q = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x")) zipPar
-                  DynamoDBQuery.getItem(table, PrimaryKey("id" -> "y"))
+            q = DynamoDBQuery
+                  .getItem(table, PrimaryKey("id" -> "x"))
+                  .zipPar(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "y")))
             pair <- interpreter.run(q)
             (rx, ry) = pair
           } yield assertTrue(rx.isDefined && ry.isEmpty)
@@ -157,8 +158,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "score" -> 10)))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "score" -> 20)))
-            q = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "alice")) zipPar
-                  DynamoDBQuery.getItem(table, PrimaryKey("id" -> "bob"))
+            q = DynamoDBQuery
+                  .getItem(table, PrimaryKey("id" -> "alice"))
+                  .zipPar(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "bob")))
             pair <- interpreter.run(q)
             (ra, rb) = pair
           } yield assertTrue(
@@ -173,9 +175,10 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c1", "v" -> 1)))
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c2", "v" -> 2)))
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c3", "v" -> 3)))
-            q = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "c1")) zipPar
-                  DynamoDBQuery.getItem(table, PrimaryKey("id" -> "c2")) zipPar
-                  DynamoDBQuery.getItem(table, PrimaryKey("id" -> "c3"))
+            q = DynamoDBQuery
+                  .getItem(table, PrimaryKey("id" -> "c1"))
+                  .zipPar(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "c2")))
+                  .zipPar(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "c3")))
             triple <- interpreter.run(q)
             (r1, r2, r3) = triple
           } yield assertTrue(
@@ -458,8 +461,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _  <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "par-a", "score" -> 0)))
             _  <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "par-b", "score" -> 0)))
-            q = DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "par-a"))($("score").set(1)) zipPar
-                  DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "par-b"))($("score").set(2))
+            q = DynamoDBQuery
+                  .updateItem(table, PrimaryKey("id" -> "par-a"))($("score").set(1))
+                  .zipPar(DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "par-b"))($("score").set(2)))
             _  <- interpreter.run(q)
             ra <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "par-a")))
             rb <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "par-b")))

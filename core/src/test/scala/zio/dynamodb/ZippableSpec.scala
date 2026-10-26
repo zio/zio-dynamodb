@@ -180,7 +180,7 @@ object ZippableSpec extends ZIOSpecDefault {
       assertTrue(z.zip("hello", ()) == "hello")
     },
     test("Zippable2 (default) zips two values into a tuple") {
-      val result = DynamoDBQuery(1) zipPar DynamoDBQuery("a")
+      val result = DynamoDBQuery(1).zipPar(DynamoDBQuery("a"))
       val (a, b) = DummyIOInterpreter.run(result).unsafeRun()
       assertTrue(a == 1 && b == "a")
     }

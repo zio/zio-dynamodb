@@ -55,7 +55,7 @@ object InterpreterSpec extends ZIOSpecDefault {
 
     suite("ZipPar laws")(
       test("produces both results as a tuple") {
-        val (l, r) = eval(DynamoDBQuery(1) zipPar DynamoDBQuery("a"))
+        val (l, r) = eval(DynamoDBQuery(1).zipPar(DynamoDBQuery("a")))
         assertTrue(l == 1 && r == "a")
       },
       test("zipParLeft discards right result") {
@@ -68,14 +68,14 @@ object InterpreterSpec extends ZIOSpecDefault {
         val q1 = DynamoDBQuery(3)
         val q2 = DynamoDBQuery(4)
         assertTrue(
-          eval((q1 zipPar q2).map { case (a, b) => a + b }) ==
+          eval(q1.zipPar(q2).map { case (a, b) => a + b }) ==
             eval(q1.zipParWith(q2)(_ + _))
         )
       },
       test("independently zipped GetItem queries each return None") {
         val q1       = DynamoDBQuery.GetItem("t1", PrimaryKey("id" -> "1"))
         val q2       = DynamoDBQuery.GetItem("t2", PrimaryKey("id" -> "2"))
-        val (r1, r2) = eval(q1 zipPar q2)
+        val (r1, r2) = eval(q1.zipPar(q2))
         assertTrue(r1.isEmpty && r2.isEmpty)
       }
     ),

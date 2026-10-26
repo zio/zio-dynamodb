@@ -64,7 +64,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         DynamoDBQuery.createTable(table1, KeySchema("id"), AttributeDefinition.attrDefnString("id"))(
           BillingMode.PayPerRequest
         )
-      val zipped      = (GetItem(table1, pk) zipPar createTable).withRetryPolicy(RetryPolicy.NoRetry)
+      val zipped      = GetItem(table1, pk).zipPar(createTable).withRetryPolicy(RetryPolicy.NoRetry)
       assert(zipped)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], Any]("left", _.left, isSubtype[GetItem](anything)) &&
@@ -87,8 +87,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("withClientRequestToken on a zipPar fails rather than sharing one token between transactions") {
-      val zipped = DynamoDBQuery.transactWriteItems(PutItem(table1, item1)) zipPar
-        DynamoDBQuery.transactWriteItems(PutItem(table2, item1))
+      val zipped = DynamoDBQuery
+        .transactWriteItems(PutItem(table1, item1))
+        .zipPar(DynamoDBQuery.transactWriteItems(PutItem(table2, item1)))
       assert(zipped.withClientRequestToken("tok"))(
         isSubtype[DynamoDBQuery.Fail](
           hasField(
@@ -205,7 +206,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       assert(DummyIOInterpreter.run(get).unsafeRun())(isSubtype[Batch.GetResult.Complete](anything))
     },
     test("sortOrder reaches both legs of a zipPar") {
-      val zipped = (DynamoDBQuery.Query(table1, 10) zipPar DynamoDBQuery.Query(table2, 10)).sortOrder(ascending = false)
+      val zipped = DynamoDBQuery.Query(table1, 10).zipPar(DynamoDBQuery.Query(table2, 10)).sortOrder(ascending = false)
       assert(zipped)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], Any](
@@ -422,7 +423,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("capacity propagates through ZipPar to both branches") {
-      val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).capacity(total)
+      val q = GetItem(table1, pk).zipPar(GetItem(table2, pk)).capacity(total)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -490,7 +491,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("consistency propagates through ZipPar to both branches") {
-      val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).consistency(strong)
+      val q = GetItem(table1, pk).zipPar(GetItem(table2, pk)).consistency(strong)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -534,7 +535,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("returns propagates through ZipPar") {
-      val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).returns(allOld)
+      val q = PutItem(table1, item1).zipPar(DeleteItem(table2, pk)).returns(allOld)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -591,7 +592,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("metrics propagates through ZipPar") {
-      val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).metrics(sizeMetrics)
+      val q = PutItem(table1, item1).zipPar(DeleteItem(table2, pk)).metrics(sizeMetrics)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -648,7 +649,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("startKey propagates through ZipPar to both branches") {
-      val q = (DynamoDBQuery.scan(table1, 10) zipPar DynamoDBQuery.scan(table2, 10)).startKey(someKey)
+      val q = DynamoDBQuery.scan(table1, 10).zipPar(DynamoDBQuery.scan(table2, 10)).startKey(someKey)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -715,7 +716,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("select propagates through ZipPar to both branches") {
-      val q = (DynamoDBQuery.scan(table1, 10) zipPar DynamoDBQuery.scan(table2, 10)).selectCount
+      val q = DynamoDBQuery.scan(table1, 10).zipPar(DynamoDBQuery.scan(table2, 10)).selectCount
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -872,7 +873,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("propagates through ZipPar to both branches") {
-      val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).returnValuesOnConditionCheckFailure(allOldRVOCCF)
+      val q = PutItem(table1, item1).zipPar(DeleteItem(table2, pk)).returnValuesOnConditionCheckFailure(allOldRVOCCF)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -1003,7 +1004,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("propagates through ZipPar to both branches") {
-      val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).withRetryPolicy(RetryPolicy.NoRetry)
+      val q = GetItem(table1, pk).zipPar(GetItem(table2, pk)).withRetryPolicy(RetryPolicy.NoRetry)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
@@ -1125,7 +1126,7 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("propagates through ZipPar to both branches") {
       val left  = DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
       val right = DynamoDBQuery.batchGetItem(List("b"))(id => GetItem(table2, PrimaryKey("id" -> id)))
-      val q     = (left zipPar right).withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry)
+      val q     = left.zipPar(right).withBatchUnprocessedRetryPolicy(RetryPolicy.NoRetry)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](

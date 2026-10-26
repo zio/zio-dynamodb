@@ -61,15 +61,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     DynamoDBQuery.ZipPar[Out, B, z.Out](self, that, z)
 
   final def zipParLeft[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] =
-    (self zipPar that).map(_._1)
+    self.zipPar(that).map(_._1)
 
   final def zipParRight[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, B] =
-    (self zipPar that).map(_._2)
+    self.zipPar(that).map(_._2)
 
   final def zipParWith[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
-    (self zipPar that).map(f.tupled)
+    self.zipPar(that).map(f.tupled)
 
   // Same default as a write builder's `.where`: a failed condition returns the existing item.
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {

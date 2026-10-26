@@ -165,7 +165,7 @@ object MiscSpec extends ZIOSpecDefault {
       val q1      = DynamoDBQuery.Query("t1", 10)
       val q2      = DynamoDBQuery.Query("t2", 10)
       val pk      = ProjectionExpression.$("id").partitionKey
-      val zipped  = q1 zipPar q2
+      val zipped  = q1.zipPar(q2)
       val withKey = zipped.whereKey(pk === "val")
       assertTrue(withKey != null)
     },
@@ -197,7 +197,7 @@ object MiscSpec extends ZIOSpecDefault {
       val q1                             = DynamoDBQuery.putItem("t1", Item("id" -> "1"))
       val q2                             = DynamoDBQuery.putItem("t2", Item("id" -> "2"))
       val cond: ConditionExpression[Any] = ProjectionExpression.$("id") === "1"
-      val zipped                         = q1 zipPar q2
+      val zipped                         = q1.zipPar(q2)
       val withCond                       = zipped.where(cond)
       assertTrue(withCond != null)
     },
@@ -245,7 +245,7 @@ object MiscSpec extends ZIOSpecDefault {
       val q1                          = DynamoDBQuery.Query("t1", 10)
       val q2                          = DynamoDBQuery.Query("t2", 10)
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
-      val zipped                      = q1 zipPar q2
+      val zipped                      = q1.zipPar(q2)
       val withFilter                  = zipped.filter(filt)
       assertTrue(withFilter != null)
     },

@@ -92,7 +92,7 @@ object ConditionalWrites {
   // -- composing writes ---------------------------------------------------
 
   val twoWritesInParallel: DynamoDBQuery[Any, Unit] =
-    DynamoDBQuery.putItem(table, Item("id" -> "a2")) zipPar DynamoDBQuery.deleteItem(table, key)
+    DynamoDBQuery.putItem(table, Item("id" -> "a2")).zipPar(DynamoDBQuery.deleteItem(table, key))
 
   // A conditionCheck guards the transaction without writing; it too returns the item on failure
   // by default, and has the same opt-out.
