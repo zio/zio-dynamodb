@@ -5,32 +5,20 @@ addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
 addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
-val zioVersion        = "2.1.24"
-val zioPreludeVersion = "1.0.0-RC47"
+val zioVersion        = "2.1.27"
+val zioPreludeVersion = "1.0.0-RC48"
 val zioBlocksVersion  = "0.0.55"
 val awsSdkVersion     = "2.56.0"
 val catsEffectVersion = "3.7.1"
 val fs2Version        = "3.14.0"
 val scala213Version   = "2.13.18"
-val scala3Version     = "3.3.8" // TODO: make scala3 = 3.9 ie produce only one artifact for 3.9+ and delete below
-val scala39Version    = "3.9.0" // zio-blocks' current default; published as zio-dynamodb-next-*
-
-// Scala 3.9+ publishes under its own name (zio-blocks' "-next-" convention) since Scala 3's
-// binary suffix (_3) doesn't vary by minor version.
-def crossPublishName = moduleName := {
-  CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, minor)) if minor >= 9 => name.value.replace("zio-dynamodb-", "zio-dynamodb-next-")
-    case _                              => name.value
-  }
-}
+val scala3Version     = "3.9.0" // Scala 3 LTS
 
 ThisBuild / version       := "3.0.0-SNAPSHOT"
 ThisBuild / organization  := "dev.zio"
-// Scala 3 (LTS) is the primary/default version (matching zio-blocks' pattern of defaulting
-// to Scala 3, but tracking the LTS line rather than zio-blocks' bleeding-edge 3.8.x — this
-// library targets production infra, not compiler-internals-dependent macro features); 2.13
-// is the secondary cross-build target. `benchmarks` is Scala 3 only: it isn't in root's
-// aggregate, so `+` / `++2.13.18` commands don't build it.
+// Scala 3 LTS is the primary/default version; later Scala 3 compilers read its artifacts. 2.13 is the
+// secondary cross-build target. `benchmarks` is Scala 3 only: it isn't in root's aggregate, so `+` /
+// `++2.13.18` commands don't build it.
 ThisBuild / scalaVersion  := scala3Version
 ThisBuild / homepage      := Some(url("https://github.com/zio/zio-dynamodb"))
 ThisBuild / licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
@@ -48,8 +36,7 @@ ThisBuild / headerLicense := Some(HeaderLicense.ALv2("2021-2026", "John A. De Go
 lazy val core = (project in file("core"))
   .settings(
     name                  := "zio-dynamodb-core",
-    crossScalaVersions    := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions    := Seq(scala3Version, scala213Version),
     // GeneratedAttrMapApplies/GeneratedFromAttributeValueAs are mechanically
     // generated 22-arity overload sets (see CLAUDE.md) — each overload is
     // structurally identical to ones already exercised, so per-arity coverage
@@ -84,8 +71,7 @@ lazy val aws = (project in file("aws"))
   .dependsOn(core)
   .settings(
     name               := "zio-dynamodb-aws",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "software.amazon.awssdk" % "dynamodb"         % awsSdkVersion,
       "software.amazon.awssdk" % "netty-nio-client" % awsSdkVersion % Test,
@@ -99,8 +85,7 @@ lazy val schemaDynamodb = (project in file("schema-dynamodb"))
   .dependsOn(core)
   .settings(
     name               := "zio-dynamodb-blocks-schema",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     Compile / unmanagedSourceDirectories ++= {
       val base = (Compile / sourceDirectory).value
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -130,8 +115,7 @@ lazy val zioInterpreter = (project in file("zio"))
   .dependsOn(aws)
   .settings(
     name               := "zio-dynamodb-zio",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"          % zioVersion,
       "dev.zio" %% "zio-streams"  % zioVersion % Test,
@@ -145,8 +129,7 @@ lazy val schemaDdbExpr = (project in file("schema-ddbexpr"))
   .dependsOn(schemaDynamodb)
   .settings(
     name               := "zio-dynamodb-schema-ddbexpr",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % zioVersion        % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion        % Test,
@@ -159,8 +142,7 @@ lazy val futureInterpreter = (project in file("future"))
   .dependsOn(aws)
   .settings(
     name               := "zio-dynamodb-future",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test
@@ -172,8 +154,7 @@ lazy val ceInterpreter = (project in file("ce"))
   .dependsOn(aws, schemaDdbExpr % Test)
   .settings(
     name               := "zio-dynamodb-ce",
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
-    crossPublishName,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "org.typelevel"         %% "cats-effect"       % catsEffectVersion,
       "org.typelevel"         %% "munit-cats-effect" % "2.0.0"       % Test,
@@ -190,7 +171,7 @@ lazy val it = (project in file("it"))
     name                     := "zio-dynamodb-it",
     publish / skip           := true,
     coverageEnabled          := false,
-    crossScalaVersions       := Seq(scala3Version, scala213Version, scala39Version),
+    crossScalaVersions       := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"         % zioVersion,
       "dev.zio"               %% "zio-test-sbt"     % zioVersion,
@@ -224,7 +205,7 @@ lazy val examples = (project in file("examples"))
     name               := "zio-dynamodb-examples",
     publish / skip     := true,
     coverageEnabled    := false,
-    crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
+    crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-streams"  % zioVersion,
       "co.fs2"  %% "fs2-core"     % fs2Version, // Cats Effect streaming example
