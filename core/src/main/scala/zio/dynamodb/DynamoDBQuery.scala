@@ -1082,10 +1082,12 @@ object DynamoDBQuery {
   // doesn't admit anything unsound; runAny unwraps each item to its real Write/ConditionCheck
   // leaf regardless of what In each one carries.
   /**
-   * Writes atomically: every item succeeds, or the effect fails with
-   * [[DynamoDBError.TransactionError.TransactionCancelled]], one reason per item. Takes Low-Level
-   * and High-Level puts, updates, deletes and `conditionCheck`s. zio-dynamodb doesn't retry
-   * transactions; see `.withClientRequestToken` for making a retry safe.
+   * Writes atomically: every item succeeds, or DynamoDB cancels the transaction and the effect
+   * fails with [[DynamoDBError.TransactionError.TransactionCancelled]], one reason per item. An
+   * invalid transaction (not 1 to 100 items, an item it can't hold, a write with `.returning`)
+   * fails with [[DynamoDBError.TransactionError.TransactionValidationError]] before it is sent.
+   * Takes Low-Level and High-Level puts, updates, deletes and `conditionCheck`s. zio-dynamodb
+   * doesn't retry transactions; see `.withClientRequestToken` for making a retry safe.
    */
   def transactWriteItems(items: DynamoDBQuery[_, _]*): DynamoDBQuery[Any, Unit] =
     TransactWriteItems(Chunk.fromIterable(items.map(_.asInstanceOf[DynamoDBQuery[Any, Any]])))
