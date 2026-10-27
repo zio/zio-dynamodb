@@ -206,11 +206,22 @@ lazy val benchmarks = (project in file("benchmarks"))
     fork            := true,
     coverageEnabled := false,
     libraryDependencies ++= Seq(
-      "dev.zio"       %% "zio-dynamodb"  % "1.0.0-RC24",
       "org.systemfw"  %% "dynosaur-core" % "0.7.1",
       "org.scanamo"   %% "scanamo"       % "7.0.0",
       "org.typelevel" %% "cats-effect"   % catsEffectVersion
     )
+  )
+
+// zio-dynamodb 2.x defines the same `zio.dynamodb` classes as 3.x (e.g. `AttributeValue`), so its
+// codec benchmark lives here, with no `dependsOn` on any 3.x module and so no shared classpath.
+lazy val benchmarksZd2 = (project in file("benchmarks-zd2"))
+  .enablePlugins(JmhPlugin)
+  .settings(
+    name                             := "zio-dynamodb-benchmarks-zd2",
+    publish / skip                   := true,
+    fork                             := true,
+    coverageEnabled                  := false,
+    libraryDependencies += "dev.zio" %% "zio-dynamodb" % "1.0.0-RC24"
   )
 
 lazy val examples = (project in file("examples"))
