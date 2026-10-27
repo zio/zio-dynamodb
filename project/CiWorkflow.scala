@@ -53,10 +53,11 @@ object CiWorkflow {
     )
   }
 
-  // `benchmarks` sits outside root's aggregate, so the Test and Build jobs never compile it, and
-  // the plugin's Build job is `continue-on-error`, so a step added there can't fail CI. This job
-  // reuses the Build job's setup steps (everything before its own check steps) and compiles the
-  // JMH sources; the `ci` gate waits on every job in `ciBuildJobs`, so a failure here fails it.
+  // `benchmarks` and `benchmarksZd2` sit outside root's aggregate, so the Test and Build jobs never
+  // compile them, and the plugin's Build job is `continue-on-error`, so a step added there can't
+  // fail CI. This job reuses the Build job's setup steps (everything before its own check steps)
+  // and compiles the JMH sources; the `ci` gate waits on every job in `ciBuildJobs`, so a failure
+  // here fails it.
   lazy val benchmarks: Def.Initialize[Job] = Def.setting {
     val build      = buildJobs.value.head
     val checkSteps =
@@ -66,7 +67,10 @@ object CiWorkflow {
       name = "Benchmarks",
       continueOnError = false,
       steps = build.steps.dropRight(checkSteps.size) :+
-        SingleStep(name = "Check benchmarks compile", run = Some("sbt --no-colors benchmarks/Jmh/compile"))
+        SingleStep(
+          name = "Check benchmarks compile",
+          run = Some("sbt --no-colors benchmarks/Jmh/compile benchmarksZd2/Jmh/compile")
+        )
     )
   }
 }

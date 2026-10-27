@@ -25,11 +25,11 @@ import org.scanamo.DynamoReadError.describe
 import org.scanamo.{ DynamoValue => ScanamoValue }
 import zio.blocks.schema.Schema
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
-import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
 
 /**
- * Codec encode/decode throughput comparison across four libraries:
- * zio-blocks (this library), zio-schema, Dynosaur, and Scanamo.
+ * Codec encode/decode throughput comparison across three libraries:
+ * zio-blocks (this library), Dynosaur, and Scanamo. The zio-dynamodb 2.x (zio-schema)
+ * equivalent is `ZioDynamoDB2CodecBenchmarks` in the `benchmarksZd2` module.
  *
  * Measures `reading` (decode) and `writing` (encode) of a `List[Person]`
  * of varying length, exercising each library's codec on the same data.
@@ -59,7 +59,6 @@ class DynamoDBCodecBenchmarks extends BaseBenchmark {
   var size: Int                                              = 1
   var listOfRecords: List[Person]                            = uninitialized
   var encodedListOfRecordsForBlocks: List[AttributeValue]    = uninitialized
-  var encodedListOfRecordsForZioSchema: List[AttributeValue] = uninitialized
   var encodedListOfRecordsForDynosaur: List[DynosaurValue]   = uninitialized
   var encodedListOfRecordsForScanamo: List[ScanamoValue]     = uninitialized
 
@@ -82,7 +81,6 @@ class DynamoDBCodecBenchmarks extends BaseBenchmark {
       .toList
 
     encodedListOfRecordsForBlocks = listOfRecords.map(zioBlocksCodec.encoder(_))
-    encodedListOfRecordsForZioSchema = listOfRecords.map(zioSchemaEncoder(_))
     encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
       DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
     }
@@ -110,15 +108,6 @@ class DynamoDBCodecBenchmarks extends BaseBenchmark {
     )
 
   @Benchmark
-  def readingZioSchema: List[Person] =
-    encodedListOfRecordsForZioSchema.map(av =>
-      zioSchemaDecoder(av) match {
-        case Right(value) => value
-        case Left(error)  => sys.error(error.getMessage)
-      }
-    )
-
-  @Benchmark
   def readingZioBlocks: List[Person] =
     encodedListOfRecordsForBlocks.map { av =>
       zioBlocksCodec.decoder(av) match {
@@ -134,9 +123,6 @@ class DynamoDBCodecBenchmarks extends BaseBenchmark {
   def writingDynosaur: Seq[Either[WriteError, DynosaurValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
   @Benchmark
-  def writingZioSchema: Seq[AttributeValue] = listOfRecords.map(zioSchemaEncoder(_))
-
-  @Benchmark
   def writingZioBlocks: Seq[AttributeValue] = listOfRecords.map(zioBlocksCodec.encoder(_))
 
 }
@@ -147,21 +133,17 @@ object BenchmarkDomain {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod
     object CreditCard {
       implicit val schema: Schema[CreditCard]       = Schema.derived
-      implicit val zioSchema: ZIOSchema[CreditCard] = DeriveSchema.gen[CreditCard]
     }
     final case class DebitCard(number: String, cvv: String) extends PaymentMethod
     object DebitCard  {
       implicit val schema: Schema[DebitCard]       = Schema.derived
-      implicit val zioSchema: ZIOSchema[DebitCard] = DeriveSchema.gen[DebitCard]
     }
     final case class PayPal(email: String) extends PaymentMethod
     object PayPal     {
       implicit val schema: Schema[PayPal]       = Schema.derived
-      implicit val zioSchema: ZIOSchema[PayPal] = DeriveSchema.gen[PayPal]
     }
 
     implicit val schema: Schema[PaymentMethod]       = Schema.derived
-    implicit val zioSchema: ZIOSchema[PaymentMethod] = DeriveSchema.gen[PaymentMethod]
   }
 
   sealed trait TrafficLight
@@ -186,10 +168,6 @@ object BenchmarkDomain {
   object Person       {
     implicit val blocksSchema: Schema[Person] = Schema.derived
   }
-  val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
-
-  val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
-  val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
   val zioBlocksCodec: DynamoDBCodec[Person] = Schema.derived.deriving(DynamoDBCodecDeriver).derive
 
