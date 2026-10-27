@@ -22,6 +22,10 @@ import Utils.ListUtils
 
 import java.util.{ HashMap => JHashMap }
 
+/**
+ * A DynamoDB item or key - attribute name to [[AttributeValue]] - aliased as `Item` and
+ * `PrimaryKey`. Build one with `Item("id" -> 1, "name" -> "John")`.
+ */
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
   def toAttributeValue: AttributeValue =
@@ -40,31 +44,34 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
 
   def +(t: (String, AttributeValue)): AttrMap = AttrMap(map + t)
 
+  /** `Left` when the field is missing or doesn't decode as `A`. */
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[DecodingError, A] =
     map
       .get(field)
       .toRight(DecodingError(s"field '$field' not found"))
       .flatMap(ev.fromAttributeValue)
 
+  /** `None` when the field is missing or doesn't decode as `A` - use [[get]] to tell them apart. */
   def getOption[A](field: String)(implicit ev: FromAttributeValue[A]): Option[A] =
     get(field).toOption
 
+  /** Decodes the nested map at `field` with `f`. */
   def getItem[A](field: String)(f: AttrMap => Either[DecodingError, A]): Either[DecodingError, A] =
     get[Item](field).flatMap(item => f(item))
 
-  // convenience method so that user does not have to transform between an Option and an Either
+  /** Like [[getItem]], but `Right(None)` when the field is missing or isn't a map. */
   def getOptionalItem[A](
     field: String
   )(f: AttrMap => Either[DecodingError, A]): Either[ItemError, Option[A]] =
     getOption[Item](field).fold[Either[ItemError, Option[A]]](Right(None))(item => f(item).map(Some(_)))
 
-  // convenience method so that user does not have to transform between a List and an Either
+  /** Decodes each map in the list at `field` with `f`. */
   def getIterableItem[A](
     field: String
   )(f: AttrMap => Either[DecodingError, A]): Either[ItemError, Iterable[A]] =
     get[Iterable[Item]](field).flatMap[DecodingError, Iterable[A]](xs => xs.forEach(f))
 
-  // convenience method so that user does not have to transform between an Option, List and an Either
+  /** Like [[getIterableItem]], but `Right(None)` when the field is missing or isn't a list of maps. */
   def getOptionalIterableItem[A](
     field: String
   )(f: AttrMap => Either[DecodingError, A]): Either[ItemError, Option[Iterable[A]]] = {

@@ -52,14 +52,16 @@ object DynamoDBError {
   sealed trait ScanError extends DynamoDBError
 
   object ScanError {
+
+    /** An invalid `.segment(index, total)`: `total` below 1, or `index` outside `[0, total)`. */
     final case class ScanValidationError(message: String) extends ScanError
   }
 
   /**
-   * Raised for a query built wrong: a modifier applied to an operation it doesn't affect (e.g.
-   * `.where` on a `scan`, `.consistency` on a `putItem`), a `query` with no `.whereKey`, or a
-   * query that can't go in a batch. The query still builds; the error is raised when it's run,
-   * before any request is sent.
+   * Raised for an incorrectly built query: a modifier applied to an operation it doesn't affect
+   * (e.g. `.where` on a `scan`, `.consistency` on a `putItem`), a `query` with no `.whereKey`, a
+   * query that can't go in a batch, or an invalid `$` path or key name. The query still builds;
+   * the error is raised when it's run, before any request is sent.
    */
   sealed trait QueryBuilderError extends DynamoDBError
 
@@ -74,6 +76,10 @@ object DynamoDBError {
 
   object TransactionError {
 
+    /**
+     * A transaction rejected before it is sent: not 1 to 100 items, an item type it can't hold, a
+     * write asking for `.returning`, or a `conditionCheck` run on its own.
+     */
     final case class TransactionValidationError(message: String) extends TransactionError
 
     /**

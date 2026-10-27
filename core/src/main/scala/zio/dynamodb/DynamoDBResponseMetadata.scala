@@ -32,7 +32,7 @@ final case class Capacity(
 /**
  * Consumed capacity reported by AWS for a single DynamoDB operation. All fields
  *  are optional; they are only populated when [[ReturnConsumedCapacity]] is set
- *  on the request, which [[InterceptingAwsDynamoDB]] does automatically.
+ *  on the request, which an interpreter with a response interceptor does automatically.
  *  `localSecondaryIndexes` and `globalSecondaryIndexes` are keyed by index name
  *  and are empty maps when no index capacity was consumed or reported.
  */
@@ -56,7 +56,7 @@ final case class ItemCollectionMetrics(
 /**
  * Primary key extracted from the originating request. Populated for GetItem,
  *  UpdateItem, and DeleteItem (where the key is an explicit request field).
- *  `primaryKey` is [[None]] for PutItem because the key fields are embedded in
+ *  `primaryKey` is `None` for PutItem because the key fields are embedded in
  *  the full item map and cannot be separated without table schema knowledge.
  */
 final case class CorrelationContext(primaryKey: Option[PrimaryKey])

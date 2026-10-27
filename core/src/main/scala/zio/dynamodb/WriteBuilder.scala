@@ -65,8 +65,13 @@ final class ItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteBuilder[In, Out](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]              =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op] =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
+
+  /**
+   * Executes to the item DynamoDB returns (`None` when it returns none) instead of `Unit`; which
+   * `ReturnValues` the operation accepts is checked at compile time - see [[ItemReturnValues]].
+   */
   def returning[R <: ReturnValues](rv: R)(implicit
     valid: ItemReturnValues[Op, R]
   ): ItemWriteBuilder[In, Option[Item], Op]                                                     =
@@ -88,10 +93,12 @@ final class ConditionalItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends ConditionalWriteBuilder[In, Out](write0, finish0) {
-  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op]                         =
+  def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op] =
     new ConditionalItemWriteBuilder(write.withCondition(ce), finish)
-  def withoutItemOnConditionFailure: ConditionalItemWriteBuilder[In, Out, Op]                              =
+  def withoutItemOnConditionFailure: ConditionalItemWriteBuilder[In, Out, Op]      =
     new ConditionalItemWriteBuilder(WriteBuilder.withoutItemOnConditionFailure(write), finish)
+
+  /** See [[ItemWriteBuilder.returning]]. */
   def returning[R <: ReturnValues](rv: R)(implicit
     valid: ItemReturnValues[Op, R]
   ): ConditionalItemWriteBuilder[In, Option[Item], Op]                                                     =
