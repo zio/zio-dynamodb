@@ -35,8 +35,7 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Resolve
  * replayed by [[toDeriver]]. `@Modifier` annotations on the datatype do the same thing and
  * both are honoured (the deriver merges them).
  *
- * `A` is phantom — present only so `given DynamoDBCodecDeriverConfig[Foo]` resolves per
- * type.
+ * `A` is phantom: it ties a config to the `Table[A]` it configures.
  */
 // TODO: consider moving to DynamoDBCodecDeriver companion object
 final case class DynamoDBCodecDeriverConfig[A](
@@ -60,8 +59,8 @@ final case class DynamoDBCodecDeriverConfig[A](
   instanceOverrides: Vector[(TypeId[Any], DynamoDBCodec[Any])] = Vector.empty
 ) {
 
-  // Cached — this value keys ExprCtx's per-literal codec cache; the default instance is a
-  // shared singleton, so its hash is computed once for the whole process.
+  // Cached — this value keys ExprCtx's per-literal codec cache, so its hash is computed once
+  // per config rather than per lookup.
   override lazy val hashCode: Int = scala.runtime.ScalaRunTime._hashCode(this)
 
   def withFieldNameMapper(m: NameMapper): DynamoDBCodecDeriverConfig[A]          = copy(fieldNameMapper = m)
@@ -101,7 +100,7 @@ final case class DynamoDBCodecDeriverConfig[A](
 
   /** Fold this policy into a `Deriver[DynamoDBCodec]` for `Schema#deriving`. */
   def toDeriver: Deriver[DynamoDBCodec] = {
-    val scalar = DynamoDBCodecDeriver
+    val scalar       = DynamoDBCodecDeriver
       .withFieldNameMapper(fieldNameMapper)
       .withCaseNameMapper(caseNameMapper)
       .withDiscriminatorKind(discriminatorKind)
@@ -116,7 +115,7 @@ final case class DynamoDBCodecDeriverConfig[A](
       .withSchema1ByteSequenceCompatibility(schema1ByteSequenceCompat)
       .withSchema1ByteCompatibility(schema1ByteCompat)
       .withSchema1YearCompatibility(schema1YearCompat)
-      .copy(requireOptionFields = requireOptionFields) // no `withXxx` setter for this one
+      .withRequireOptionFields(requireOptionFields)
     val withTypeMods = typeModifiers.foldLeft(scalar: Deriver[DynamoDBCodec]) { case (d, (typeId, modifier)) =>
       d.withModifier(typeId, modifier)
     }
@@ -152,12 +151,4 @@ final case class DynamoDBCodecDeriverConfig[A](
       d.withInstance[Any](Resolver.Leaf[Any]())(typeId)
     }
   }
-}
-
-object DynamoDBCodecDeriverConfig {
-
-  private val Default: DynamoDBCodecDeriverConfig[Any] = DynamoDBCodecDeriverConfig[Any]()
-
-  implicit def default[A]: DynamoDBCodecDeriverConfig[A] =
-    Default.asInstanceOf[DynamoDBCodecDeriverConfig[A]]
 }
