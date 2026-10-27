@@ -49,6 +49,12 @@ object DummyIO                                   {
  * built by chaining methods on an existing query. Nothing about a `DynamoDBQuery` value runs
  * anything — an interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`, all
  * extending [[AwsInterpreter]]) walks the ADT and issues the real AWS SDK calls.
+ *
+ * Modifiers (`capacity`, `withRetryPolicy`, `indexName`, ...) apply to each leg of a `zipPar`,
+ * except [[withClientRequestToken]], which fails on a whole `zipPar` because a token names a
+ * single transaction. On an operation a modifier doesn't affect, the query fails when run with
+ * [[DynamoDBError.QueryBuilderError.UnsupportedModifier]], naming the modifier and where it
+ * applies - it is never silently dropped.
  */
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -71,7 +77,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, C] =
     self.zipPar(that).map(f.tupled)
 
-  // Same default as a write builder's `.where`: a failed condition returns the existing item.
+  /**
+   * Makes a put / update / delete conditional; `CanWhere` rejects other operations at compile
+   * time. A failed condition fails the effect with [[DynamoDBError.ItemError.ConditionFailed]],
+   * holding the existing item by default, as a write builder's `.where` does.
+   */
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
     withConditionReturningItemOnFailure(conditionExpression)
@@ -134,13 +144,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   /**
-   * Adds a KeyConditionExpr to a DynamoDBQuery. Example:
+   * Sets a query's key condition. Every `query` needs one: without it the query fails when run
+   * with [[DynamoDBError.QueryBuilderError.MissingKeyCondition]].
    * {{{
-   * // high level type safe API where "email" and "subject" keys are defined using ProjectionExpression.accessors[Student]
-   * val newQuery = query.whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths")
-   *
-   * // low level API
-   * val newQuery = query.whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
+   * query("students", limit = 10).whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
    * }}}
    */
   def whereKey[From](keyConditionExpression: KeyConditionExpr[From]): DynamoDBQuery[In, Out] =
@@ -188,9 +195,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         unsupportedModifier("returnValuesOnConditionCheckFailure", "putItem/updateItem/deleteItem/conditionCheck")
     }
 
-  // A token identifies one request to AWS, which treats a repeat as the same request, so it can't
-  // be shared across the legs of a zipPar. Unlike other modifiers it fails on the whole zipPar rather
-  // than per leg: a zip has at least two legs and a token can apply to at most one, so no zip can take it.
+  /**
+   * Makes a `transactWriteItems` idempotent: a repeat with the same token returns the original
+   * result instead of applying the writes again. Unlike other modifiers it fails on a whole
+   * `zipPar`, since a token names a single transaction - set one on each `transactWriteItems`.
+   */
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
       case _: ZipPar[_, _, _]                   =>
@@ -206,6 +215,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                    => unsupportedModifier("withClientRequestToken", "transactWriteItems")
     }
 
+  /**
+   * Retries a failed call (throttling, network errors) under `policy`, overriding the
+   * interpreter's `defaultRetryPolicy`. It doesn't resubmit a batch's unprocessed keys / items -
+   * see [[withBatchUnprocessedRetryPolicy]] - and items inside a transaction reject it. On an
+   * `updateItem`, use it only with idempotent actions (see `DynamoDBQuery.updateItem`).
+   */
   def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {
       case zp @ ZipPar(left, right, zippable)     =>
@@ -391,6 +406,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                    => unsupportedModifier("metrics", "putItem/updateItem/deleteItem/batchWriteItem/transactWriteItems")
     }
 
+  /** Resumes a query / scan after a previous page: pass that page's `lastEvaluatedKey` (`None` starts at the beginning). */
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[In, Out] =
     self match {
       case DynamoDBQuery.ZipPar(left, right, zippable) =>
@@ -415,6 +431,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                => unsupportedModifier("sortOrder", "query")
     }
 
+  /** For a parallel scan: this scan reads segment `index` (0-based) of `total`. */
   def segment(index: Int, total: Int): DynamoDBQuery[In, Out] =
     self match {
       case ZipPar(left, right, zippable)    => ZipPar(left.segment(index, total), right.segment(index, total), zippable)
@@ -426,6 +443,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                => unsupportedModifier("segment", "scan")
     }
 
+  /** Adds a global secondary index with provisioned throughput to a `createTable`. */
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -461,6 +479,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                           => unsupportedModifier("gsi", "createTable")
     }
 
+  /** Adds a global secondary index to a `createTable`; for a pay-per-request table, which takes no throughput. */
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -488,6 +507,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                                           => unsupportedModifier("gsi", "createTable")
     }
 
+  /** Adds a local secondary index to a `createTable`. */
   def lsi(
     indexName: String,
     keySchema: KeySchema,
@@ -591,9 +611,14 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
 
-  // `body`'s type doesn't restrict it to a get, so anything else fails the batch when it runs: a
-  // failed query (e.g. a modifier a get doesn't support) with its own error, any other query with
-  // `UnbatchableQuery`.
+  /**
+   * One `BatchGetItem` with a `getItem` per value. It executes to a [[Batch.GetResult]] -
+   * partial failure is a value, not a failed effect - and resubmits unprocessed keys per the
+   * interpreter's `defaultBatchUnprocessedRetryPolicy`. `body` must return a `getItem`:
+   * anything else fails the batch when it runs, with that query's own error if it already
+   * failed (e.g. an unsupported modifier), otherwise with `UnbatchableQuery`. The batch is sent as
+   * one request, so AWS's limit of 100 keys per call applies; split larger inputs yourself.
+   */
   def batchGetItem[In, A, B](
     values: Iterable[A]
   )(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[Any, Batch.GetResult] =
@@ -612,6 +637,11 @@ object DynamoDBQuery {
       }
     }
 
+  /**
+   * One `BatchWriteItem` with a put or delete per value. It executes to a [[Batch.WriteResult]]
+   * and resubmits unprocessed items, as [[batchGetItem]] does for keys. Sent as one request, so
+   * AWS's limit of 25 writes per call applies.
+   */
   def batchWriteItem[A](values: Iterable[A])(
     body: A => ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]
   ): DynamoDBQuery[Any, Batch.WriteResult] =
@@ -964,6 +994,7 @@ object DynamoDBQuery {
   ): ItemWriteBuilder[Any, Unit, WriteOp.Update] =
     new ItemWriteBuilder(UpdateItem(tableName, key, updateExpression), WriteBuilder.discard)
 
+  /** `None` when there is no item with that key. `projections` limit the attributes returned. */
   def getItem(
     tableName: String,
     key: PrimaryKey,
@@ -974,6 +1005,7 @@ object DynamoDBQuery {
   def deleteItem(tableName: String, key: PrimaryKey): ItemWriteBuilder[Any, Unit, WriteOp.Delete] =
     new ItemWriteBuilder(DeleteItem(tableName, key), WriteBuilder.discard)
 
+  /** Sends `CreateTable` only; it doesn't wait for the table to become active. */
   def createTable(
     tableName: String,
     keySchema: KeySchema,
@@ -1003,6 +1035,10 @@ object DynamoDBQuery {
   def describeTable(tableName: String): DynamoDBQuery[Any, DescribeTableResponse] =
     DescribeTable(tableName)
 
+  /**
+   * One page of results: `limit` is DynamoDB's `Limit` (items evaluated, before any `.filter`).
+   * Read further pages with `.startKey(page.lastEvaluatedKey)`. Needs `.whereKey`.
+   */
   def query(
     tableName: String,
     limit: Int,
@@ -1013,6 +1049,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Page[Item]] =
     Query(tableName, limit, indexName, consistency, exclusiveStartKey, ascending = ascending)
 
+  /** One page of results, read and continued like [[query]]'s. */
   def scan(
     tableName: String,
     limit: Int,
@@ -1036,6 +1073,7 @@ object DynamoDBQuery {
       select
     )
 
+  /** Reads atomically; one `Option` per get, in the order given (`None` where there is no item). */
   def transactGetItems(items: GetItem*): DynamoDBQuery[Any, Chunk[Option[Item]]] =
     TransactGetItems(Chunk.fromIterable(items))
 
@@ -1044,6 +1082,14 @@ object DynamoDBQuery {
   // phantom type in this ADT — nothing at runtime reads it — so widening the declared bound
   // doesn't admit anything unsound; runAny unwraps each item to its real Write/ConditionCheck
   // leaf regardless of what In each one carries.
+  /**
+   * Writes atomically: every item succeeds, or DynamoDB cancels the transaction and the effect
+   * fails with [[DynamoDBError.TransactionError.TransactionCancelled]], one reason per item. An
+   * invalid transaction (not 1 to 100 items, an item it can't hold, a write with `.returning`)
+   * fails with [[DynamoDBError.TransactionError.TransactionValidationError]] before it is sent.
+   * Takes Low-Level and High-Level puts, updates, deletes and `conditionCheck`s. zio-dynamodb
+   * doesn't retry transactions; see `.withClientRequestToken` for making a retry safe.
+   */
   def transactWriteItems(items: DynamoDBQuery[_, _]*): DynamoDBQuery[Any, Unit] =
     TransactWriteItems(Chunk.fromIterable(items.map(_.asInstanceOf[DynamoDBQuery[Any, Any]])))
 

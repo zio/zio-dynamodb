@@ -54,10 +54,11 @@ object RetryPolicy {
 
   /**
    * Full-jitter exponential backoff.
-   *
+   * {{{
    * cap(n)   = min(initialDelay * factor^n, maxDelay)
    * delay(n) = random[0, cap(n)]   when jitter = true (default)
    *          = cap(n)               when jitter = false
+   * }}}
    *
    * `jitter = false` is provided for deterministic tests only.
    */

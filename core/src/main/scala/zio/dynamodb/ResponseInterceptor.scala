@@ -22,8 +22,8 @@ package zio.dynamodb
  *  result, so side effects (logging, metrics, accumulation) are guaranteed to run.
  *
  *  Implementations must be thread-safe when shared across concurrent requests.
- *  Use [[ZioResponseInterceptor.accumulating]], [[CEResponseInterceptor.accumulating]],
- *  or [[FutureResponseInterceptor.accumulating]] for a ready-made accumulator.
+ *  Use `ZioResponseInterceptor.accumulating`, `CEResponseInterceptor.accumulating`,
+ *  or `FutureResponseInterceptor.accumulating` for a ready-made accumulator.
  */
 trait ResponseInterceptor[F[_]] {
 
