@@ -945,7 +945,7 @@ class DynamoDBCodecDeriver private (
     if (binding.isInstanceOf[Binding[?, ?]]) {
       if (typeId.isOption) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new DynamoDBCodec[Option[Any]]() {
+          new DynamoDBCodec[Option[Any]] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[Any]]
 
             override def encoder: Encoder[Option[Any]] = {
