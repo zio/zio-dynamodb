@@ -27,19 +27,21 @@ import zio.dynamodb.{ Decoder, Encoder, FromAttributeValue, Item, ToAttributeVal
  * the Low-Level API's `Item`-shaped operations; the High-Level API (`DdbExprApi`/`dsl`)
  * derives and caches one of these per model type automatically.
  */
-abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
+abstract class DynamoDBCodec[A] {
+
+  private[dynamodb] val valueType: Int = DynamoDBCodec.objectType
 
   def encoder: Encoder[A]
   def decoder: Decoder[A]
 
-  val recordFieldNames: Chunk[String] = Chunk.empty
+  private[dynamodb] val recordFieldNames: Chunk[String] = Chunk.empty
 
   /**
    * Scala field name -> DynamoDB attribute name, for a record-shaped codec. Lets callers
    * resolve an optic's raw field name to the wire name this codec's configuration produced
    * (field-name mapper, `@Modifier.rename`, …). Empty for non-record codecs.
    */
-  val recordFieldNameMap: Map[String, String] = Map.empty
+  private[dynamodb] val recordFieldNameMap: Map[String, String] = Map.empty
 
   /**
    * Encodes `a` directly to an [[Item]] — the bridge between this codec and the LL API's
@@ -67,14 +69,14 @@ abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
 
 /** `valueType` tag constants used internally to dispatch on a field's primitive register type without boxing. */
 object DynamoDBCodec {
-  val objectType  = 0
-  val intType     = 1
-  val booleanType = 2
-  val longType    = 3
-  val byteType    = 4
-  val charType    = 5
-  val shortType   = 6
-  val floatType   = 7
-  val doubleType  = 8
-  val unitType    = 9
+  private[dynamodb] val objectType  = 0
+  private[dynamodb] val intType     = 1
+  private[dynamodb] val booleanType = 2
+  private[dynamodb] val longType    = 3
+  private[dynamodb] val byteType    = 4
+  private[dynamodb] val charType    = 5
+  private[dynamodb] val shortType   = 6
+  private[dynamodb] val floatType   = 7
+  private[dynamodb] val doubleType  = 8
+  private[dynamodb] val unitType    = 9
 }
