@@ -50,8 +50,9 @@ object DummyIO                                   {
  * anything — an interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`, all
  * extending [[AwsInterpreter]]) walks the ADT and issues the real AWS SDK calls.
  *
- * Modifiers (`capacity`, `withRetryPolicy`, `indexName`, ...) apply to each leg of a `zipPar`.
- * On an operation a modifier doesn't affect, the query fails when run with
+ * Modifiers (`capacity`, `withRetryPolicy`, `indexName`, ...) apply to each leg of a `zipPar`,
+ * except [[withClientRequestToken]], which fails on a whole `zipPar` because a token names a
+ * single transaction. On an operation a modifier doesn't affect, the query fails when run with
  * [[DynamoDBError.QueryBuilderError.UnsupportedModifier]], naming the modifier and where it
  * applies - it is never silently dropped.
  */
