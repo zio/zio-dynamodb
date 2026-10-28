@@ -17,46 +17,41 @@
 package zio.dynamodb.blocks.ddbexpr
 
 import java.util.concurrent.ConcurrentHashMap
-import zio.blocks.schema.{ DynamicOptic, Optic, Schema }
-import zio.dynamodb.{ AttributeValue, ProjectionExpression }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.ProjectionResolver
+import zio.blocks.schema.{ DynamicOptic, Optic }
+import zio.dynamodb.blocks.CodecNavigator
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 /**
- * Per-[[Table]] expression-resolution context. `config` and `resolver` are invariant for a
- *  given table, so the object that threads them - and the literal-codec lookups it keys -
- *  is built once here rather than allocated on every `.where` / `.filter` / key-condition
- *  construction. Attribute-name resolution itself is delegated to [[ProjectionResolver]] - a
- *  deriver-produced [[zio.dynamodb.blocks.schema.Resolver]] tree, not a schema-plus-config
- *  re-derivation on every call.
+ * Per-[[Table]] expression-resolution context, built once per table. Resolves an optic against the
+ * table's own codec - the one `put` writes with - so an expression's attribute paths and literal
+ * encodings always match the stored item.
  */
-private[ddbexpr] final class ExprCtx(
-  private[ddbexpr] val config: DynamoDBCodecDeriverConfig[_],
-  private[ddbexpr] val resolver: ProjectionResolver[_]
-) {
+private[ddbexpr] final class ExprCtx(private[ddbexpr] val codec: DynamoDBCodec[_]) {
 
-  // Keyed by CodecCacheKey (identity hash of the Schema + the config's cached hashCode).
-  // Avoids a structural `Schema#hashCode`, which walks the literal's Reflect.
-  private[this] val codecCache = new ConcurrentHashMap[CodecCacheKey, DynamoDBCodec[_]]()
+  // Keyed by DynamicOptic alone: the codec is fixed per table.
+  private[this] val cache = new ConcurrentHashMap[DynamicOptic, Either[String, CodecNavigator.Resolved]]()
 
-  private[ddbexpr] def peOf(optic: Optic[_, _]): Either[String, ProjectionExpression[_, _]] =
-    resolver.resolve(optic.toDynamic)
+  private[ddbexpr] def at(optic: Optic[_, _]): Either[String, CodecNavigator.Resolved] = at(optic.toDynamic)
 
-  private[ddbexpr] def peOf(dyn: DynamicOptic): Either[String, ProjectionExpression[_, _]] =
-    resolver.resolve(dyn)
-
-  private[ddbexpr] def codecOf[A](schema: Schema[A]): DynamoDBCodec[A] = {
-    val key = new CodecCacheKey(schema, config)
-    val hit = codecCache.get(key)
-    if (hit ne null) hit.asInstanceOf[DynamoDBCodec[A]]
+  private[ddbexpr] def at(dyn: DynamicOptic): Either[String, CodecNavigator.Resolved] = {
+    val hit = cache.get(dyn)
+    if (hit ne null) hit
     else {
-      val derived = schema.deriving(config.toDeriver).derive
-      codecCache.putIfAbsent(key, derived)
-      derived.asInstanceOf[DynamoDBCodec[A]]
+      val computed = CodecNavigator.resolve(codec, dyn)
+      cache.putIfAbsent(dyn, computed)
+      computed
     }
   }
 
-  private[ddbexpr] def encode[A](value: A, schema: Schema[A]): AttributeValue =
-    codecOf(schema).encoder(value)
+  // A key optic is a single top-level field: one step on the root codec, which is a prebuilt
+  // lookup, so key conditions skip the cache and allocate nothing.
+  private[ddbexpr] def topLevelField(field: DynamicOptic.Node.Field): Either[String, DynamoDBCodec.Step] =
+    codec.step(field)
+
+  // The codec for an element of the collection at `resolved` - list, set or map values.
+  private[ddbexpr] def elementCodec(resolved: CodecNavigator.Resolved): Either[String, DynamoDBCodec[Any]] =
+    resolved.codec.step(DynamicOptic.Node.Elements) match {
+      case Right(step) => Right(step.codec)
+      case Left(_)     => Left(s"no element codec at '${resolved.path}'")
+    }
 }

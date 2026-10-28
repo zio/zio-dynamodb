@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import zio.blocks.schema.{ Optic, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.ProjectionResolver
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, ProjectionExpression, UpdateExpression }
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, RemoveAction, SetAction }
@@ -51,11 +51,8 @@ private[dynamodb] object DdbUpdateExprInterpreter {
     expr: DdbUpdateExpr[From],
     config: DynamoDBCodecDeriverConfig[From],
     rootReflect: Reflect[Binding, From]
-  ): Action[From] = {
-    val root     = new Schema(rootReflect).deriving(config.toResolverDeriver).derive
-    val resolver = new ProjectionResolver(root)
-    interp(expr, new ExprCtx(config, resolver))
-  }
+  ): Action[From] =
+    interp(expr, new ExprCtx(new Schema(rootReflect).deriving(config.toDeriver).derive))
 
   private def interp[From](expr: DdbUpdateExpr[From], ctx: ExprCtx): Action[From] =
     flatten(expr).map(leaf(_, ctx)) match {
@@ -71,55 +68,57 @@ private[dynamodb] object DdbUpdateExprInterpreter {
     }
 
   private def leaf[From](e: DdbUpdateExpr[From], ctx: ExprCtx): UpdateExpression.RenderableAction[From] = {
-    def peA[A](optic: Optic[_, _]): Either[String, ProjectionExpression[From, A]] =
-      ctx.peOf(optic).map(_.asInstanceOf[ProjectionExpression[From, A]])
+    // The attribute path and the codec that writes that position, from one lookup on the table's codec.
+    def at[A](
+      optic: Optic[_, _]
+    )(f: (ProjectionExpression[From, A], DynamoDBCodec[Any]) => UpdateExpression.RenderableAction[From]) =
+      ctx.at(optic) match {
+        case Right(r)  => f(r.path.asInstanceOf[ProjectionExpression[From, A]], r.codec)
+        case Left(msg) => Action.Failure[From](msg)
+      }
+    def items[A](
+      optic: Optic[_, _]
+    )(f: (ProjectionExpression[From, A], DynamoDBCodec[Any]) => UpdateExpression.RenderableAction[From]) =
+      ctx.at(optic).flatMap(r => ctx.elementCodec(r).map(c => (r, c))) match {
+        case Right((r, elem)) => f(r.path.asInstanceOf[ProjectionExpression[From, A]], elem)
+        case Left(msg)        => Action.Failure[From](msg)
+      }
 
     e match {
-      case DdbUpdateExpr.SetValue(optic, value, schema)   =>
-        peA(optic).fold(Action.Failure(_), p => SetAction(p, SetOperand.ValueOperand(ctx.encode(value, schema))))
-      case DdbUpdateExpr.SetPath(optic, other)            =>
-        (peA(optic), peA(other)) match {
-          case (Right(p), Right(op)) => SetAction(p, SetOperand.PathOperand(op))
+      case DdbUpdateExpr.SetValue(optic, value, _)   =>
+        at(optic)((p, c) => SetAction(p, SetOperand.ValueOperand(c.encoder(value))))
+      case DdbUpdateExpr.SetPath(optic, other)       =>
+        (ctx.at(optic), ctx.at(other)) match {
+          case (Right(p), Right(op)) =>
+            SetAction(
+              p.path.asInstanceOf[ProjectionExpression[From, Any]],
+              SetOperand.PathOperand(op.path.asInstanceOf[ProjectionExpression[From, Any]])
+            )
           case (Left(msg), _)        => Action.Failure(msg)
           case (_, Left(msg))        => Action.Failure(msg)
         }
-      case DdbUpdateExpr.SetIfNotExists(optic, v, schema) =>
-        peA(optic).fold(Action.Failure(_), p => SetAction(p, SetOperand.IfNotExists(p, ctx.encode(v, schema))))
-      case DdbUpdateExpr.Remove(optic)                    =>
-        peA(optic).fold(Action.Failure(_), p => RemoveAction(p))
-      case DdbUpdateExpr.RemoveAt(optic, index)           =>
-        peA(optic).fold(Action.Failure(_), p => RemoveAction(ProjectionExpression.ListElement(p, index)))
-      case DdbUpdateExpr.Increment(optic, delta, schema)  =>
-        peA(optic).fold(
-          Action.Failure(_),
-          p => SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand(ctx.encode(delta, schema)))
-        )
-      case DdbUpdateExpr.Decrement(optic, delta, schema)  =>
-        peA(optic).fold(
-          Action.Failure(_),
-          p => SetAction(p, SetOperand.PathOperand(p) - SetOperand.ValueOperand(ctx.encode(delta, schema)))
-        )
-      case DdbUpdateExpr.Add(optic, value, schema)        =>
-        peA(optic).fold(Action.Failure(_), p => AddAction(p, ctx.encode(value, schema)))
-      case DdbUpdateExpr.AddToSet(optic, value, schema)   =>
-        peA(optic).fold(Action.Failure(_), p => AddAction(p, ctx.encode(value, schema)))
-      case DdbUpdateExpr.DeleteFromSet(optic, v, schema)  =>
-        peA(optic).fold(Action.Failure(_), p => DeleteAction(p, ctx.encode(v, schema)))
-      case DdbUpdateExpr.AppendList(optic, items, es)     =>
-        peA(optic).fold(
-          Action.Failure(_),
-          p => SetAction(p, SetOperand.ListAppend(p, AttributeValue.List(encodeAll(items, es, ctx))))
-        )
-      case DdbUpdateExpr.PrependList(optic, items, es)    =>
-        peA(optic).fold(
-          Action.Failure(_),
-          p => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(encodeAll(items, es, ctx))))
-        )
-      case _: DdbUpdateExpr.Combine[From]                 =>
+      case DdbUpdateExpr.SetIfNotExists(optic, v, _) =>
+        at(optic)((p, c) => SetAction(p, SetOperand.IfNotExists(p, c.encoder(v))))
+      case DdbUpdateExpr.Remove(optic)               =>
+        at(optic)((p, _) => RemoveAction(p))
+      case DdbUpdateExpr.RemoveAt(optic, index)      =>
+        at(optic)((p, _) => RemoveAction(ProjectionExpression.ListElement(p, index)))
+      case DdbUpdateExpr.Increment(optic, delta, _)  =>
+        at(optic)((p, c) => SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand(c.encoder(delta))))
+      case DdbUpdateExpr.Decrement(optic, delta, _)  =>
+        at(optic)((p, c) => SetAction(p, SetOperand.PathOperand(p) - SetOperand.ValueOperand(c.encoder(delta))))
+      case DdbUpdateExpr.Add(optic, value, _)        =>
+        at(optic)((p, c) => AddAction(p, c.encoder(value)))
+      case DdbUpdateExpr.AddToSet(optic, value, _)   =>
+        at(optic)((p, c) => AddAction(p, c.encoder(value)))
+      case DdbUpdateExpr.DeleteFromSet(optic, v, _)  =>
+        at(optic)((p, c) => DeleteAction(p, c.encoder(v)))
+      case DdbUpdateExpr.AppendList(optic, xs, _)    =>
+        items(optic)((p, c) => SetAction(p, SetOperand.ListAppend(p, AttributeValue.List(xs.map(c.encoder).toList))))
+      case DdbUpdateExpr.PrependList(optic, xs, _)   =>
+        items(optic)((p, c) => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(xs.map(c.encoder).toList))))
+      case _: DdbUpdateExpr.Combine[From]            =>
         Action.Failure("internal: unflattened Combine") // unreachable — flatten strips Combine nodes
     }
   }
-
-  private def encodeAll[B](items: Seq[B], schema: Schema[B], ctx: ExprCtx): List[AttributeValue] =
-    items.map(i => ctx.encode(i, schema)).toList
 }

@@ -19,8 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import zio.blocks.schema.{ DynamicSchemaExpr, DynamicValue, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.ProjectionResolver
-import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression }
 
 /**
@@ -49,11 +48,8 @@ private[dynamodb] object DdbExprInterpreter {
     expr: DdbExpr[S, Boolean],
     config: DynamoDBCodecDeriverConfig[S],
     rootReflect: Reflect[Binding, S]
-  ): Either[String, ConditionExpression[S]] = {
-    val root     = new Schema(rootReflect).deriving(config.toResolverDeriver).derive
-    val resolver = new ProjectionResolver(root)
-    interp[S](expr, new ExprCtx(config, resolver))
-  }
+  ): Either[String, ConditionExpression[S]] =
+    interp[S](expr, new ExprCtx(new Schema(rootReflect).deriving(config.toDeriver).derive))
 
   private def interp[S](expr: DdbExpr[S, Boolean], ctx: ExprCtx): Either[String, ConditionExpression[S]] =
     expr match {
@@ -71,40 +67,45 @@ private[dynamodb] object DdbExprInterpreter {
         interp(inner, ctx).map(ConditionExpression.Not(_))
 
       case DdbExpr.AttributeExists(optic) =>
-        ctx.peOf(optic).map(p => ConditionExpression.AttributeExists(p.asInstanceOf[ProjectionExpression[S, Any]]))
+        ctx.at(optic).map(r => ConditionExpression.AttributeExists(r.path.asInstanceOf[ProjectionExpression[S, Any]]))
 
       case DdbExpr.AttributeNotExists(optic) =>
-        ctx.peOf(optic).map(p => ConditionExpression.AttributeNotExists(p.asInstanceOf[ProjectionExpression[S, Any]]))
+        ctx
+          .at(optic)
+          .map(r => ConditionExpression.AttributeNotExists(r.path.asInstanceOf[ProjectionExpression[S, Any]]))
 
-      case DdbExpr.Between(optic, lo, hi, schema) =>
-        ctx.peOf(optic).map { p =>
+      case DdbExpr.Between(optic, lo, hi, _) =>
+        ctx.at(optic).map { r =>
           ConditionExpression.Between(
-            ConditionExpression.Operand.ProjectionExpressionOperand(p.asInstanceOf[ProjectionExpression[S, Any]]),
-            ctx.encode(lo, schema),
-            ctx.encode(hi, schema)
+            ConditionExpression.Operand.ProjectionExpressionOperand(r.path.asInstanceOf[ProjectionExpression[S, Any]]),
+            r.codec.encoder(lo),
+            r.codec.encoder(hi)
           )
         }
 
-      case DdbExpr.In(optic, values, schema) =>
-        ctx.peOf(optic).map { p =>
+      case DdbExpr.In(optic, values, _) =>
+        ctx.at(optic).map { r =>
           ConditionExpression.In(
-            ConditionExpression.Operand.ProjectionExpressionOperand(p.asInstanceOf[ProjectionExpression[S, Any]]),
-            values.map(v => ctx.encode(v, schema)).toSet
+            ConditionExpression.Operand.ProjectionExpressionOperand(r.path.asInstanceOf[ProjectionExpression[S, Any]]),
+            values.map(v => r.codec.encoder(v)).toSet
           )
         }
 
       case DdbExpr.BeginsWith(optic, prefix) =>
-        ctx.peOf(optic).map { p =>
+        ctx.at(optic).map { r =>
+          val p = r.path
           ConditionExpression.BeginsWith(p.asInstanceOf[ProjectionExpression[S, Any]], AttributeValue.String(prefix))
         }
 
       case DdbExpr.Contains(optic, value) =>
-        ctx.peOf(optic).map { p =>
+        ctx.at(optic).map { r =>
+          val p = r.path
           ConditionExpression.Contains(p.asInstanceOf[ProjectionExpression[S, Any]], AttributeValue.String(value))
         }
 
       case DdbExpr.SizeCompare(optic, op, value) =>
-        ctx.peOf(optic).map { p =>
+        ctx.at(optic).map { r =>
+          val p = r.path
           toRelational[S](
             ConditionExpression.Operand.Size(p.asInstanceOf[ProjectionExpression[S, Any]]),
             ConditionExpression.Operand.ValueOperand[S](AttributeValue.Number(BigDecimal(value))),
@@ -113,7 +114,8 @@ private[dynamodb] object DdbExprInterpreter {
         }
 
       case DdbExpr.SizeBetween(optic, lo, hi) =>
-        ctx.peOf(optic).map { p =>
+        ctx.at(optic).map { r =>
+          val p = r.path
           ConditionExpression.Between(
             ConditionExpression.Operand.Size(p.asInstanceOf[ProjectionExpression[S, Any]]),
             AttributeValue.Number(BigDecimal(lo)),
@@ -122,12 +124,13 @@ private[dynamodb] object DdbExprInterpreter {
         }
 
       case elem: DdbExpr.ContainsElement[S, _, b] =>
-        ctx.peOf(elem.optic).map { p =>
-          ConditionExpression.Contains(
-            p.asInstanceOf[ProjectionExpression[S, Any]],
-            ctx.encode[b](elem.element, elem.elemSchema)
-          )
-        }
+        for {
+          r     <- ctx.at(elem.optic)
+          codec <- ctx.elementCodec(r)
+        } yield ConditionExpression.Contains(
+          r.path.asInstanceOf[ProjectionExpression[S, Any]],
+          codec.encoder(elem.element)
+        )
     }
 
   private def toRelational[A](
@@ -153,26 +156,26 @@ private[dynamodb] object DdbExprInterpreter {
             DynamicSchemaExpr.Literal(dynValue, schema),
             op
           ) =>
-        ctx.peOf(path) match {
+        ctx.at(path) match {
           case Left(msg) => ConditionExpression.Failure(msg)
-          case Right(p)  =>
+          case Right(r)  =>
             val peOpd  = ConditionExpression.Operand
-              .ProjectionExpressionOperand[A](p.asInstanceOf[ProjectionExpression[A, Any]])
+              .ProjectionExpressionOperand[A](r.path.asInstanceOf[ProjectionExpression[A, Any]])
             val valOpd = ConditionExpression.Operand
-              .ValueOperand[A](encodeFromSchema(dynValue, schema, ctx))
+              .ValueOperand[A](encodeFromSchema(dynValue, schema, r.codec))
             toRelational[A](peOpd, valOpd, op)
         }
 
       case DynamicSchemaExpr.Relational(DynamicSchemaExpr.Select(l), DynamicSchemaExpr.Select(r), op) =>
-        (ctx.peOf(l), ctx.peOf(r)) match {
-          case (Right(lpe), Right(rpe)) =>
+        (ctx.at(l), ctx.at(r)) match {
+          case (Right(lr), Right(rr)) =>
             val lOpd = ConditionExpression.Operand
-              .ProjectionExpressionOperand[A](lpe.asInstanceOf[ProjectionExpression[A, Any]])
+              .ProjectionExpressionOperand[A](lr.path.asInstanceOf[ProjectionExpression[A, Any]])
             val rOpd = ConditionExpression.Operand
-              .ProjectionExpressionOperand[A](rpe.asInstanceOf[ProjectionExpression[A, Any]])
+              .ProjectionExpressionOperand[A](rr.path.asInstanceOf[ProjectionExpression[A, Any]])
             toRelational[A](lOpd, rOpd, op)
-          case (Left(msg), _)           => ConditionExpression.Failure(msg)
-          case (_, Left(msg))           => ConditionExpression.Failure(msg)
+          case (Left(msg), _)         => ConditionExpression.Failure(msg)
+          case (_, Left(msg))         => ConditionExpression.Failure(msg)
         }
 
       case DynamicSchemaExpr.Logical(left, right, op) =>
@@ -190,12 +193,9 @@ private[dynamodb] object DdbExprInterpreter {
         ConditionExpression.Failure(s"unexpected DynamicSchemaExpr: $other")
     }
 
-  private def encodeFromSchema(dv: DynamicValue, schema: Schema[_], ctx: ExprCtx): AttributeValue = {
-    val s = schema.asInstanceOf[Schema[Any]]
-    s.fromDynamicValue(dv)
-      .fold(
-        _ => DynamoDBCodecDeriver.dynamicValueCodec.encoder(dv),
-        a => ctx.encode[Any](a, s)
-      )
-  }
+  private def encodeFromSchema(dv: DynamicValue, schema: Schema[_], codec: DynamoDBCodec[Any]): AttributeValue =
+    schema
+      .asInstanceOf[Schema[Any]]
+      .fromDynamicValue(dv)
+      .fold(_ => DynamoDBCodecDeriver.dynamicValueCodec.encoder(dv), codec.encoder(_))
 }

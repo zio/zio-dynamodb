@@ -101,14 +101,6 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
   private def navigate(codec: DynamoDBCodec[_], optic: Optic[_, _]): Either[String, String] =
     CodecNavigator.resolve(codec, optic.toDynamic).map(_.path.toString)
 
-  private def resolver[A](
-    schema: Schema[A],
-    cfg: DynamoDBCodecDeriverConfig[A]
-  ): Optic[_, _] => Either[String, String] = {
-    val r = new ProjectionResolver(schema.deriving(cfg.toResolverDeriver).derive)
-    optic => r.resolve(optic.toDynamic).map(_.toString)
-  }
-
   private val parityPaths: List[Optic[Order, ?]] = List(
     Order.id,
     Order.customerName,
@@ -126,16 +118,97 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
   private val orderTypeId   = Schema[Order].reflect.typeId
   private val addressTypeId = Schema[Address].reflect.typeId
 
-  private val configs: List[(String, DynamoDBCodecDeriverConfig[Order])] = List(
-    "default"              -> DynamoDBCodecDeriverConfig[Order](),
-    "snake case fields"    -> DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase),
-    "kebab fields + cases" -> DynamoDBCodecDeriverConfig[Order]()
-      .withFieldNameMapper(NameMapper.KebabCase)
-      .withCaseNameMapper(NameMapper.KebabCase),
-    "type-keyed renames"   -> DynamoDBCodecDeriverConfig[Order]()
-      .withModifier(addressTypeId, "street", Modifier.rename("road"))
-      .withModifier(orderTypeId, "delivery", Modifier.rename("dlv")),
-    "Field discriminator"  -> DynamoDBCodecDeriverConfig[Order]().withDiscriminatorKind(DiscriminatorKind.Field("type"))
+  // Expected paths, in `parityPaths` order: what each configured codec writes.
+  private val configs: List[(String, DynamoDBCodecDeriverConfig[Order], List[String])] = List(
+    (
+      "default",
+      DynamoDBCodecDeriverConfig[Order](),
+      List(
+        "id",
+        "customerName",
+        "delivery",
+        "delivery.Courier",
+        "delivery.Courier.address.street",
+        "delivery.Courier.address.geo.lat",
+        "delivery.Pickup.lockerId",
+        "alt.street",
+        "lines[1].qty",
+        "lines[0].sku",
+        "places.home.street"
+      )
+    ),
+    (
+      "snake case fields",
+      DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase),
+      List(
+        "id",
+        "customer_name",
+        "delivery",
+        "delivery.Courier",
+        "delivery.Courier.address.street",
+        "delivery.Courier.address.geo.lat",
+        "delivery.Pickup.locker_id",
+        "alt.street",
+        "lines[1].qty",
+        "lines[0].sku",
+        "places.home.street"
+      )
+    ),
+    (
+      "kebab fields + cases",
+      DynamoDBCodecDeriverConfig[Order]()
+        .withFieldNameMapper(NameMapper.KebabCase)
+        .withCaseNameMapper(NameMapper.KebabCase),
+      List(
+        "id",
+        "customer-name",
+        "delivery",
+        "delivery.courier",
+        "delivery.courier.address.street",
+        "delivery.courier.address.geo.lat",
+        "delivery.pickup.locker-id",
+        "alt.street",
+        "lines[1].qty",
+        "lines[0].sku",
+        "places.home.street"
+      )
+    ),
+    (
+      "type-keyed renames",
+      DynamoDBCodecDeriverConfig[Order]()
+        .withModifier(addressTypeId, "street", Modifier.rename("road"))
+        .withModifier(orderTypeId, "delivery", Modifier.rename("dlv")),
+      List(
+        "id",
+        "customerName",
+        "dlv",
+        "dlv.Courier",
+        "dlv.Courier.address.road",
+        "dlv.Courier.address.geo.lat",
+        "dlv.Pickup.lockerId",
+        "alt.road",
+        "lines[1].qty",
+        "lines[0].sku",
+        "places.home.road"
+      )
+    ),
+    (
+      "Field discriminator",
+      DynamoDBCodecDeriverConfig[Order]().withDiscriminatorKind(DiscriminatorKind.Field("type")),
+      List(
+        "id",
+        "customerName",
+        "delivery",
+        "delivery",
+        "delivery.address.street",
+        "delivery.address.geo.lat",
+        "delivery.lockerId",
+        "alt.street",
+        "lines[1].qty",
+        "lines[0].sku",
+        "places.home.street"
+      )
+    )
   )
 
   private val upper: DynamoDBCodec[String] = new DynamoDBCodec[String] {
@@ -158,26 +231,23 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
   // ── Spec ─────────────────────────────────────────────────────────────────────
 
   def spec = suite("CodecNavigator")(
-    suite("same paths as ProjectionResolver")(
-      configs.map { case (name, cfg) =>
+    suite("configured paths")(
+      configs.map { case (name, cfg, expected) =>
         test(name) {
           val codec = Schema[Order].deriving(cfg.toDeriver).derive
-          val r     = resolver(Schema[Order], cfg)
-          assertTrue(parityPaths.map(navigate(codec, _)) == parityPaths.map(r))
+          assertTrue(parityPaths.map(navigate(codec, _)) == expected.map(Right(_)))
         }
       } :+
         test("field / case renames and a Field discriminator from annotations") {
           val cfg   = DynamoDBCodecDeriverConfig[Drawing]()
           val codec = Schema[Drawing].deriving(cfg.toDeriver).derive
-          val r     = resolver(Schema[Drawing], cfg)
-          val paths = List[Optic[Drawing, ?]](Drawing.circleRadius, Drawing.squareSide)
           assertTrue(
-            paths.map(navigate(codec, _)) == paths.map(r),
-            navigate(codec, Drawing.circleRadius) == Right("main.r")
+            navigate(codec, Drawing.circleRadius) == Right("main.r"),
+            navigate(codec, Drawing.squareSide) == Right("main.side")
           )
         }
     ),
-    suite("where the codec differs from ProjectionResolver, and is right")(
+    suite("paths that follow the actual wire shape")(
       test("a tuple is a positional list, so a tuple field is a list index") {
         val codec = Schema[Order].deriving(DynamoDBCodecDeriver).derive
         val item  = codec.toItem(order)
@@ -258,7 +328,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
       }
     ),
     suite("errors")(
-      test("same messages as ProjectionResolver") {
+      test("missing fields and cases, and steps into the wrong shape") {
         val codec = Schema[Order].deriving(DynamoDBCodecDeriver).derive
         assertTrue(
           CodecNavigator

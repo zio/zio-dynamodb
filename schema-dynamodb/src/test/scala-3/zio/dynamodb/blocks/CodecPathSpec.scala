@@ -29,20 +29,16 @@ import zio.blocks.schema.{
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ AttributeValue, Decoder, DynamoDBError, Encoder }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, Resolver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.test._
 
 /**
- * `ProjectionResolver` resolves an optic path to the same DynamoDB attribute path the
- * configured codec deriver produces for the corresponding field. Each test derives the
- * body codec for a model and asserts the resolver agrees with it across field-name
- * mappers, per-field renames, nested `@Modifier.fieldNaming`, variant discriminator kinds,
- * sequence / map element types, and opaque-type / newtype wrapper fields — the resolution
- * running off a deriver-produced `Resolver` tree rather than a hand-walked schema plus
- * config. A path through a `withInstance`-overridden type resolves to a `Left`, not a
- * guessed name.
+ * Navigating a configured codec resolves an optic path to the attribute path that codec writes,
+ * across field-name mappers, per-field renames, nested `@Modifier.fieldNaming`, variant
+ * discriminator kinds, sequence / map element types, and opaque-type / newtype wrapper fields.
+ * A path through a `withInstance`-overridden type resolves to a `Left`, not a guessed name.
  */
-object ProjectionResolverSpec extends ZIOSpecDefault {
+object CodecPathSpec extends ZIOSpecDefault {
 
   @Modifier.fieldNaming("snake_case")
   final case class Address(streetName: String, zipCode: String) derives Schema
@@ -59,14 +55,14 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
   private val orderTypeId = summon[Schema[Order]].reflect.typeId
 
   private def resolve(lens: Lens[Order, ?], cfg: DynamoDBCodecDeriverConfig[Order]): Either[String, String] = {
-    val root = summon[Schema[Order]].deriving(cfg.toResolverDeriver).derive
-    new ProjectionResolver(root).resolve(lens.toDynamic).map(_.toString)
+    val codec = summon[Schema[Order]].deriving(cfg.toDeriver).derive
+    CodecNavigator.resolve(codec, lens.toDynamic).map(_.path.toString)
   }
 
   private def bodyName[A: Schema](scalaField: String, cfg: DynamoDBCodecDeriverConfig[A]): String =
     summon[Schema[A]].deriving(cfg.toDeriver).derive.recordFieldNameMap(scalaField)
 
-  def spec = suite("ProjectionResolver")(
+  def spec = suite("codec paths")(
     suite("top-level field, parity with the body codec")(
       test("withFieldNameMapper(SnakeCase)") {
         val cfg = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
@@ -107,12 +103,6 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
         assertTrue(nestedLeaf == Right(bodyName[Address]("zipCode", addressCfg)))
       }
     ),
-    suite("resolver-specific")(
-      test("root type itself derives to a Resolver.Record") {
-        val root = summon[Schema[Order]].deriving(DynamoDBCodecDeriverConfig[Order]().toResolverDeriver).derive
-        assertTrue(root.isInstanceOf[Resolver.Record[Order]])
-      }
-    ),
     variantParitySuite,
     sequenceMapSuite,
     wrapperPassThroughSuite,
@@ -138,7 +128,7 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
     }
 
   private def variantPath(cfg: DynamoDBCodecDeriverConfig[Parcel]): Either[String, String] = {
-    val root = summon[Schema[Parcel]].deriving(cfg.toResolverDeriver).derive
+    val root = summon[Schema[Parcel]].deriving(cfg.toDeriver).derive
     val dyn  = DynamicOptic(
       IndexedSeq(
         DynamicOptic.Node.Field("shipment"),
@@ -146,7 +136,7 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
         DynamicOptic.Node.Field("carrier")
       )
     )
-    new ProjectionResolver(root).resolve(dyn).map(_.toString)
+    CodecNavigator.resolve(root, dyn).map(_.path.toString)
   }
 
   private def variantParitySuite = suite("variant Case segment, parity with the actual encoding")(
@@ -180,14 +170,14 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
 
   private def sequenceMapSuite = suite("Sequence element and Map value resolve through to the nested type")(
     test("List[Item] element field") {
-      val root = summon[Schema[Cart]].deriving(DynamoDBCodecDeriverConfig[Cart]().toResolverDeriver).derive
+      val root = summon[Schema[Cart]].deriving(DynamoDBCodecDeriverConfig[Cart]().toDeriver).derive
       val dyn  = DynamicOptic(
         IndexedSeq(DynamicOptic.Node.Field("items"), DynamicOptic.Node.AtIndex(0), DynamicOptic.Node.Field("sku"))
       )
-      assertTrue(new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("items[0].sku"))
+      assertTrue(CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right("items[0].sku"))
     },
     test("Map[String, Tagged] value field - the nested type's own @Modifier.fieldNaming still applies") {
-      val root = summon[Schema[Cart]].deriving(DynamoDBCodecDeriverConfig[Cart]().toResolverDeriver).derive
+      val root = summon[Schema[Cart]].deriving(DynamoDBCodecDeriverConfig[Cart]().toDeriver).derive
       val dyn  = DynamicOptic(
         IndexedSeq(
           DynamicOptic.Node.Field("tags"),
@@ -195,7 +185,7 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
           DynamicOptic.Node.Field("longName")
         )
       )
-      assertTrue(new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("tags.k.long_name"))
+      assertTrue(CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right("tags.k.long_name"))
     }
   )
 
@@ -222,31 +212,31 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
   private def wrapperPassThroughSuite = suite("opaque-type fields")(
     test("opaque top-level field: the containing record's field-name mapper still applies") {
       val cfg  = DynamoDBCodecDeriverConfig[Widget]().withFieldNameMapper(NameMapper.SnakeCase)
-      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val root = summon[Schema[Widget]].deriving(cfg.toDeriver).derive
       val dyn  = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("productSku")))
       assertTrue(
-        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("product_sku"),
-        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right(bodyName[Widget]("productSku", cfg))
+        CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right("product_sku"),
+        CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right(bodyName[Widget]("productSku", cfg))
       )
     },
     test("opaque top-level field: withModifier rename wins, parity with the body codec") {
       val cfg  = DynamoDBCodecDeriverConfig[Widget]()
         .withModifier(summon[Schema[Widget]].reflect.typeId, "productSku", Modifier.rename("sku"))
-      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val root = summon[Schema[Widget]].deriving(cfg.toDeriver).derive
       val dyn  = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("productSku")))
       assertTrue(
-        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("sku"),
-        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right(bodyName[Widget]("productSku", cfg))
+        CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right("sku"),
+        CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right(bodyName[Widget]("productSku", cfg))
       )
     },
     test("path continues through an opaque-over-record field - per-segment config still applies") {
       val cfg  = DynamoDBCodecDeriverConfig[Widget]().withFieldNameMapper(NameMapper.SnakeCase)
-      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val root = summon[Schema[Widget]].deriving(cfg.toDeriver).derive
       val dyn  = DynamicOptic(
         IndexedSeq(DynamicOptic.Node.Field("packaging"), DynamicOptic.Node.Field("boxType"))
       )
       // `packaging` -> itself (single word); Packaging's own @fieldNaming -> `box_type`.
-      assertTrue(new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("packaging.box_type"))
+      assertTrue(CodecNavigator.resolve(root, dyn).map(_.path.toString) == Right("packaging.box_type"))
     }
   )
 
@@ -263,10 +253,10 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
         def decoder: Decoder[Weird] = _ => Left(DynamoDBError.ItemError.DecodingError.failure("dummy"))
       }
       val cfg                              = DynamoDBCodecDeriverConfig[Holder]().withInstance(dummyCodec)(weirdTypeId)
-      val root                             = summon[Schema[Holder]].deriving(cfg.toResolverDeriver).derive
+      val root                             = summon[Schema[Holder]].deriving(cfg.toDeriver).derive
       val dyn                              =
         DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("weird"), DynamicOptic.Node.Field("x")))
-      assertTrue(new ProjectionResolver(root).resolve(dyn).isLeft)
+      assertTrue(CodecNavigator.resolve(root, dyn).isLeft)
     }
   )
 }

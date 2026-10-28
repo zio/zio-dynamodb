@@ -24,14 +24,8 @@ import zio.test._
  * Regression coverage, through the fully public `Table`/`dsl` API (no `ddbexpr`-package
  * access, no bypass of any kind), for a path that reaches into an `Option[List]` /
  * `Option[Map]` field's inner structure (`.when[Some[...]].value.at(i)` /
- * `.value.atKey(key)`). `ResolverDeriver` previously had no handling for `Reflect.Optional`
- * at all, so a field's resolver was built as a real two-case `Resolver.Variant` — but the
- * optic path already has its `Case(Some)+Field(value)` segment stripped before resolution
- * (`OpticToPE.pruneOptionalNodes`, reused by `ProjectionResolver.resolve`), so the walk had
- * nothing to match once it reached that field. Fixed by deriving `Option[X]`'s resolver as a
- * transparent `Resolver.Wrapper` (mirroring `DynamoDBCodecDeriver`'s own `typeId.isOption`
- * branch), so `ProjectionResolver`'s existing wrapper pass-through skips it the same way it
- * already skips an opaque/newtype wrapper.
+ * `.value.atKey(key)`). An `Option` is transparent on the wire, so its `Case(Some)` and
+ * `Field(value)` steps must add no path segment.
  */
 object OptionTransparencyTableBugSpec extends ZIOSpecDefault {
 
