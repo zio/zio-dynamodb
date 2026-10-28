@@ -96,6 +96,7 @@ final class QueryBuilder[From] private[ddbexpr] (
   private def attach(ce: ConditionExpression[From]): QueryBuilder[From] =
     new QueryBuilder(table, query.filter(ce))
 
+  /** Sets the key condition every `query` needs; see [[DdbExprApiSyntax.query]]. */
   def whereKey(expr: DdbKeyExpr[From]): QueryBuilder[From] = {
     val kce = DdbKeyExprInterpreter
       .toKeyConditionExpr(expr, table.exprCtx)
@@ -151,13 +152,18 @@ final class TableWriteBuilder[From, Out, Op <: WriteOp] private[ddbexpr] (
       finish0
     ) {
 
-  /** See [[WriteBuilder.where]]. */
+  /** See `WriteBuilder.where`. */
   def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]           =
     where(BuilderSupport.condition(expr, table))
   def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]          = where(DdbExpr.Builtin(se))
   override def where(ce: ConditionExpression[From]): ConditionalTableWriteBuilder[From, Out, Op] =
     new ConditionalTableWriteBuilder[From, Out, Op](table, WriteBuilder.conditional(write, ce), finish)
 
+  /**
+   * Executes to the item DynamoDB returns, decoded with the table's codec (`None` when it returns
+   * none, `Left` when it doesn't decode); the accepted `ReturnValues` are checked at compile time -
+   * see [[TableReturnValues]].
+   */
   def returning[R <: ReturnValues](rv: R)(implicit
     valid: TableReturnValues[Op, R]
   ): TableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op] =
@@ -185,6 +191,7 @@ final class ConditionalTableWriteBuilder[From, Out, Op <: WriteOp] private[ddbex
       finish0
     ) {
 
+  /** See `ConditionalWriteBuilder.where`. */
   def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]           =
     where(BuilderSupport.condition(expr, table))
   def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]          = where(DdbExpr.Builtin(se))
@@ -194,6 +201,7 @@ final class ConditionalTableWriteBuilder[From, Out, Op <: WriteOp] private[ddbex
   override def withoutItemOnConditionFailure: ConditionalTableWriteBuilder[From, Out, Op] =
     new ConditionalTableWriteBuilder[From, Out, Op](table, WriteBuilder.withoutItemOnConditionFailure(write), finish)
 
+  /** See [[TableWriteBuilder.returning]]. */
   def returning[R <: ReturnValues](rv: R)(implicit
     valid: TableReturnValues[Op, R]
   ): ConditionalTableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op] =
@@ -260,8 +268,8 @@ final class ConditionalTableWriteBuilder[From, Out, Op <: WriteOp] private[ddbex
  *
  *  `.whereKey` / `.filter` / `.where` on the builders take `DdbKeyExpr` / `DdbExpr` /
  *  `SchemaExpr` through overloads on the builder, each interpreting the argument against the
- *  calling table's configuration. Interpretation failures surface at query execution via the
- *  `Failure` nodes in [[KeyConditionExpr]] and [[ConditionExpression]].
+ *  calling table's configuration. An argument that can't be interpreted (e.g. an optic that
+ *  doesn't resolve to an attribute) fails the query when it runs, before any request is sent.
  */
 trait DdbExprApiSyntax {
 
@@ -275,6 +283,7 @@ trait DdbExprApiSyntax {
 
   // -- CRUD operations ----------------------------------------------------------
 
+  /** Writes `a` with the table's codec, replacing any item with the same key. */
   def put[A](table: Table[A], a: A): TableWriteBuilder[A, Unit, WriteOp.Put] =
     new TableWriteBuilder[A, Unit, WriteOp.Put](
       table,
@@ -285,6 +294,7 @@ trait DdbExprApiSyntax {
       WriteBuilder.discard
     )
 
+  /** `None` when there is no item with that key, `Left` when the stored item doesn't decode as `From`. */
   def get[From](
     table: Table[From]
   )(
@@ -361,10 +371,8 @@ trait DdbExprApiSyntax {
    * A condition-only transact-write action with no mutation of its own — guards the whole
    *  transaction on `table`'s state at `keyExpr` without writing anything itself. Interprets
    *  `condition` with `table`'s deriver configuration, exactly like `.where` on [[TableWriteBuilder]].
-   *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too, via
-   *  [[DdbExprSyntax.schemaExprToDdbExpr]] — no second overload needed (and a second overload,
-   *  curried the same way, is ambiguous under Scala 2.13 for a call site holding the condition
-   *  in a typed `val`). See [[ConditionCheckBuilder]] for the item a failed check returns.
+   *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too. See
+   *  [[ConditionCheckBuilder]] for the item a failed check returns.
    */
   def conditionCheck[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     condition: DdbExpr[From, Boolean]
@@ -383,9 +391,14 @@ trait DdbExprApiSyntax {
       }
     )
 
+  /**
+   * One page of results, like `DynamoDBQuery.query`; needs `.whereKey`. Each item decodes on its
+   * own, so one that doesn't decode is a `Left` in the page, not a failed effect.
+   */
   def query[From](table: Table[From], limit: Int): QueryBuilder[From] =
     new QueryBuilder(table, mapPage(DynamoDBQuery.query(table.name, limit), table))
 
+  /** One page of results, decoded item by item like [[query]]'s. */
   def scan[From](table: Table[From], limit: Int): ScanBuilder[From] =
     new ScanBuilder(table, mapPage(DynamoDBQuery.scan(table.name, limit), table))
 

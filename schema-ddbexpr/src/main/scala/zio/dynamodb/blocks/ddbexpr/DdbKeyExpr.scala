@@ -51,9 +51,6 @@ import zio.blocks.schema.{ Optic, Schema }
  *    Task.id.partitionKey === "alice" && Task.score.sortKey.between(10, 100)
  *    Task.id.partitionKey === "alice" && Task.name.sortKey.beginsWith("prefix")
  *  }}}
- *
- *  Interpretation to [[zio.dynamodb.KeyConditionExpr]] is handled by
- *  [[DdbKeyExprInterpreter]].
  */
 sealed trait DdbKeyExpr[S]
 
