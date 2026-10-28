@@ -22,7 +22,7 @@ import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ProjectionResolver
 
 /**
- * A typed handle for a DynamoDB table: its name, the [[Schema]] for `From`, and the
+ * A typed handle for a DynamoDB table: its name, the `Schema` for `From`, and the
  * [[DynamoDBCodecDeriverConfig]] used to derive `From`'s codec. Construct one
  * (`Table[Order]("orders")`) and pass it to the CRUD operations in [[DdbExprApiSyntax]]
  * (`DdbExprApi` / `dsl`) in place of a bare `tableName: String` — this is what lets `From`

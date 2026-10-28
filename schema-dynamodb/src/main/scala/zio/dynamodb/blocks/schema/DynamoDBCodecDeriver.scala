@@ -242,6 +242,11 @@ object DynamoDBCodecDeriver
 
     }
 
+  /**
+   * Codec for ZIO Blocks `Json`, stored as native attribute values: an object as a `Map`, an array as
+   * a `List`, and strings, numbers, booleans and `null` as their DynamoDB counterparts. A set doesn't
+   * decode.
+   */
   val jsonAVCodec: DynamoDBCodec[Json] =
     new DynamoDBCodec[Json] {
 
@@ -298,6 +303,13 @@ object DynamoDBCodecDeriver
     }
 }
 
+/**
+ * Derives a [[DynamoDBCodec]] from a ZIO Blocks `Schema`: `Schema[A].deriving(DynamoDBCodecDeriver).derive`.
+ * Immutable - each `withXxx` returns a new deriver. In the setting names, "transient" leaves a value
+ * out of the encoded item and "require" makes a missing key a decode error; every setting and its
+ * default is listed in the codec reference (`docs/reference/codec.md`). A High-Level `Table` takes
+ * the same settings through `.deriving`.
+ */
 class DynamoDBCodecDeriver private (
   schema1TupleCompat: Schema1Compat,
   schema1ByteSequenceCompat: Schema1Compat,

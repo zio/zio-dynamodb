@@ -23,12 +23,12 @@ import zio.dynamodb.ProjectionExpression
  * Resolves an optic (or its raw `DynamicOptic`) to a [[ProjectionExpression]] using only
  *  the optic's own Scala field names — no schema, no `DynamoDBCodecDeriverConfig`.
  *
- *  Config-aware resolution (honouring a `Table`'s field-name mapper, per-field `rename`,
- *  discriminator kind, ...) is [[ProjectionResolver]] — a deriver-produced
- *  [[zio.dynamodb.blocks.schema.Resolver]] tree, not a hand-walked `Reflect` + config.
+ *  So it doesn't honour a `Table`'s configuration (field-name mapper, per-field `rename`,
+ *  discriminator kind, ...); a `Table` resolves its own expressions against that configuration.
  */
 object OpticToPE {
 
+  /** Field steps only; any other step is a `Left`. */
   def pe(dynamicOptic: DynamicOptic): Either[String, ProjectionExpression[_, _]] = {
     var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
     val nodes                              = dynamicOptic.nodes
@@ -44,6 +44,7 @@ object OpticToPE {
     if (error != null) Left(error) else Right(prevPe)
   }
 
+  /** A `Lens` or `Optional` (see those overloads); any other optic, e.g. a `Traversal`, is a `Left`. */
   def pe[S, A](optic: Optic[S, A]): Either[String, ProjectionExpression[S, A]] =
     optic match {
       case lens: Lens[S, A]         => pe(lens)
@@ -84,6 +85,7 @@ object OpticToPE {
     builder.result()
   }
 
+  /** Fields, list indices, `String` map keys and sum-type cases; any other step is a `Left`. */
   def pe[S, A](optional: Optional[S, A]): Either[String, ProjectionExpression[S, A]] = {
     var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
     val nodesPruned                        = pruneOptionalNodes(optional.toDynamic.nodes)

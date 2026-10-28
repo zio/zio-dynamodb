@@ -23,17 +23,16 @@ import zio.blocks.schema.{ Optic, Schema }
  *
  *  Built by the [[DdbExprSyntax.OpticUpdateOps]] extension methods on
  *  [[zio.blocks.schema.Optic]] (`Task.score.set(1)`, `Task.tags.appendList(List("x"))`, …)
- *  and composed with `+`. Each value-carrying node holds a [[Schema]] for its operand rather
- *  than a pre-derived codec, so [[DdbUpdateExprInterpreter]] can encode literals — and resolve
- *  attribute paths — against the originating [[Table]]'s deriver configuration at
- *  `DdbExprApi.update` time, exactly as `.where` / `.filter` do for conditions. Building an
- *  action never touches implicit codec resolution.
+ *  and composed with `+`. Values are encoded, and attribute paths resolved, with the [[Table]]'s
+ *  configuration when the action is passed to `update` - as `.where` / `.filter` do for
+ *  conditions - so an update writes the same names and encodings as `put`.
  *
- *  Path-resolution failures for optic shapes DynamoDB paths can't represent are converted to
- *  core `UpdateExpression.Action.Failure` by [[DdbUpdateExprInterpreter]] and surface at query
- *  execution, alongside `ConditionExpression.Failure`.
+ *  An optic path DynamoDB can't represent fails the update when it runs, before any request is
+ *  sent.
  */
 sealed trait DdbUpdateExpr[From] { self =>
+
+  /** Both actions in a single update expression. */
   def +(that: DdbUpdateExpr[From]): DdbUpdateExpr[From] = DdbUpdateExpr.Combine(self, that)
 }
 

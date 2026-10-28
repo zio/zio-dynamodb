@@ -28,17 +28,14 @@ import scala.language.implicitConversions
 /**
  * Typed DDB condition expression ADT.
  *
- *  Scalar comparisons and sealed-trait equality use ZB [[zio.blocks.schema.Optic]]
- *  operators directly ([[zio.blocks.schema.Optic.===]], `>`, `<`, etc.), which produce
- *  [[SchemaExpr]][S, Boolean]. The [[DdbExprSyntax.schemaExprToDdbExpr]] implicit lifts them
- *  into [[DdbExpr.Builtin]]. Since zio-blocks v0.0.47
- *  [[zio.blocks.schema.DynamicSchemaExpr.Literal]] carries a [[Schema]], the interpreter
- *  derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]] at evaluation time and encodes
- *  sealed-trait values correctly — no special workaround needed.
+ *  Scalar comparisons and sealed-trait equality use ZB `Optic`
+ *  operators directly (`===`, `>`, `<`, etc.), which produce `SchemaExpr[S, Boolean]`;
+ *  [[DdbExprSyntax.schemaExprToDdbExpr]] lifts them into a `DdbExpr`. Literal values are
+ *  encoded with the table's codec, so a sealed-trait value compares as `put` writes it.
  *
  *  DDB-specific functions ([[DdbExprSyntax.OpticDdbExprOps.attributeExists]],
  *  [[DdbExprSyntax.OpticDdbExprOps.between]], etc.) are extension methods on
- *  [[Optic]] and produce [[DdbExpr]] nodes directly.
+ *  `Optic` and produce [[DdbExpr]] nodes directly.
  *
  *  Usage:
  *  {{{
@@ -88,32 +85,40 @@ trait DdbExprSyntax {
   // Not `extends AnyVal`: value classes may only be top-level or object members, not
   // trait members, and this trait is mixed into more than one object (DdbExpr, dsl).
   implicit class OpticDdbExprOps[S, A](private val optic: Optic[S, A]) {
-    def attributeExists: DdbExpr[S, Boolean]                                   = DdbExpr.AttributeExists(optic)
-    def attributeNotExists: DdbExpr[S, Boolean]                                =
+    def attributeExists: DdbExpr[S, Boolean]    = DdbExpr.AttributeExists(optic)
+    def attributeNotExists: DdbExpr[S, Boolean] =
       DdbExpr.AttributeNotExists(optic)
     def between(lo: A, hi: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
-    ): DdbExpr[S, Boolean]                                                     =
+    ): DdbExpr[S, Boolean]                      =
       DdbExpr.Between(optic, lo, hi, schema)
+
+    /** `path IN (values)`, for a field of any type. */
     def in(head: A, rest: A*)(implicit schema: Schema[A]): DdbExpr[S, Boolean] =
       DdbExpr.In(optic, head +: rest, schema)
+
+    /** Like [[in]], taking a `Set`; number, string and binary fields only, checked at compile time. */
     def inSet(values: Set[A])(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
-    ): DdbExpr[S, Boolean]                                                     =
+    ): DdbExpr[S, Boolean] =
       DdbExpr.In(optic, values.toSeq, schema)
+
+    /** `contains(path, element)` on a set field: true when the set has `element`. */
     def containsElement[B](element: B)(implicit
       elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): DdbExpr[S, Boolean]                                                     =
+    ): DdbExpr[S, Boolean] =
       DdbExpr.ContainsElement(optic, element, elemSchema)
+
+    /** `size(path)`, to compare with `===`, `<`, `between`, ...; for string, binary, list, map and set fields. */
     def size(implicit
       @unused ev: Allows[
         A,
         DdbGrammar.S || DdbGrammar.B || DdbGrammar.L || DdbGrammar.M || DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS
       ]
-    ): DdbExpr.Size[S, A]                                                      =
+    ): DdbExpr.Size[S, A] =
       DdbExpr.Size(optic)
   }
 
@@ -164,68 +169,74 @@ trait DdbExprSyntax {
   // Import: `import DdbExpr._` (same import as condition expression ops).
   implicit class OpticUpdateOps[From, A](private val optic: Optic[From, A]) {
 
-    // SET path = value   (valid for any attribute type)
+    /** `SET path = value`. */
     def set(value: A)(implicit schema: Schema[A]): DdbUpdateExpr[From] =
       DdbUpdateExpr.SetValue(optic, value, schema)
 
-    // SET path = other_path   (copy one attribute to another)
+    /** `SET path = other`: copies another attribute's value. */
     def set(other: Optic[From, A]): DdbUpdateExpr[From] =
       DdbUpdateExpr.SetPath(optic, other)
 
-    // SET path = if_not_exists(path, value)   (set only when attribute is absent)
+    /** `SET path = if_not_exists(path, value)`: sets the attribute only when it is absent. */
     def setIfNotExists(value: A)(implicit schema: Schema[A]): DdbUpdateExpr[From] =
       DdbUpdateExpr.SetIfNotExists(optic, value, schema)
 
-    // REMOVE path   (valid for any attribute type)
+    /** `REMOVE path`. */
     def remove: DdbUpdateExpr[From] = DdbUpdateExpr.Remove(optic)
 
-    // REMOVE path[index]   (list fields only)
+    /** `REMOVE path[index]`, for list fields. */
     def remove(index: Int)(implicit @unused ev: Allows[A, DdbGrammar.L]): DdbUpdateExpr[From] =
       DdbUpdateExpr.RemoveAt(optic, index)
 
-    // SET path = path + delta   (atomic in-place increment; numeric fields only)
+    /**
+     * `SET path = path + delta`, for numeric fields. Fails if the attribute is absent - use [[add]] to
+     * start from zero.
+     */
     def increment(delta: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.Increment(optic, delta, schema)
 
-    // SET path = path - delta   (atomic in-place decrement; numeric fields only)
+    /** `SET path = path - delta`, for numeric fields. Fails if the attribute is absent, like [[increment]]. */
     def decrement(delta: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.Decrement(optic, delta, schema)
 
-    // ADD path value   (numeric fields only; for set union see addSet)
+    /**
+     * `ADD path value`, for numeric fields: an absent attribute counts as zero, so it is created.
+     * For set union see [[addSet]].
+     */
     def add(value: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.Add(optic, value, schema)
 
-    // ADD path set   (set attributes: NS, SS, or BS — union of sets)
+    /** `ADD path set`: adds the elements to a set field. */
     def addSet(value: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.AddToSet(optic, value, schema)
 
-    // DELETE path set   (set attributes: NS, SS, or BS — remove elements from a set)
+    /** `DELETE path set`: removes the elements from a set field. */
     def deleteFromSet(value: A)(implicit
       schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.DeleteFromSet(optic, value, schema)
 
-    // SET path = list_append(path, [...items])   (list fields only)
+    /** `SET path = list_append(path, items)`, for list fields. */
     def appendList[B](items: Seq[B])(implicit
       elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.L]
     ): DdbUpdateExpr[From] =
       DdbUpdateExpr.AppendList(optic, items, elemSchema)
 
-    // SET path = list_append([...items], path)   (list fields only)
+    /** `SET path = list_append(items, path)`, for list fields. */
     def prependList[B](items: Seq[B])(implicit
       elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.L]

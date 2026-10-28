@@ -50,6 +50,7 @@ val codec = Schema[Order].deriving(configured).derive
 | `withFieldNameMapper` | `NameMapper.Identity` | Renaming strategy applied to every field name, unless overridden per-type by `@Modifier.fieldNaming`. |
 | `withCaseNameMapper` | `NameMapper.Identity` | Same, for sealed-trait case names; overridden per-type by `@Modifier.caseNaming`. |
 | `withTransientNone` | `true` | `None` fields are omitted from the encoded map when `true`; written as `AttributeValue.Null` when `false`. |
+| `withRequireOptionFields` | `false` | When `true`, an `Option` field is required: `None` is written as `AttributeValue.Null` and a missing key on decode is an error. When `false`, a missing key decodes as `None`. |
 | `withRequiredCollectionFields` | `false` | Whether a missing collection key on decode is an error (`true`) or treated as empty (`false`). |
 | `withTransientEmptyCollection` | `false` | Whether an empty collection is omitted from the encoded map (`true`) rather than written as an empty `List`/native empty set. |
 | `withTransientDefaultValue` | `false` | Whether a field whose value equals its declared default is omitted from the encoded map. |
