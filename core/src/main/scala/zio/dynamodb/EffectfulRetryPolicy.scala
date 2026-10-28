@@ -19,13 +19,10 @@ package zio.dynamodb
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * An effectful, interpreter-level counterpart to [[RetryPolicy]] — supplies the fallback used
- * when a query doesn't specify its own `.withRetryPolicy(...)` (`AwsInterpreter.defaultRetryPolicy`).
- * `RetryPolicy` stays effect-neutral because it attaches to a `DynamoDBQuery` before any
- * interpreter/effect type is chosen; `EffectfulRetryPolicy` only ever exists at the interpreter
- * level, where a concrete `F` is already known, so it can model state via that effect system's
- * own primitives (e.g. a ZIO `Ref`) and wrap richer per-effect-system retry abstractions (e.g.
- * ZIO's `Schedule`).
+ * The interpreter-level counterpart to [[RetryPolicy]], given as a `fromAsyncClient` factory's
+ * `defaultRetryPolicy` for queries that don't set `.withRetryPolicy`. A `RetryPolicy` attaches to a
+ * query before an effect type is chosen; this one knows `F`, so it can use the effect system's own
+ * state and retry types (e.g. a ZIO `Ref` or `Schedule`).
  */
 trait EffectfulRetryPolicy[F[_]] {
   def newAttempt(): F[EffectfulRetryPolicy.Attempt[F]]

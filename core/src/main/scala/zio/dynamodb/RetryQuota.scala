@@ -17,18 +17,14 @@
 package zio.dynamodb
 
 /**
- * A client-scoped circuit breaker gating whether a retry should happen at all, independent of
- * any one call's own backoff curve — parity with the AWS SDK's own token-bucket retry quota.
- * Unlike [[RetryPolicy]]/[[EffectfulRetryPolicy]], which are deliberately isolated per
- * execution, a `RetryQuota` is deliberately **shared**: one instance, one budget, mutated by
- * every concurrent call through the same interpreter, because the signal it tracks — "has this
- * client been failing a lot lately" — is only meaningful in aggregate.
+ * A client-wide circuit breaker on retries, like the AWS SDK's own retry quota. Unlike a
+ * [[RetryPolicy]], it is **shared**: one budget per interpreter, used by every concurrent call,
+ * because "has this client been failing a lot lately" only means something in aggregate.
  *
- * Held once as an `AwsInterpreter[F]` member, constructed once per interpreter. Mirrors AWS's
- * own model: each retry attempt debits a cost (see `RetryPolicy.retryCost`/`isThrottlingException`
- * for the 14-transient/5-throttling split); a request that succeeds without retrying credits 1
- * token back, and one that succeeds after retrying credits back exactly what its own retries
- * cost. Exhaustion fails fast the same way curve-exhaustion does — no retry, no `onRetry` fired.
+ * Each retry debits a cost (5 for a throttling error, 14 for other transient errors - see
+ * `RetryPolicy.retryCost`); a call that succeeds without retrying credits back 1, and one that
+ * succeeds after retrying credits back what its retries cost. When the budget runs out, a failed
+ * call fails without retrying, and no `onRetry` fires.
  */
 trait RetryQuota[F[_]] {
 

@@ -60,23 +60,18 @@ class CEInterpreter[F[_]](
 object CEInterpreter {
 
   /**
-   * Creates an interpreter backed by `sdkClient`, generic over any `F[_]: Async` — pick
-   * `F = cats.effect.IO` for the common case, or your own `Async`-conformant effect type.
-   * `defaultRetryPolicy` is `None` by default — matching the AWS SDK client's own zero-config
-   * behavior, which already retries on its own (see `docs/reference/retries.md` for why running
-   * both layers at once is not recommended, and the pairing to use instead). Any query that
-   * doesn't specify its own `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` when set,
-   * except `UpdateItem`, which never retries without an explicit policy. `interceptors` bundles
-   * the three independent, optional observability hooks (`ResponseInterceptor`/
-   * `RetryInterceptor`/`BatchUnprocessedRetryInterceptor`); set only what you want, named:
-   * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
-   * circuit breaker gating retries independent of any one call's own backoff curve, on by
-   * default (`CERetryQuota.standard()`) since — unlike a retry policy — it can only ever
-   * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
-   * `defaultBatchUnprocessedRetryPolicy` resubmits a batch's unprocessed keys / items when the
-   * call sets no `.withBatchUnprocessedRetryPolicy(...)`; on by default
-   * (`RetryPolicy.fullJitter` with a 100 ms base), pass `None` to return `Incomplete` instead. It is independent of
-   * `defaultRetryPolicy`, which never drives that resubmission.
+   * Builds an interpreter on `sdkClient`, for any `F[_]: Async` (e.g. `cats.effect.IO`).
+   *
+   * @param interceptors optional response, retry and batch-unprocessed hooks; set only those you
+   * need, e.g. `InterceptorConfig(retry = Some(myRetryInterceptor))`.
+   * @param defaultRetryPolicy the retry policy for calls that don't set `.withRetryPolicy`. Off by
+   * default, because the AWS SDK client already retries; `docs/reference/retries.md` describes the
+   * pairing to use instead. Never applied to `updateItem`.
+   * @param retryQuota a client-wide limit on retries, on by default; `None` turns it off. It can only
+   * reduce retries, never add any.
+   * @param defaultBatchUnprocessedRetryPolicy resubmits a batch's unprocessed keys / items for calls
+   * that don't set `.withBatchUnprocessedRetryPolicy`. On by default; `None` returns `Incomplete`
+   * instead. Independent of `defaultRetryPolicy`.
    */
   def fromAsyncClient[F[_]: Async](
     sdkClient: DynamoDbAsyncClient,
