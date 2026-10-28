@@ -17,14 +17,8 @@
 package zio.dynamodb
 
 /**
- * The three independent, optional interceptors a `fromAsyncClient` factory accepts, bundled
- *  into one value so attaching any combination of them doesn't require a combinatorial overload
- *  set. Each field defaults to `None` — a caller sets only what they want, named:
- *  `InterceptorConfig(retry = Some(myRetryInterceptor))`.
- *
- *  Deliberately excludes `defaultRetryPolicy`: that's actual control-flow policy (whether/how a
- *  call retries at all), not observability, and stays a separate `fromAsyncClient` parameter —
- *  bundling it here would conflate two things a caller reasons about differently.
+ * The optional interceptors a `fromAsyncClient` factory accepts. Each defaults to `None`; set only
+ * the ones you need: `InterceptorConfig(retry = Some(myRetryInterceptor))`.
  */
 final case class InterceptorConfig[F[_]](
   response: Option[ResponseInterceptor[F]] = None,

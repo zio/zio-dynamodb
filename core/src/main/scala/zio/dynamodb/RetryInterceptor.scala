@@ -20,12 +20,8 @@ package zio.dynamodb
  * Callback invoked just before an effect-level retry sleeps and retries — the retry loop shared
  *  by single-item operations and batch operations alike. A retried-then-succeeded attempt is
  *  otherwise invisible to the caller: [[ResponseInterceptor]] only fires on the response that
- *  ultimately succeeds, never on the failed attempts that preceded it.
- *
- *  Separate from [[ResponseInterceptor]] since most `ResponseInterceptor` implementors have no
- *  interest in retries; separate from [[BatchUnprocessedRetryInterceptor]] since the batch unprocessed
- *  retry (resubmitting unprocessed keys/items, no `Throwable` involved) is a genuinely different
- *  mechanism this trait doesn't cover.
+ *  ultimately succeeds, never on the failed attempts that preceded it. A batch's resubmission of
+ *  unprocessed keys / items is reported to [[BatchUnprocessedRetryInterceptor]] instead.
  */
 trait RetryInterceptor[F[_]] {
 

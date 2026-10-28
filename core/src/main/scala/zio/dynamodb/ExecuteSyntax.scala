@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+/** `import ExecuteSyntax._` adds `query.execute`, which runs the query with the `Interpreter` in implicit scope. */
 object ExecuteSyntax {
   implicit class DynamoDBQueryOps[In, Out](private val query: DynamoDBQuery[In, Out]) extends AnyVal {
     def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =

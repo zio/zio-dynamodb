@@ -22,15 +22,10 @@ package zio.dynamodb
  *  hasn't succeeded yet), so this only carries what's known pre-call, unlike
  *  [[DynamoDBResponseMetadata]].
  *
- *  `PutItem` carries the full `item: Item` rather than a derived key: unlike `GetItem`/
- *  `UpdateItem`/`DeleteItem`, a put has no separate key field to extract without table schema
- *  knowledge the library doesn't have — the caller who built `item` already knows their own
- *  schema and can pull out whatever fields they consider identity themselves.
+ *  `PutItem` carries the whole `item`: a put has no separate key field, and which of its fields
+ *  form the key isn't known without the table's schema.
  *
- *  No `TransactGetItems`/`TransactWriteItems` cases: neither operation retries at all today (no
- *  `retryPolicy` field, no fallback to `defaultRetryPolicy`) — a failed transaction attempt has
- *  no library-safe default response, so retrying (and observing a retry) is out of scope until
- *  transactions grow their own retry story.
+ *  There are no transaction cases: zio-dynamodb doesn't retry transactions.
  */
 sealed trait DynamoDBRetryMetadata
 

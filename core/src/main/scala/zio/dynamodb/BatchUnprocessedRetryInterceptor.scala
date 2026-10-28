@@ -25,9 +25,7 @@ import zio.blocks.chunk.Chunk
  *  more common batch retry signal in practice: DynamoDB throttling on batch ops typically shows
  *  up as partial `unprocessedItems`, not an exception.
  *
- *  `onUnprocessedItemsRetry`'s puts/deletes are `Chunk`, not `Set`, deliberately — order-preserving,
- *  matching AWS's own `List<WriteRequest>` per table, so the interceptor doesn't reintroduce the
- *  silent-collapse behavior the underlying batch model was fixed to remove.
+ *  `onUnprocessedItemsRetry`'s puts / deletes are `Chunk`s, in AWS's order for each table.
  */
 trait BatchUnprocessedRetryInterceptor[F[_]] {
 
