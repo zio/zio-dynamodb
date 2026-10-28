@@ -17,6 +17,7 @@
 package zio.dynamodb.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.{ DynamicOptic, DynamicValue, PrimitiveValue }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.{ Decoder, Encoder, FromAttributeValue, Item, ToAttributeValue }
 
@@ -33,6 +34,15 @@ abstract class DynamoDBCodec[A] {
 
   def encoder: Encoder[A]
   def decoder: Decoder[A]
+
+  /**
+   * One optic step into the value this codec encodes: the attribute-path segment the step adds and
+   * the codec at that position. Lets the library resolve an optic against the codec that actually
+   * writes the item, rather than restating its naming rules. A codec that doesn't override it (for
+   * example a hand-written one) can't be navigated.
+   */
+  private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+    DynamoDBCodec.notNavigable(node)
 
   private[dynamodb] val recordFieldNames: Chunk[String] = Chunk.empty
 
@@ -79,4 +89,32 @@ object DynamoDBCodec {
   private[dynamodb] val floatType   = 7
   private[dynamodb] val doubleType  = 8
   private[dynamodb] val unitType    = 9
+
+  private[dynamodb] final class Step(val segment: Segment, val codec: DynamoDBCodec[Any])
+
+  private[dynamodb] sealed trait Segment
+  private[dynamodb] object Segment {
+    case object Transparent             extends Segment
+    final case class Name(name: String) extends Segment
+    final case class Index(index: Int)  extends Segment
+  }
+
+  private[dynamodb] def stepTo(segment: Segment, codec: DynamoDBCodec[_]): Either[String, Step] =
+    Right(new Step(segment, codec.asInstanceOf[DynamoDBCodec[Any]]))
+
+  private[dynamodb] def notNavigable(node: DynamicOptic.Node): Either[String, Step] =
+    node match {
+      case DynamicOptic.Node.Field(name)                                                  =>
+        Left(s"path segment '$name' is not a record field")
+      case DynamicOptic.Node.Case(name)                                                   =>
+        Left(s"path segment 'case $name' is not a variant")
+      case DynamicOptic.Node.AtIndex(index)                                               =>
+        Left(s"'$index' is not a sequence index")
+      case DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String(key))) =>
+        Left(s"'$key' is not a map key")
+      case DynamicOptic.Node.AtMapKey(key)                                                =>
+        Left(s"found map key '$key' — only String keys are supported in DDB")
+      case other                                                                          =>
+        Left(s"unexpected optic node: $other")
+    }
 }
