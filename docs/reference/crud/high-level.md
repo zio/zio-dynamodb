@@ -73,23 +73,26 @@ what lets the element type be inferred for `query`/`scan`, which name it nowhere
 
 ### Configuring the codec
 
-Attach deriver configuration to the `Table` with `.deriving` — no implicit
-`DynamoDBCodecDeriverConfig` in scope, the config is on the value:
+Pass a configured codec to `Table(name, codec)` — deriver-wide settings on
+`DynamoDBCodecDeriver`, per-field ones by optic on the derivation builder:
 
 ```scala mdoc:compile-only
 import zio.dynamodb.blocks.ddbexpr.dsl.*
-import zio.blocks.schema.NameMapper
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
+import zio.blocks.schema.{ Modifier, NameMapper, Schema }
 
 val ordersSnake =
-  Table[Order]("orders").deriving(
-    _.withFieldNameMapper(NameMapper.SnakeCase).withEnumValuesAsStrings(false)
+  Table(
+    "orders",
+    Schema[Order]
+      .deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase).withEnumValuesAsStrings(false))
+      .modifier(Order.orderId, Modifier.rename("id"))
+      .derive
   )
 ```
 
-Order deriver-wide flags (`withFieldNameMapper`, `withEnumValuesAsStrings`,
-`withSchema1TupleCompatibility`, …) before any per-field `withModifier` / `withInstance`
-in the lambda. `.deriving` replaces rather than composes — express the whole config in one
-call.
+Expressions on the table resolve against this codec — see
+[Codec Configuration](../codec.md#configuring-the-codec-the-high-level-api-uses).
 
 The rest of this page assumes `Order`/`Status`/`orders` as defined above, matching the
 `examples` module's [`OrdersCE`/`OrdersZio`](../examples.md).

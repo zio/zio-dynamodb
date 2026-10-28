@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -43,7 +43,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   private def render[From](u: DdbUpdateExpr[From])(implicit schema: Schema[From]): String =
-    DdbUpdateExprInterpreter.toAction(u, DynamoDBCodecDeriverConfig[From](), schema.reflect).render.execute._2
+    DdbUpdateExprInterpreter.toAction(u, schema.deriving(DynamoDBCodecDeriver).derive).render.execute._2
 
   private def run[A](q: DynamoDBQuery[_, A]): A = DummyIOInterpreter.run(q).unsafeRun()
 
@@ -197,8 +197,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         }
         val action = DdbUpdateExprInterpreter.toAction(
           Registry.countAt(1).set(42),
-          DynamoDBCodecDeriverConfig[Registry](),
-          Registry.schema.reflect
+          Registry.schema.deriving(DynamoDBCodecDeriver).derive
         )
         assert(action)(isSubtype[UpdateExpression.Action.Failure[_]](anything))
       },
@@ -210,8 +209,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         }
         val action = DdbUpdateExprInterpreter.toAction(
           Registry.countAt(1).remove,
-          DynamoDBCodecDeriverConfig[Registry](),
-          Registry.schema.reflect
+          Registry.schema.deriving(DynamoDBCodecDeriver).derive
         )
         assert(action)(isSubtype[UpdateExpression.Action.Failure[_]](anything))
       },

@@ -18,9 +18,9 @@ package zio.dynamodb.blocks.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
-import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, Schema }
+import zio.blocks.schema.{ CompanionOptics, DynamicValue, Lens, Modifier, NameMapper, PrimitiveValue, Schema }
 import zio.blocks.schema.json.{ DiscriminatorKind, Json }
-import zio.dynamodb.AttributeValue
+import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue, ToAttributeValue }
 import zio.test._
 import zio.test.Assertion.{
   anything,
@@ -283,7 +283,8 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     yearCompatSuite,
     byteCompatSuite,
     rejectExtraFieldsSuite,
-    fieldNamingSuite
+    fieldNamingSuite,
+    configuredInCodeSuite
   )
 
   // ---- primitives --------------------------------------------------------
@@ -2734,6 +2735,229 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       test("Byte round-trips through Number") {
         val codec = byteCodecFor(Schema1Compat.ReadBothWriteNew)
         assertTrue(codec.decoder(codec.encoder(42.toByte)) == Right(42.toByte))
+      }
+    )
+  )
+
+  // ---- configured in code: deriver settings and builder overrides, rather than annotations ----
+
+  // ── global deriver settings via fieldNameMapper ────────────────────────────
+
+  private case class Customer(id: String, name: String, age: Int)
+  private object Customer {
+    val schema: Schema[Customer]       = Schema.derived
+    val codec: DynamoDBCodec[Customer] =
+      schema
+        .deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.Custom {
+          case "name" => "fullName"
+          case other  => other
+        }))
+        .derive
+  }
+
+  private val alice = Customer("1", "Alice", 30)
+
+  // ── per-field modifier override via withModifier ───────────────────────────
+
+  private case class Contact(id: String, name: String)
+  private object Contact {
+    val schema: Schema[Contact]       = Schema.derived
+    val codec: DynamoDBCodec[Contact] =
+      schema.deriving(DynamoDBCodecDeriver).modifier(schema.reflect.typeId, "name", Modifier.rename("fullName")).derive
+  }
+
+  private val bob = Contact("2", "Bob")
+
+  // ── variant-level deriver settings via caseNameMapper ─────────────────────
+
+  private sealed trait Figure
+  private case class Disc(radius: Double)               extends Figure
+  private case class Box(width: Double, height: Double) extends Figure
+  private object Figure {
+    val schema: Schema[Figure]       = Schema.derived
+    val codec: DynamoDBCodec[Figure] =
+      schema
+        .deriving(DynamoDBCodecDeriver.withCaseNameMapper(NameMapper.Custom {
+          case "Disc" => "disc"
+          case "Box"  => "box"
+          case other  => other
+        }))
+        .derive
+  }
+
+  // ── a hand-written codec on a primitive field ──────────────────────────────
+
+  private case class Counter(id: String, count: Int)
+  private object Counter extends CompanionOptics[Counter] {
+    implicit val schema: Schema[Counter] = Schema.derived
+    val count: Lens[Counter, Int]        = $(_.count)
+  }
+
+  private val intAsString: DynamoDBCodec[Int] = new DynamoDBCodec[Int] {
+    def encoder: Encoder[Int] = i => ToAttributeValue[String].toAttributeValue(i.toString)
+    def decoder: Decoder[Int] = av => FromAttributeValue[String].fromAttributeValue(av).map(_.toInt)
+  }
+
+  private val counter = Counter("c-1", 7)
+
+  private def countStoredAsString(codec: DynamoDBCodec[Counter]) =
+    assertTrue(codec.toItem(counter).map.get("count").contains(AttributeValue.String("7"))) &&
+      assert(codec.fromItem(codec.toItem(counter)))(isRight(equalTo(counter)))
+
+  private val configuredInCodeSuite = suite("configured in code")(
+    suite("a hand-written codec on a primitive field")(
+      test("by optic: the field round-trips through it") {
+        countStoredAsString(Counter.schema.deriving(DynamoDBCodecDeriver).instance(Counter.count, intAsString).derive)
+      },
+      test("by type: the field round-trips through it") {
+        countStoredAsString(
+          Counter.schema.deriving(DynamoDBCodecDeriver).instance(Schema[Int].reflect.typeId, intAsString).derive
+        )
+      }
+    ),
+    suite("global deriver settings — fieldNameMapper")(
+      test("renamed field appears under new key in encoded item") {
+        val codec = Customer.codec
+        assert(codec.encoder(alice))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("fullName")),
+              isSome(equalTo(AttributeValue.String("Alice")))
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("name")),
+                isFalse
+              )
+          )
+        )
+      },
+      test("unrenamed fields are unaffected") {
+        val codec = Customer.codec
+        assert(codec.encoder(alice))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("1")))
+            ) &&
+              hasField[AttributeValue.Map, Option[AttributeValue]](
+                "value",
+                _.value.get(AttributeValue.String("age")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal.valueOf(30L))))
+              )
+          )
+        )
+      },
+      test("decode reads from renamed key") {
+        val codec = Customer.codec
+        val item  = AttributeValue.Map(
+          Map(
+            AttributeValue.String("id")       -> AttributeValue.String("1"),
+            AttributeValue.String("fullName") -> AttributeValue.String("Alice"),
+            AttributeValue.String("age")      -> AttributeValue.Number(BigDecimal.valueOf(30L))
+          )
+        )
+        assertTrue(codec.decoder(item) == Right(alice))
+      },
+      test("round-trip encode → decode preserves value") {
+        val codec = Customer.codec
+        assertTrue(codec.decoder(codec.encoder(alice)) == Right(alice))
+      },
+      test("decode fails when item uses original field name") {
+        val codec        = Customer.codec
+        val wrongKeyItem = AttributeValue.Map(
+          Map(
+            AttributeValue.String("id")   -> AttributeValue.String("1"),
+            AttributeValue.String("name") -> AttributeValue.String("Alice"),
+            AttributeValue.String("age")  -> AttributeValue.Number(BigDecimal.valueOf(30L))
+          )
+        )
+        assertTrue(codec.decoder(wrongKeyItem).isLeft)
+      }
+    ),
+    suite("per-field modifier override — DerivationBuilder.modifier")(
+      test("renamed field appears under new key in encoded item") {
+        val codec = Contact.codec
+        assert(codec.encoder(bob))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("fullName")),
+              isSome(equalTo(AttributeValue.String("Bob")))
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("name")),
+                isFalse
+              )
+          )
+        )
+      },
+      test("unrenamed fields are unaffected") {
+        val codec = Contact.codec
+        assert(codec.encoder(bob))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("2")))
+            )
+          )
+        )
+      },
+      test("decode reads from renamed key") {
+        val codec = Contact.codec
+        val item  = AttributeValue.Map(
+          Map(
+            AttributeValue.String("id")       -> AttributeValue.String("2"),
+            AttributeValue.String("fullName") -> AttributeValue.String("Bob")
+          )
+        )
+        assertTrue(codec.decoder(item) == Right(bob))
+      },
+      test("round-trip encode → decode preserves value") {
+        val codec = Contact.codec
+        assertTrue(codec.decoder(codec.encoder(bob)) == Right(bob))
+      }
+    ),
+    suite("variant-level deriver settings — caseNameMapper")(
+      test("discriminator key uses mapped case name") {
+        val codec = Figure.codec
+        assert(codec.encoder(Disc(1.0)))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Boolean](
+              "value",
+              _.value.contains(AttributeValue.String("disc")),
+              isTrue
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("Disc")),
+                isFalse
+              )
+          )
+        )
+      },
+      test("decode reads from mapped case name") {
+        val codec = Figure.codec
+        val item  = AttributeValue.Map(
+          Map(
+            AttributeValue.String("box") -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("width")  -> AttributeValue.Number(BigDecimal(3.0)),
+                AttributeValue.String("height") -> AttributeValue.Number(BigDecimal(4.0))
+              )
+            )
+          )
+        )
+        assertTrue(codec.decoder(item) == Right(Box(3.0, 4.0)))
+      },
+      test("round-trip encode → decode preserves value") {
+        val codec         = Figure.codec
+        val shape: Figure = Box(3.0, 4.0)
+        assertTrue(codec.decoder(codec.encoder(shape)) == Right(shape))
       }
     )
   )

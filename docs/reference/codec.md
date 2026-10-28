@@ -90,24 +90,39 @@ object Shape {
 | `@Modifier.transient()` | field | Field is excluded from both encode and decode; always takes its default value on decode. |
 | `@Modifier.encodeTransient()` | field | Field is excluded from encode only; still read (or defaulted) on decode. |
 
-## Configuring the deriver the High-Level API uses
+## Configuring the codec the High-Level API uses
 
-`get`/`put`/`update`/... take a [`Table[A]`](crud/high-level.md), and the codec-derivation
-config is attached to that value with `.deriving`. The config is a
-`DynamoDBCodecDeriverConfig[A]` — a value with readable fields (`fieldNameMapper`,
-`discriminatorKind`, `enumValuesAsStrings`, per-field `rename`, …), not an opaque deriver
-transform:
+`get`/`put`/`update`/... take a [`Table[A]`](crud/high-level.md). `Table[A](name)` derives its
+codec with the default `DynamoDBCodecDeriver`; to configure it, derive the codec yourself and
+pass it in. Deriver-wide settings go on `DynamoDBCodecDeriver`; per-field settings go on
+zio-blocks' derivation builder, addressed by optic — the value-level equivalent of a
+`@Modifier` annotation, for models you can't or don't want to annotate:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.{ NameMapper, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 case class Order(customerId: String, orderId: String) derives Schema
+object Order extends CompanionOptics[Order] {
+  val customerId: Lens[Order, String] = $(_.customerId)
+}
 
-val orders = Table[Order]("orders").deriving(
-  _.withEnumValuesAsStrings(false).withFieldNameMapper(NameMapper.SnakeCase)
+val orders = Table(
+  "orders",
+  Schema[Order]
+    .deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase))
+    .modifier(Order.customerId, Modifier.rename("cust"))
+    .derive
 )
 ```
+
+`.instance(optic, codec)` swaps in a hand-written codec for one field the same way. Every
+expression on the table (`.where`, `.filter`, key conditions, updates) resolves its attribute
+paths and encodes its literals with this codec, so they always match the stored item. That
+needs a codec derived by `DynamoDBCodecDeriver` at the top level: with a hand-written
+top-level codec, `put` and unfiltered scans work, but anything with a path - key conditions
+included - fails in the effect.
 
 ## `Schema1Compat`: migrating from 2.x
 

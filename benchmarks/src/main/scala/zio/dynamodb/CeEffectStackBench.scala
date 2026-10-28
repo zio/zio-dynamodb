@@ -190,16 +190,21 @@ class CeEffectStackBench extends BaseBenchmark {
   private val personDdbTable = DdbExprApi.Table[Person](TABLE)
   private val bigDdbTable    = DdbExprApi.Table[BigRecord](BIG_TABLE)
 
-  // Same table, snake_case field-name mapper - makes the config-aware OpticToPE walk do
-  // real remapping (amountMinor -> amount_minor) rather than identity.
+  // Same table, snake_case field-name mapper - makes path resolution do real remapping
+  // (amountMinor -> amount_minor) rather than identity.
   private val bigDdbTableSnake =
-    DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+    DdbExprApi.Table(
+      BIG_TABLE,
+      BigRecord.blocksSchema.deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)).derive
+    )
 
-  // Same table, snake_case case-name mapper - makes an update SET of a sealed-trait field
-  // derive its operand codec through a non-identity config (Priority.High -> "high"),
-  // exercising DdbUpdateExprInterpreter's ctx.encode -> ExprCtx.codecOf cache path.
+  // Same table, snake_case case-name mapper - an update SET of a sealed-trait field encodes its
+  // operand through a non-identity codec (Priority.High -> "high").
   private val bigDdbTablePriorityCase =
-    DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withCaseNameMapper(NameMapper.SnakeCase))
+    DdbExprApi.Table(
+      BIG_TABLE,
+      BigRecord.blocksSchema.deriving(DynamoDBCodecDeriver.withCaseNameMapper(NameMapper.SnakeCase)).derive
+    )
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
@@ -359,13 +364,13 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi.put(bigDdbTable, bigRecord)
 
-  // -- BigRecord nested-field expressions - exercises the config-aware OpticToPE
-  //    tree-walk (Field -> Record -> Field) that the Table-config threading introduced.
+  // -- BigRecord nested-field expressions - exercises the path walk through the table codec
+  //    (Field -> Record -> Field).
   //    blocksUpdateConditionalConstructOnly above is the single-segment (Person.age) control.
 
   /**
    * Construction only: update + a 2-segment nested-field `.where`, default (identity)
-   *  config. Isolates the nested config-aware projection resolution cost.
+   *  config. Isolates the nested path resolution cost.
    */
   @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi

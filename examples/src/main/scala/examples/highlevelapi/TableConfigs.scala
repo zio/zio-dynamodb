@@ -20,16 +20,20 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 /**
- * Two independent ways to configure derivation — value-level (`Table[A].deriving(cfg => ...)`)
- * and annotation-level (`@Modifier` on the type) — and their precedence when both apply to the
- * same field: a per-field `@Modifier.rename` wins over both the type's own class-level
- * `@Modifier.fieldNaming` and any `Table`-level `withFieldNameMapper`.
+ * Two independent ways to configure derivation — value-level (derive the codec yourself and pass
+ * it to `Table(name, codec)`) and annotation-level (`@Modifier` on the type) — and their precedence
+ * when both apply to the same field: a per-field `@Modifier.rename` wins over both the type's own
+ * class-level `@Modifier.fieldNaming` and a deriver-wide `withFieldNameMapper`.
+ *
+ * Deriver-wide settings go on `DynamoDBCodecDeriver`; per-field ones go on ZIO Blocks' derivation
+ * builder, addressed by optic. Expressions on the table resolve against that same codec.
  */
 object TableConfigs {
 
-  // ── Value-level config, via Table.deriving ──────────────────────────────────
+  // ── Value-level config, via Table(name, codec) ──────────────────────────────
 
   final case class Person(firstName: String, lastName: String)
 
@@ -43,13 +47,13 @@ object TableConfigs {
   val defaultTable: Table[Person] = Table[Person]("people")
 
   val snakeCaseTable: Table[Person] =
-    Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+    Table("people", Person.schema.deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)).derive)
 
   val renamedFieldTable: Table[Person] =
-    Table[Person]("people").deriving { cfg =>
-      val personType = Person.schema.reflect.typeId
-      cfg.withModifier(personType, "firstName", Modifier.rename("fname"))
-    }
+    Table(
+      "people",
+      Person.schema.deriving(DynamoDBCodecDeriver).modifier(Person.firstName, Modifier.rename("fname")).derive
+    )
 
   // ── Annotation-level config, directly on the type ───────────────────────────
 
@@ -64,10 +68,10 @@ object TableConfigs {
   }
 
   // streetName -> "street_name" (class-level @Modifier.fieldNaming); zipCode -> "zip"
-  // (per-field @Modifier.rename wins over both the class-level annotation and this
-  // Table's own withFieldNameMapper below).
+  // (per-field @Modifier.rename wins over both the class-level annotation and the
+  // deriver-wide withFieldNameMapper below).
   val addresses: Table[Address] =
-    Table[Address]("addresses").deriving(_.withFieldNameMapper(NameMapper.CamelCase))
+    Table("addresses", Address.schema.deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.CamelCase)).derive)
 
   // ── Discriminator kind, value-level, on a sealed trait ──────────────────────
 
@@ -90,9 +94,12 @@ object TableConfigs {
   val itemsKeyDiscriminated: Table[Item] = Table[Item]("items") // default: DiscriminatorKind.Key
 
   val itemsFieldDiscriminated: Table[Item] =
-    Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    Table(
+      "items",
+      Item.schema.deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))).derive
+    )
 
-  // Wired into the six CRUD operations, against renamedFieldTable (the withModifier config)
+  // Wired into the six CRUD operations, against renamedFieldTable (the optic-addressed rename)
   // — see TableConfigsSpec for these actually run.
   val putQuery: DynamoDBQuery[Person, Unit] =
     put(renamedFieldTable, Person("Ada", "Lovelace"))

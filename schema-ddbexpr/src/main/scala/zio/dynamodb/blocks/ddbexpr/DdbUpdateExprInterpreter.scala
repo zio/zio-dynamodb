@@ -18,7 +18,6 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.{ Optic, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, ProjectionExpression, UpdateExpression }
 import zio.dynamodb.UpdateExpression.Action
@@ -42,17 +41,9 @@ private[dynamodb] object DdbUpdateExprInterpreter {
   def toAction[From](expr: DdbUpdateExpr[From], ctx: ExprCtx): Action[From] =
     interp(expr, ctx)
 
-  /**
-   * Overload for callers that hold a config + reflect rather than a `Table`'s `ExprCtx`
-   *  (tests, and any direct non-`Table` use). Allocates a one-off `ExprCtx`; the hot
-   *  `DdbExprApi.update` path goes through `toAction(expr, table.exprCtx)`.
-   */
-  def toAction[From](
-    expr: DdbUpdateExpr[From],
-    config: DynamoDBCodecDeriverConfig[From],
-    rootReflect: Reflect[Binding, From]
-  ): Action[From] =
-    interp(expr, new ExprCtx(new Schema(rootReflect).deriving(config.toDeriver).derive))
+  // For callers without a `Table` (tests); allocates a one-off `ExprCtx`, unlike the `Table` path.
+  def toAction[From](expr: DdbUpdateExpr[From], codec: DynamoDBCodec[From]): Action[From] =
+    interp(expr, new ExprCtx(codec))
 
   private def interp[From](expr: DdbUpdateExpr[From], ctx: ExprCtx): Action[From] =
     flatten(expr).map(leaf(_, ctx)) match {

@@ -18,7 +18,6 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.{ DynamicOptic, Optic, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, ProjectionExpression, SortKey }
 
@@ -73,17 +72,9 @@ private[dynamodb] object DdbKeyExprInterpreter {
         )
     }
 
-  /**
-   * Overload for callers that hold a config + reflect rather than a `Table`'s `ExprCtx`
-   *  (tests, and any direct non-`Table` use). Allocates a one-off `ExprCtx`; the hot
-   *  `whereKey` path goes through `toKeyConditionExpr(expr, table.exprCtx)`.
-   */
-  def toKeyConditionExpr[S](
-    expr: DdbKeyExpr[S],
-    config: DynamoDBCodecDeriverConfig[S],
-    rootReflect: Reflect[Binding, S]
-  ): Either[String, KeyConditionExpr[S]] =
-    toKeyConditionExpr(expr, new ExprCtx(new Schema(rootReflect).deriving(config.toDeriver).derive))
+  // For callers without a `Table` (tests); allocates a one-off `ExprCtx`, unlike the `Table` path.
+  def toKeyConditionExpr[S](expr: DdbKeyExpr[S], codec: DynamoDBCodec[S]): Either[String, KeyConditionExpr[S]] =
+    toKeyConditionExpr(expr, new ExprCtx(codec))
 
   // -- Helpers -------------------------------------------------------------
 

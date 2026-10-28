@@ -87,7 +87,7 @@ object DynamoDBCodecDeriver
    * already carries the null semantic without needing an `Option` wrapper.
    */
   val dynamicValueCodec: DynamoDBCodec[DynamicValue] =
-    new DynamoDBCodec[DynamicValue] {
+    new DerivedCodec[DynamicValue] {
 
       override def encoder: Encoder[DynamicValue] =
         (dv: DynamicValue) =>
@@ -248,7 +248,7 @@ object DynamoDBCodecDeriver
    * decode.
    */
   val jsonAVCodec: DynamoDBCodec[Json] =
-    new DynamoDBCodec[Json] {
+    new DerivedCodec[Json] {
 
       override def encoder: Encoder[Json] = {
         case obj: Json.Object  =>
@@ -308,7 +308,7 @@ object DynamoDBCodecDeriver
  * Immutable - each `withXxx` returns a new deriver. In the setting names, "transient" leaves a value
  * out of the encoded item and "require" makes a missing key a decode error; every setting and its
  * default is listed in the codec reference (`docs/reference/codec.md`). A High-Level `Table` takes
- * the same settings through `.deriving`.
+ * a codec derived this way: `Table(name, codec)`.
  */
 class DynamoDBCodecDeriver private (
   schema1TupleCompat: Schema1Compat,
@@ -481,6 +481,7 @@ class DynamoDBCodecDeriver private (
               defaultValue = None,
               emptyCollectionConstructor = null,
               offset = offset,
+              valueType = registerValueType(fieldReflect),
               isOptional = isOptional(fieldReflect)
             )
             fieldInfo.setCodec(codec)
@@ -499,7 +500,7 @@ class DynamoDBCodecDeriver private (
             idx += 1
           }
         }
-        new DynamoDBCodec[A] {
+        new DerivedCodec[A] {
           private[this] val deconstructor = recordBinding.deconstructor
           private[this] val constructor   = recordBinding.constructor
           private[this] val usedRegisters = offset
@@ -720,6 +721,7 @@ class DynamoDBCodecDeriver private (
                 defaultValue = getDefaultValue(fieldReflect),
                 emptyCollectionConstructor = emptyCollectionConstructorFor(fieldReflect),
                 offset = offset,
+                valueType = registerValueType(fieldReflect),
                 isOptional = isOptional(fieldReflect),
                 usesNullSentinel = fieldReflect.typeId.isMaybe
               )
@@ -756,7 +758,7 @@ class DynamoDBCodecDeriver private (
           if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
           val rejectExtra                          = rejectExtraFields || modifiers.exists(_.isInstanceOf[Modifier.noExtraFields])
 
-          new DynamoDBCodec[A] {
+          new DerivedCodec[A] {
             override val recordFieldNames: Chunk[String]                                    =
               Chunk.fromArray(fieldInfos.filter(_.nonTransient).map(_.getName))
             override val recordFieldNameMap: scala.collection.immutable.Map[String, String] =
@@ -974,7 +976,7 @@ class DynamoDBCodecDeriver private (
     if (binding.isInstanceOf[Binding[?, ?]]) {
       if (typeId.isOption) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new DynamoDBCodec[Option[Any]] {
+          new DerivedCodec[Option[Any]] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[Any]]
 
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
@@ -1005,7 +1007,7 @@ class DynamoDBCodecDeriver private (
         }
       } else if (typeId.isMaybe) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new DynamoDBCodec[AnyRef] {
+          new DerivedCodec[AnyRef] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[AnyRef]]
 
             override def encoder: Encoder[AnyRef] = { value =>
@@ -1076,7 +1078,7 @@ class DynamoDBCodecDeriver private (
 
           val enumInfos = getInfos(cases)
 
-          new DynamoDBCodec[A] {
+          new DerivedCodec[A] {
             private[this] val root           = EnumNodeInfo(discr, enumInfos)
             private[this] val constructorMap = map
 
@@ -1138,7 +1140,7 @@ class DynamoDBCodecDeriver private (
                   infos
                 }
 
-                new DynamoDBCodec[A] {
+                new DerivedCodec[A] {
                   private[this] val root                   = new CaseNodeInfo(discr, getInfos(cases, Nil))
                   private[this] val caseMap                = map
                   private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
@@ -1203,7 +1205,7 @@ class DynamoDBCodecDeriver private (
                   infos
                 }
 
-                new DynamoDBCodec[A] {
+                new DerivedCodec[A] {
                   private[this] val root           = new CaseNodeInfo(discr, getInfos(cases))
                   private[this] val caseLeafCodecs = codecs.result()
 
@@ -1271,7 +1273,7 @@ class DynamoDBCodecDeriver private (
                   infos
                 }
 
-                new DynamoDBCodec[A] {
+                new DerivedCodec[A] {
                   private[this] val root           = new CaseNodeInfo(discr, getInfos(cases, Nil)) // Stackoverflow (3)
                   private[this] val caseMap        = map
                   private[this] lazy val caseSteps =
@@ -1335,7 +1337,7 @@ class DynamoDBCodecDeriver private (
         ) {
           // Set[String] → AttributeValue.StringSet
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
-          new DynamoDBCodec[Col[Elem]] {
+          new DerivedCodec[Col[Elem]] {
             private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
               node match {
@@ -1385,7 +1387,7 @@ class DynamoDBCodecDeriver private (
           }
         ) {
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
-          new DynamoDBCodec[Col[Elem]] {
+          new DerivedCodec[Col[Elem]] {
             private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
               node match {
@@ -1429,7 +1431,7 @@ class DynamoDBCodecDeriver private (
           }
         ) {
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
-          new DynamoDBCodec[Col[Elem]] {
+          new DerivedCodec[Col[Elem]] {
             private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
               node match {
@@ -1525,7 +1527,7 @@ class DynamoDBCodecDeriver private (
 
           schema1ByteSequenceCompat match {
             case Schema1Compat.ReadNewWriteNew  =>
-              new DynamoDBCodec[Col[Elem]] {
+              new DerivedCodec[Col[Elem]] {
                 override def encoder: Encoder[Col[Elem]] = encodeBinary(_)
                 override def decoder: Decoder[Col[Elem]] = {
                   case AttributeValue.Binary(bytes) => decodeBinary(bytes)
@@ -1533,7 +1535,7 @@ class DynamoDBCodecDeriver private (
                 }
               }
             case Schema1Compat.ReadBothWriteNew =>
-              new DynamoDBCodec[Col[Elem]] {
+              new DerivedCodec[Col[Elem]] {
                 override def encoder: Encoder[Col[Elem]] = encodeBinary(_)
                 override def decoder: Decoder[Col[Elem]] = {
                   case AttributeValue.Binary(bytes) => decodeBinary(bytes)
@@ -1542,7 +1544,7 @@ class DynamoDBCodecDeriver private (
                 }
               }
             case Schema1Compat.ReadBothWriteOld =>
-              new DynamoDBCodec[Col[Elem]] {
+              new DerivedCodec[Col[Elem]] {
                 override def encoder: Encoder[Col[Elem]] = { (col: Col[Elem]) =>
                   val len = deconstructor.size(col)
                   val avs = new Array[AttributeValue](len)
@@ -1562,7 +1564,7 @@ class DynamoDBCodecDeriver private (
               }
           }
         } else {
-          new DynamoDBCodec[Col[Elem]] {
+          new DerivedCodec[Col[Elem]] {
             private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, elementCodec)
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
               node match {
@@ -1642,7 +1644,7 @@ class DynamoDBCodecDeriver private (
             false
 
         if (isNativeMap)
-          new DynamoDBCodec[Map[Key, Value]] {
+          new DerivedCodec[Map[Key, Value]] {
             private[this] lazy val valuesStep                                                                = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, valueCodec)
             override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
               node match {
@@ -1699,7 +1701,7 @@ class DynamoDBCodecDeriver private (
                 }
           }
         else // non native Map encoding - Sequence of tuple2
-          new DynamoDBCodec[Map[Key, Value]] {
+          new DerivedCodec[Map[Key, Value]] {
             def encoder: Encoder[Map[Key, Value]] =
               (m: Map[Key, Value]) => {
                 val len = deconstructor.size(m)
@@ -1789,7 +1791,7 @@ class DynamoDBCodecDeriver private (
       D.instance(wrapped.metadata).map { codec =>
         // A record field of this wrapper type is read/written through valueType, so it must be the
         // register kind the field occupies (see storedBoxed).
-        new DynamoDBCodec[A] {
+        new DerivedCodec[A] {
           override private[dynamodb] val valueType: Int          =
             if (storedBoxed(typeId)) DynamoDBCodec.objectType else codec.valueType
           private[this] val unwrap                               = wrapperBinding.unwrap
@@ -1822,7 +1824,7 @@ class DynamoDBCodecDeriver private (
   }
 
   private[this] val stringCodec: DynamoDBCodec[String] =
-    new DynamoDBCodec[String] {
+    new DerivedCodec[String] {
       override def encoder: Encoder[String] =
         a => AttributeValue.String(a.toString)
 
@@ -1832,7 +1834,7 @@ class DynamoDBCodecDeriver private (
       }
     }
 
-  private[this] val intCodec: DynamoDBCodec[Int] = new DynamoDBCodec[Int] {
+  private[this] val intCodec: DynamoDBCodec[Int] = new DerivedCodec[Int] {
     override private[dynamodb] val valueType: Int = DynamoDBCodec.intType
     override def encoder: Encoder[Int]            =
       (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
@@ -1844,7 +1846,7 @@ class DynamoDBCodecDeriver private (
     }
   }
 
-  private[this] val longCodec: DynamoDBCodec[Long] = new DynamoDBCodec[Long] {
+  private[this] val longCodec: DynamoDBCodec[Long] = new DerivedCodec[Long] {
     override private[dynamodb] val valueType: Int = DynamoDBCodec.longType
     override def encoder: Encoder[Long]           = { (a: Long) =>
       AttributeValue.Number(BigDecimal.valueOf(a))
@@ -1858,7 +1860,7 @@ class DynamoDBCodecDeriver private (
   }
 
   private[this] val unitCodec: DynamoDBCodec[Unit] =
-    new DynamoDBCodec[Unit] {
+    new DerivedCodec[Unit] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.unitType
       override def encoder: Encoder[Unit]           = _ => AttributeValue.Map.empty
       override def decoder: Decoder[Unit]           = {
@@ -1868,7 +1870,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val booleanCodec: DynamoDBCodec[Boolean] =
-    new DynamoDBCodec[Boolean] {
+    new DerivedCodec[Boolean] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.booleanType
       override def encoder: Encoder[Boolean]        = b => AttributeValue.Bool(b)
       override def decoder: Decoder[Boolean]        = {
@@ -1881,7 +1883,7 @@ class DynamoDBCodecDeriver private (
     schema1ByteCompat match {
       case Schema1Compat.ReadNewWriteNew =>
         // Default: encode as Number, decode Number only.
-        new DynamoDBCodec[Byte] {
+        new DerivedCodec[Byte] {
           override private[dynamodb] val valueType: Int = DynamoDBCodec.byteType
           override def encoder: Encoder[Byte]           = b => AttributeValue.Number(BigDecimal.valueOf(b.toLong))
           override def decoder: Decoder[Byte]           = {
@@ -1894,7 +1896,7 @@ class DynamoDBCodecDeriver private (
         // ReadBothWriteOld / ReadBothWriteNew — legacy stores a standalone Byte as a
         // single-byte AttributeValue.Binary (zio-schema 1.x's StandardType.ByteType mapping).
         val writeLegacy = schema1ByteCompat == Schema1Compat.ReadBothWriteOld
-        new DynamoDBCodec[Byte] {
+        new DerivedCodec[Byte] {
           override private[dynamodb] val valueType: Int = DynamoDBCodec.byteType
           override def encoder: Encoder[Byte]           =
             if (writeLegacy) b => AttributeValue.Binary(Array(b))
@@ -1915,7 +1917,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val shortCodec: DynamoDBCodec[Short] =
-    new DynamoDBCodec[Short] {
+    new DerivedCodec[Short] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.shortType
       override def encoder: Encoder[Short]          = s => AttributeValue.Number(BigDecimal.valueOf(s.toLong))
       override def decoder: Decoder[Short]          = {
@@ -1926,7 +1928,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val floatCodec: DynamoDBCodec[Float] =
-    new DynamoDBCodec[Float] {
+    new DerivedCodec[Float] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.floatType
       override def encoder: Encoder[Float]          = f => AttributeValue.Number(BigDecimal.valueOf(f.toDouble))
       override def decoder: Decoder[Float]          = {
@@ -1937,7 +1939,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val doubleCodec: DynamoDBCodec[Double] =
-    new DynamoDBCodec[Double] {
+    new DerivedCodec[Double] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.doubleType
       override def encoder: Encoder[Double]         = d => AttributeValue.Number(BigDecimal.valueOf(d))
       override def decoder: Decoder[Double]         = {
@@ -1948,7 +1950,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val charCodec: DynamoDBCodec[Char] =
-    new DynamoDBCodec[Char] {
+    new DerivedCodec[Char] {
       override private[dynamodb] val valueType: Int = DynamoDBCodec.charType
       override def encoder: Encoder[Char]           = c => AttributeValue.String(c.toString)
       override def decoder: Decoder[Char]           = {
@@ -1960,7 +1962,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val bigIntCodec: DynamoDBCodec[BigInt] =
-    new DynamoDBCodec[BigInt] {
+    new DerivedCodec[BigInt] {
       override def encoder: Encoder[BigInt] = bi => AttributeValue.Number(BigDecimal(bi))
       override def decoder: Decoder[BigInt] = {
         case AttributeValue.Number(bd) => Right(bd.toBigInt)
@@ -1970,7 +1972,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val bigDecimalCodec: DynamoDBCodec[BigDecimal] =
-    new DynamoDBCodec[BigDecimal] {
+    new DerivedCodec[BigDecimal] {
       override def encoder: Encoder[BigDecimal] = bd => AttributeValue.Number(bd)
       override def decoder: Decoder[BigDecimal] = {
         case AttributeValue.Number(bd) => Right(bd)
@@ -1982,7 +1984,7 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] def temporalStringCodec[A](encode: A => String, decode: String => A): DynamoDBCodec[A] =
-    new DynamoDBCodec[A] {
+    new DerivedCodec[A] {
       override def encoder: Encoder[A] = a => AttributeValue.String(encode(a))
       override def decoder: Decoder[A] = {
         case AttributeValue.String(s) =>
@@ -2029,7 +2031,7 @@ class DynamoDBCodecDeriver private (
     schema1YearCompat match {
       case Schema1Compat.ReadNewWriteNew =>
         // Default: encode as Number, decode Number only.
-        new DynamoDBCodec[Year] {
+        new DerivedCodec[Year] {
           override def encoder: Encoder[Year] = y => AttributeValue.Number(BigDecimal.valueOf(y.getValue.toLong))
           override def decoder: Decoder[Year] = {
             case AttributeValue.Number(bd) => Right(Year.of(bd.intValue))
@@ -2044,7 +2046,7 @@ class DynamoDBCodecDeriver private (
           .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
           .toFormatter()
         val writeLegacy = schema1YearCompat == Schema1Compat.ReadBothWriteOld
-        new DynamoDBCodec[Year] {
+        new DerivedCodec[Year] {
           override def encoder: Encoder[Year] =
             if (writeLegacy) y => AttributeValue.String(fmt.format(y))
             else y => AttributeValue.Number(BigDecimal.valueOf(y.getValue.toLong))
@@ -2186,6 +2188,27 @@ class DynamoDBCodecDeriver private (
       case _                   => RegisterOffset.incrementObjects(0L)
     }
 
+  // The register kind a field of this type occupies, matching registerOffset. A record field is read
+  // and written through this rather than its codec's valueType, which a hand-written codec on a
+  // primitive field (an `.instance` override) leaves at objectType.
+  private def registerValueType[F[_, _], A](reflect: Reflect[F, A]): Int =
+    unwrapToPrimitiveTypeOption(reflect) match {
+      case Some(primitiveType) =>
+        primitiveType match {
+          case _: PrimitiveType.Unit.type => DynamoDBCodec.unitType
+          case _: PrimitiveType.Boolean   => DynamoDBCodec.booleanType
+          case _: PrimitiveType.Byte      => DynamoDBCodec.byteType
+          case _: PrimitiveType.Char      => DynamoDBCodec.charType
+          case _: PrimitiveType.Short     => DynamoDBCodec.shortType
+          case _: PrimitiveType.Float     => DynamoDBCodec.floatType
+          case _: PrimitiveType.Int       => DynamoDBCodec.intType
+          case _: PrimitiveType.Double    => DynamoDBCodec.doubleType
+          case _: PrimitiveType.Long      => DynamoDBCodec.longType
+          case _                          => DynamoDBCodec.objectType
+        }
+      case _                   => DynamoDBCodec.objectType
+    }
+
 } // end class DynamoDBCodecDeriver
 
 private final class FieldInfo(
@@ -2193,23 +2216,20 @@ private final class FieldInfo(
   private val defaultValue: Option[?],          // schema-derived default; None if requireDefaultValueFields
   val emptyCollectionConstructor: () => AnyRef, // null when the field is not a collection
   val offset: RegisterOffset,
+  valueType: Int,
   val isOptional: Boolean,
   val usesNullSentinel: Boolean = false
 ) {
   var nonTransient: Boolean                 = true
   var nonEncodeTransient: Boolean           = true
   private[this] var name: String            = null
-  private[this] var valueType: Int          = 0
   private[this] var codec: DynamoDBCodec[?] = null
 
   def setName(name: String): Unit = this.name = name
 
   def getName: String = name
 
-  def setCodec(codec: DynamoDBCodec[?]): Unit = {
-    this.codec = codec
-    valueType = codec.valueType
-  }
+  def setCodec(codec: DynamoDBCodec[?]): Unit = this.codec = codec
 
   def getCodec: DynamoDBCodec[?] = codec
 

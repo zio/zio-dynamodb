@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.{ DynamicOptic, Optic }
 import zio.dynamodb.blocks.CodecNavigator
-import zio.dynamodb.blocks.schema.DynamoDBCodec
+import zio.dynamodb.blocks.schema.{ DerivedCodec, DynamoDBCodec }
 
 /**
  * Per-[[Table]] expression-resolution context, built once per table. Resolves an optic against the
@@ -27,6 +27,16 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  * encodings always match the stored item.
  */
 private[ddbexpr] final class ExprCtx(private[ddbexpr] val codec: DynamoDBCodec[_]) {
+
+  // A hand-written top-level codec can't be navigated, so every path - key conditions included - fails
+  // with this one error, checked once per table. `put` and unfiltered scans only encode and decode.
+  private[this] val opaque: Left[String, Nothing] =
+    if (codec.isInstanceOf[DerivedCodec[_]]) null
+    else
+      Left(
+        "the table's codec was not derived by DynamoDBCodecDeriver, so expression paths can't be resolved " +
+          "against it - derive it with DynamoDBCodecDeriver and override single fields with .instance(optic, codec)"
+      )
 
   // Keyed by DynamicOptic alone: the codec is fixed per table.
   private[this] val cache = new ConcurrentHashMap[DynamicOptic, Either[String, CodecNavigator.Resolved]]()
@@ -36,6 +46,7 @@ private[ddbexpr] final class ExprCtx(private[ddbexpr] val codec: DynamoDBCodec[_
   private[ddbexpr] def at(dyn: DynamicOptic): Either[String, CodecNavigator.Resolved] = {
     val hit = cache.get(dyn)
     if (hit ne null) hit
+    else if (opaque ne null) opaque
     else {
       val computed = CodecNavigator.resolve(codec, dyn)
       cache.putIfAbsent(dyn, computed)
@@ -46,7 +57,7 @@ private[ddbexpr] final class ExprCtx(private[ddbexpr] val codec: DynamoDBCodec[_
   // A key optic is a single top-level field: one step on the root codec, which is a prebuilt
   // lookup, so key conditions skip the cache and allocate nothing.
   private[ddbexpr] def topLevelField(field: DynamicOptic.Node.Field): Either[String, DynamoDBCodec.Step] =
-    codec.step(field)
+    if (opaque ne null) opaque else codec.step(field)
 
   // The codec for an element of the collection at `resolved` - list, set or map values.
   private[ddbexpr] def elementCodec(resolved: CodecNavigator.Resolved): Either[String, DynamoDBCodec[Any]] =

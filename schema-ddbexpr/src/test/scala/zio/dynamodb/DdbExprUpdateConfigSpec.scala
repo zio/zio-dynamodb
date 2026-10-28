@@ -17,7 +17,8 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, NameMapper, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.blocks.schema.derive.Deriver
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.blocks.ddbexpr.{ DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps
 import zio.test._
@@ -25,9 +26,8 @@ import zio.test.Assertion._
 
 /**
  * The update-action counterpart of [[DdbExprFilterConfigSpec]]. `DdbExprApi.update`
- * interprets its `DdbUpdateExpr` argument through the calling table's
- * `DynamoDBCodecDeriverConfig`, so a `set` / `add` / … writes the same attribute name and
- * the same operand encoding as the item body a `put` writes.
+ * interprets its `DdbUpdateExpr` argument against the table's codec, so a `set` / `add` / …
+ * writes the same attribute name and the same operand encoding as the item body a `put` writes.
  *
  * The `Variant` (sealed-trait) operand cases are the point: a sealed-trait operand in
  * `Task.score.set(x)` must encode consistently with the body under a non-default
@@ -74,14 +74,14 @@ object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
     case _                                                                                   => None
   }
 
-  private def interp(u: DdbUpdateExpr[Order], cfg: DynamoDBCodecDeriverConfig[Order]): UpdateExpression.Action[Order] =
-    DdbUpdateExprInterpreter.toAction(u, cfg, Order.schema.reflect)
+  private def interp(u: DdbUpdateExpr[Order], cfg: Deriver[DynamoDBCodec]): UpdateExpression.Action[Order] =
+    DdbUpdateExprInterpreter.toAction(u, Order.schema.deriving(cfg).derive)
 
-  private def bodyEncoded[A](value: A, schema: Schema[A], cfg: DynamoDBCodecDeriverConfig[Order]): AttributeValue =
-    schema.deriving(cfg.toDeriver).derive.encoder(value)
+  private def bodyEncoded[A](value: A, schema: Schema[A], cfg: Deriver[DynamoDBCodec]): AttributeValue =
+    schema.deriving(cfg).derive.encoder(value)
 
-  private def bodyFieldName(scalaField: String, cfg: DynamoDBCodecDeriverConfig[Order]): String =
-    Order.schema.deriving(cfg.toDeriver).derive.recordFieldNameMap(scalaField)
+  private def bodyFieldName(scalaField: String, cfg: Deriver[DynamoDBCodec]): String =
+    Order.schema.deriving(cfg).derive.recordFieldNameMap(scalaField)
 
   def spec = suite("DdbExprUpdateConfigSpec")(
     test("an optic update action is a deferred DdbUpdateExpr, never a pre-encoded core Action") {
@@ -89,18 +89,18 @@ object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
       assert(action)(isSubtype[DdbUpdateExpr[_]](anything) && not(isSubtype[UpdateExpression.Action[_]](anything)))
     },
     test("default config: set field keeps its raw Scala name") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]()
+      val cfg = DynamoDBCodecDeriver
       assertTrue(attrPath(interp(Order.customerId.set("c9"), cfg)) == List("customerId"))
     },
     test("withFieldNameMapper(SnakeCase): set field resolves to the same wire name as the body") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       assertTrue(
         attrPath(interp(Order.customerId.set("c9"), cfg)) == List("customer_id"),
         bodyFieldName("customerId", cfg) == "customer_id"
       )
     },
     test("Variant operand: set(Status.Shipped) under default config encodes as the body codec does (String)") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]()
+      val cfg = DynamoDBCodecDeriver
       val a   = interp(Order.status.set(Status.Shipped), cfg)
       assertTrue(
         operandValue(a).contains(bodyEncoded(Status.Shipped, Status.schema, cfg)),
@@ -108,7 +108,7 @@ object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
       )
     },
     test("Variant operand: set(Status.Shipped) follows enumValuesAsStrings = false, matching the body codec") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]().withEnumValuesAsStrings(false)
+      val cfg = DynamoDBCodecDeriver.withEnumValuesAsStrings(false)
       val a   = interp(Order.status.set(Status.Shipped), cfg)
       assertTrue(
         operandValue(a).contains(bodyEncoded(Status.Shipped, Status.schema, cfg)),
@@ -116,17 +116,17 @@ object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
       )
     },
     test("Variant operand: set(Status.Shipped) follows caseNameMapper, matching the body codec") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]().withCaseNameMapper(NameMapper.SnakeCase)
+      val cfg = DynamoDBCodecDeriver.withCaseNameMapper(NameMapper.SnakeCase)
       val a   = interp(Order.status.set(Status.Shipped), cfg)
       assertTrue(operandValue(a).contains(bodyEncoded(Status.Shipped, Status.schema, cfg)))
     },
     test("Variant operand via setIfNotExists is encoded with the table config") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]().withEnumValuesAsStrings(false)
+      val cfg = DynamoDBCodecDeriver.withEnumValuesAsStrings(false)
       val a   = interp(Order.status.setIfNotExists(Status.Open), cfg)
       assertTrue(operandValue(a).contains(bodyEncoded(Status.Open, Status.schema, cfg)))
     },
     test("composed set + add: both operands and both paths thread the table config") {
-      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg      = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val a        = interp(Order.status.set(Status.Shipped) + Order.quantity.add(1), cfg)
       val rendered = a.render.execute._2
       assertTrue(

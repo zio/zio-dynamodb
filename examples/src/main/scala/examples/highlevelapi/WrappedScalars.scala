@@ -20,7 +20,7 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr
 import zio.dynamodb.blocks.ddbexpr.dsl._
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.prelude.Subtype
 
 /**
@@ -33,14 +33,12 @@ object WrappedScalars {
   // AnyVal value class over S
   final case class Sku(value: String) extends AnyVal
   object Sku {
-    implicit val schema: Schema[Sku]       = Schema.string.transform(Sku(_), _.value)
-    implicit val codec: DynamoDBCodec[Sku] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[Sku] = Schema.string.transform(Sku(_), _.value)
   }
 
   // zio-prelude Subtype over N
   object Weight extends Subtype[Int] {
-    implicit val schema: Schema[Weight.Type]       = Schema.int.transform(Weight.wrap, Weight.unwrap)
-    implicit val codec: DynamoDBCodec[Weight.Type] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[Weight.Type] = Schema.int.transform(Weight.wrap, Weight.unwrap)
   }
 
   final case class Widget(sku: Sku, weight: Weight.Type)

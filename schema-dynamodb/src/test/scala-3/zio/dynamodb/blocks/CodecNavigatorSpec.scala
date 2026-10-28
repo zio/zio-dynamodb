@@ -17,6 +17,7 @@
 package zio.dynamodb.blocks
 
 import zio.blocks.schema.*
+import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue, ToAttributeValue }
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
@@ -119,10 +120,10 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
   private val addressTypeId = Schema[Address].reflect.typeId
 
   // Expected paths, in `parityPaths` order: what each configured codec writes.
-  private val configs: List[(String, DynamoDBCodecDeriverConfig[Order], List[String])] = List(
+  private val configs: List[(String, Deriver[DynamoDBCodec], List[String])] = List(
     (
       "default",
-      DynamoDBCodecDeriverConfig[Order](),
+      DynamoDBCodecDeriver,
       List(
         "id",
         "customerName",
@@ -139,7 +140,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
     ),
     (
       "snake case fields",
-      DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase),
+      DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase),
       List(
         "id",
         "customer_name",
@@ -156,7 +157,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
     ),
     (
       "kebab fields + cases",
-      DynamoDBCodecDeriverConfig[Order]()
+      DynamoDBCodecDeriver
         .withFieldNameMapper(NameMapper.KebabCase)
         .withCaseNameMapper(NameMapper.KebabCase),
       List(
@@ -175,7 +176,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
     ),
     (
       "type-keyed renames",
-      DynamoDBCodecDeriverConfig[Order]()
+      DynamoDBCodecDeriver
         .withModifier(addressTypeId, "street", Modifier.rename("road"))
         .withModifier(orderTypeId, "delivery", Modifier.rename("dlv")),
       List(
@@ -194,7 +195,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
     ),
     (
       "Field discriminator",
-      DynamoDBCodecDeriverConfig[Order]().withDiscriminatorKind(DiscriminatorKind.Field("type")),
+      DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")),
       List(
         "id",
         "customerName",
@@ -234,13 +235,13 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
     suite("configured paths")(
       configs.map { case (name, cfg, expected) =>
         test(name) {
-          val codec = Schema[Order].deriving(cfg.toDeriver).derive
+          val codec = Schema[Order].deriving(cfg).derive
           assertTrue(parityPaths.map(navigate(codec, _)) == expected.map(Right(_)))
         }
       } :+
         test("field / case renames and a Field discriminator from annotations") {
-          val cfg   = DynamoDBCodecDeriverConfig[Drawing]()
-          val codec = Schema[Drawing].deriving(cfg.toDeriver).derive
+          val cfg   = DynamoDBCodecDeriver
+          val codec = Schema[Drawing].deriving(cfg).derive
           assertTrue(
             navigate(codec, Drawing.circleRadius) == Right("main.r"),
             navigate(codec, Drawing.squareSide) == Right("main.side")

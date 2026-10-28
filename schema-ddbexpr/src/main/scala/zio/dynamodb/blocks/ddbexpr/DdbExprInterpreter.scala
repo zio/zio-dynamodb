@@ -18,7 +18,6 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.{ DynamicSchemaExpr, DynamicValue, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression }
 
@@ -39,17 +38,12 @@ private[dynamodb] object DdbExprInterpreter {
   def toConditionExpression[S](expr: DdbExpr[S, Boolean], ctx: ExprCtx): Either[String, ConditionExpression[S]] =
     interp[S](expr, ctx)
 
-  /**
-   * Overload for callers that hold a config + reflect rather than a `Table`'s `ExprCtx`
-   *  (tests, and any direct non-`Table` use). Allocates a one-off `ExprCtx`; the hot
-   *  `.where` / `.filter` path goes through `toConditionExpression(expr, table.exprCtx)`.
-   */
+  // For callers without a `Table` (tests); allocates a one-off `ExprCtx`, unlike the `Table` path.
   def toConditionExpression[S](
     expr: DdbExpr[S, Boolean],
-    config: DynamoDBCodecDeriverConfig[S],
-    rootReflect: Reflect[Binding, S]
+    codec: DynamoDBCodec[S]
   ): Either[String, ConditionExpression[S]] =
-    interp[S](expr, new ExprCtx(new Schema(rootReflect).deriving(config.toDeriver).derive))
+    interp[S](expr, new ExprCtx(codec))
 
   private def interp[S](expr: DdbExpr[S, Boolean], ctx: ExprCtx): Either[String, ConditionExpression[S]] =
     expr match {

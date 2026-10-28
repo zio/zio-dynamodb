@@ -17,17 +17,17 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, NameMapper, Schema, SchemaExpr }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.blocks.schema.derive.Deriver
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 import zio.test._
 import zio.test.Assertion._
 
 /**
- * `.filter` / `.where` interpretation threads the calling table's
- * `DynamoDBCodecDeriverConfig` through to both the attribute names it references and
- * the literals it encodes — so a filtered / conditioned field lands on the same wire name
- * and the same encoding as the item body a `put` writes.
+ * `.filter` / `.where` interpretation resolves the attribute names it references and the
+ * literals it encodes against the table's codec — so a filtered / conditioned field lands on
+ * the same wire name and the same encoding as the item body a `put` writes.
  */
 object DdbExprFilterConfigSpec extends ZIOSpecDefault {
 
@@ -88,14 +88,14 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
 
   private def interp(
     expr: DdbExpr[Order, Boolean],
-    cfg: DynamoDBCodecDeriverConfig[Order]
+    cfg: Deriver[DynamoDBCodec]
   ): ConditionExpression[Order] =
     DdbExprInterpreter
-      .toConditionExpression(expr, cfg, Order.schema.reflect)
+      .toConditionExpression(expr, Order.schema.deriving(cfg).derive)
       .fold(msg => throw new AssertionError(s"interpretation failed: $msg"), identity)
 
-  private def bodyFieldName(scalaField: String, cfg: DynamoDBCodecDeriverConfig[Order]): String =
-    Order.schema.deriving(cfg.toDeriver).derive.recordFieldNameMap(scalaField)
+  private def bodyFieldName(scalaField: String, cfg: Deriver[DynamoDBCodec]): String =
+    Order.schema.deriving(cfg).derive.recordFieldNameMap(scalaField)
 
   def spec = suite("DdbExprFilterConfigSpec")(
     // A combined condition (`x === a && y === b && ...`) built from schema optics must reach
@@ -109,7 +109,7 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
       import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
       import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
-      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg      = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
       val ce       = interp(combined, cfg)
       assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
@@ -123,7 +123,7 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
       import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
       import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
-      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg      = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
       val ce       = interp(combined, cfg)
       assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
@@ -142,7 +142,7 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
         OpticUpdateOps,
         SchemaExprBoolBridge
       }
-      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg      = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
       val ce       = interp(combined, cfg)
       assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
@@ -161,7 +161,7 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
         OpticUpdateOps,
         SchemaExprBoolBridge
       }
-      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg      = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
       val ce       = interp(combined, cfg)
       assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
@@ -172,12 +172,12 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       )
     },
     test("default config: filtered field keeps its raw Scala name") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]()
+      val cfg = DynamoDBCodecDeriver
       val ce  = interp(DdbExpr.Builtin(Order.customerId === "c1"), cfg)
       assertTrue(attrPaths(ce).contains(List("customerId")))
     },
     test("withFieldNameMapper(SnakeCase): filtered field resolves to the same wire name as the body") {
-      val cfg = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val cfg = DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
       val ce  = interp(DdbExpr.Builtin(Order.customerId === "c1"), cfg)
       assertTrue(
         attrPaths(ce).contains(List("customer_id")),
@@ -185,15 +185,15 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       )
     },
     test("filtered literal is encoded with the table's config (enumValuesAsStrings = true, the default)") {
-      val cfg         = DynamoDBCodecDeriverConfig[Order]()
+      val cfg         = DynamoDBCodecDeriver
       val ce          = interp(DdbExpr.Builtin(Order.status === Status.Shipped), cfg)
-      val bodyEncoded = Status.schema.deriving(cfg.toDeriver).derive.encoder(Status.Shipped)
+      val bodyEncoded = Status.schema.deriving(cfg).derive.encoder(Status.Shipped)
       assertTrue(literalOf(ce).contains(bodyEncoded), literalOf(ce).contains(AttributeValue.String("Shipped")))
     },
     test("filtered literal follows enumValuesAsStrings = false, matching the body codec") {
-      val cfg         = DynamoDBCodecDeriverConfig[Order]().withEnumValuesAsStrings(false)
+      val cfg         = DynamoDBCodecDeriver.withEnumValuesAsStrings(false)
       val ce          = interp(DdbExpr.Builtin(Order.status === Status.Shipped), cfg)
-      val bodyEncoded = Status.schema.deriving(cfg.toDeriver).derive.encoder(Status.Shipped)
+      val bodyEncoded = Status.schema.deriving(cfg).derive.encoder(Status.Shipped)
       assertTrue(
         literalOf(ce).contains(bodyEncoded),
         !literalOf(ce).contains(AttributeValue.String("Shipped"))

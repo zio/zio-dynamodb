@@ -77,6 +77,10 @@ abstract class DynamoDBCodec[A] {
 
 }
 
+// Every codec `DynamoDBCodecDeriver` builds, so a `Table` can tell a derived codec, which can be navigated,
+// from a hand-written one, which can't.
+private[dynamodb] abstract class DerivedCodec[A] extends DynamoDBCodec[A]
+
 /** `valueType` tag constants used internally to dispatch on a field's primitive register type without boxing. */
 object DynamoDBCodec {
   private[dynamodb] val objectType  = 0

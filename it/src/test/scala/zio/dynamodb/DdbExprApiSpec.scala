@@ -25,6 +25,7 @@ import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps, SchemaExprBoolBridge }
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect
@@ -646,19 +647,110 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
     val displayName: Lens[Article, String]   = $(_.displayName)
     val status: Lens[Article, ArticleStatus] = $(_.status)
   }
-  private val articleTypeId = Article.schema.reflect.typeId
 
   private def configuredArticleTable(tableName: String) =
-    DdbExprApi
-      .Table[Article](tableName)
-      .deriving(
-        _.withFieldNameMapper(NameMapper.SnakeCase)
-          .withCaseNameMapper(NameMapper.SnakeCase)
-          .withModifier(articleTypeId, "articleId", Modifier.rename("id"))
+    DdbExprApi.Table(
+      tableName,
+      Article.schema
+        .deriving(
+          DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase).withCaseNameMapper(NameMapper.SnakeCase)
+        )
+        .modifier(Article.articleId, Modifier.rename("id"))
+        .derive
+    )
+
+  private case class Sensor(name: String, unit: String)
+  private object Sensor { implicit val schema: Schema[Sensor] = Schema.derived }
+  private case class Reading(id: String, sensor: Sensor, celsius: Int)
+  private object Reading extends CompanionOptics[Reading] {
+    implicit val schema: Schema[Reading]  = Schema.derived
+    val id: Lens[Reading, String]         = $(_.id)
+    val sensorName: Lens[Reading, String] = $(_.sensor.name)
+    val celsius: Lens[Reading, Int]       = $(_.celsius)
+  }
+
+  private val intAsString: DynamoDBCodec[Int] = new DynamoDBCodec[Int] {
+    def encoder: Encoder[Int] = i => ToAttributeValue[String].toAttributeValue(i.toString)
+    def decoder: Decoder[Int] = av => FromAttributeValue[String].fromAttributeValue(av).map(_.toInt)
+  }
+
+  // A nested field renamed by optic, and an Int field stored as a String by an optic instance override.
+  private def readingTable(tableName: String) =
+    DdbExprApi.Table(
+      tableName,
+      Reading.schema
+        .deriving(DynamoDBCodecDeriver)
+        .modifier(Reading.sensorName, Modifier.rename("sn"))
+        .instance(Reading.celsius, intAsString)
+        .derive
+    )
+
+  private val reading = Reading("r1", Sensor("probe", "C"), 21)
+
+  private def storedSensor(name: String): AttributeValue =
+    AttributeValue.Map(
+      Map(
+        AttributeValue.String("sn")   -> AttributeValue.String(name),
+        AttributeValue.String("unit") -> AttributeValue.String("C")
       )
+    )
+
+  private val opticOverrideTests: Spec[DynamoDBEnv, Throwable] =
+    suite("optic overrides on a Table's codec against a real table")(
+      test("put + get round-trips, storing the renamed nested field and the String-encoded Int") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = readingTable(tableName)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, reading))
+            result  <- interpreter.run(DdbExprApi.get(table)(Reading.id.partitionKey === "r1"))
+            rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "r1")))
+          } yield assertTrue(
+            result.contains(Right(reading)),
+            rawItem.flatMap(_.map.get("celsius")).contains(AttributeValue.String("21")),
+            rawItem.flatMap(_.map.get("sensor")).contains(storedSensor("probe"))
+          )
+        }
+      },
+      test("scan.filter matches the overridden fields, so their literals are encoded the way they're stored") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = readingTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, reading))
+            _    <- interpreter.run(DdbExprApi.put(table, Reading("r2", Sensor("other", "C"), 30)))
+            page <- interpreter.run(
+                      DdbExprApi.scan(table, 10).filter(Reading.celsius === 21 && Reading.sensorName === "probe")
+                    )
+          } yield assertTrue(page.items == Chunk(Right(reading)))
+        }
+      },
+      test("update sets the renamed nested field, under a condition on the overridden field") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = readingTable(tableName)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, reading))
+            _       <- interpreter.run(
+                         DdbExprApi
+                           .update(table)(Reading.id.partitionKey === "r1")(Reading.sensorName.set("probe-2"))
+                           .where(Reading.celsius === 21)
+                       )
+            missed  <- interpreter
+                         .run(
+                           DdbExprApi
+                             .update(table)(Reading.id.partitionKey === "r1")(Reading.sensorName.set("probe-3"))
+                             .where(Reading.celsius === 99)
+                         )
+                         .either
+            rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "r1")))
+          } yield assert(missed)(isLeft(isSubtype[DynamoDBError.ItemError.ConditionFailed](anything))) &&
+            assertTrue(
+              rawItem.flatMap(_.map.get("sensor")).contains(storedSensor("probe-2"))
+            )
+        }
+      }
+    )
 
   private val configuredTableTests: Spec[DynamoDBEnv, Throwable] =
-    suite("Table.deriving config reaches execution against a real table")(
+    suite("a configured Table codec reaches execution against a real table")(
       test("put + get round-trips through a renamed key field, a snake_case field mapper, and a case-name-mapped enum") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table   = configuredArticleTable(tableName)
@@ -974,6 +1066,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       deleteTests,
       nativeSetTests,
       configuredTableTests,
+      opticOverrideTests,
       conditionalWriteTests,
       returningTests
     )

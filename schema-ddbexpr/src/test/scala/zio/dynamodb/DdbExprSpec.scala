@@ -17,8 +17,8 @@
 package zio.dynamodb
 
 import zio.blocks.chunk.Chunk
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.test._
@@ -85,7 +85,7 @@ object DdbExprSpec extends ZIOSpecDefault {
   private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
     schema: Schema[S]
   ): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbExprInterpreter.toConditionExpression(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   // ── Spec ─────────────────────────────────────────────────────────────────────
 
