@@ -501,9 +501,10 @@ class DynamoDBCodecDeriver private (
           }
         }
         new DerivedCodec[A] {
-          private[this] val deconstructor = recordBinding.deconstructor
-          private[this] val constructor   = recordBinding.constructor
-          private[this] val usedRegisters = offset
+          private[this] val deconstructor    = recordBinding.deconstructor
+          private[this] val constructor      = recordBinding.constructor
+          private[this] val usedRegisters    = offset
+          private[this] lazy val fieldCodecs = FieldCodecs.positional(fieldInfos)
 
           // Encoded as a positional List, so a field is a list index - except in the legacy
           // Schema1 nested-pair format, which has no stable position per field.
@@ -513,11 +514,7 @@ class DynamoDBCodecDeriver private (
             node match {
               case DynamicOptic.Node.Field(n) if schema1TupleCompat == Schema1Compat.ReadBothWriteOld =>
                 Left(s"field '$n' is in a tuple stored in the legacy Schema1 format, which has no path")
-              case DynamicOptic.Node.Field(n)                                                         =>
-                val idx = fieldInfos.indexWhere(_.span.name == n)
-                if (idx >= 0) DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Index(idx), fieldInfos(idx).getCodec)
-                else Left(s"field '$n' not found")
-              case other                                                                              => DynamoDBCodec.notNavigable(other)
+              case _                                                                                  => FieldCodecs.codecAt(node, fieldCodecs)
             }
 
           override def encoder: Encoder[A] = { value =>
@@ -2314,14 +2311,25 @@ private final class FieldInfo(
 
 }
 
-// The codec at each field of a record codec, keyed by Scala name and adding its wire name. Built once,
-// so resolving a key or path allocates nothing.
+// The codec at each field of a record codec, keyed by Scala name and adding its wire name - or, for a
+// tuple stored as a list, its position. Built once, so resolving a key or path allocates nothing.
 private object FieldCodecs {
   def index(fields: Array[FieldInfo]): java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]] = {
     val m = new java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]](fields.length * 2)
     fields.foreach(fi =>
       m.put(fi.span.name, DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(fi.getName), fi.getCodec))
     )
+    m
+  }
+
+  def positional(fields: Array[FieldInfo]): java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]] = {
+    val m   = new java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]](fields.length * 2)
+    var idx = 0
+    while (idx < fields.length) {
+      val fi = fields(idx)
+      m.put(fi.span.name, DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Index(idx), fi.getCodec))
+      idx += 1
+    }
     m
   }
 
