@@ -36,16 +36,23 @@ private[dynamodb] object CodecNavigator {
     var error: String                    = null
     var idx                              = 0
     while (idx < nodes.length && (error eq null)) {
-      current.codecAt(nodes(idx)) match {
-        case Right(atSegment) =>
-          atSegment.segment match {
-            case DynamoDBCodec.Segment.Name(name)   => path = ProjectionExpression.MapElement(path, name)
-            case DynamoDBCodec.Segment.Index(index) => path = ProjectionExpression.ListElement(path, index)
-            case DynamoDBCodec.Segment.Transparent  =>
-          }
-          current = atSegment.codec
-        case Left(msg)        => error = msg
-      }
+      val node = nodes(idx)
+      // A traversal reaches every element, value or key at once, which no single attribute path names.
+      if (
+        (node eq DynamicOptic.Node.Elements) || (node eq DynamicOptic.Node.MapValues) ||
+        (node eq DynamicOptic.Node.MapKeys)
+      ) error = s"'$path' is followed by a traversal ($node), which has no single DynamoDB attribute path"
+      else
+        current.codecAt(node) match {
+          case Right(atSegment) =>
+            atSegment.segment match {
+              case DynamoDBCodec.Segment.Name(name)   => path = ProjectionExpression.MapElement(path, name)
+              case DynamoDBCodec.Segment.Index(index) => path = ProjectionExpression.ListElement(path, index)
+              case DynamoDBCodec.Segment.Transparent  =>
+            }
+            current = atSegment.codec
+          case Left(msg)        => error = msg
+        }
       idx += 1
     }
     if (error ne null) Left(error) else Right(new Resolved(path, current))

@@ -560,7 +560,7 @@ class DynamoDBCodecDeriver private (
                   val av = codec.asInstanceOf[DynamoDBCodec[Double]].encoder(v)
                   arr(idx) = av
                 case DynamoDBCodec.unitType    =>
-                  arr(idx) = AttributeValue.Map.empty
+                  arr(idx) = codec.asInstanceOf[DynamoDBCodec[Unit]].encoder(())
                 case DynamoDBCodec.objectType  =>
                   val v  = regs.getObject(offset)
                   val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(v)
@@ -625,7 +625,14 @@ class DynamoDBCodecDeriver private (
                     case Right(v)  => regs.setDouble(field.offset, v)
                     case Left(err) => accumulate(err)
                   }
-                case DynamoDBCodec.unitType    => () // Unit fields occupy no register
+                case DynamoDBCodec.unitType    =>
+                  // Unit fields occupy no register. The default codec accepts any value, as before; an
+                  // override's decoder still runs so it can reject the attribute.
+                  if (field.getCodec ne unitCodec)
+                    field.getCodec.asInstanceOf[DynamoDBCodec[Unit]].decoder(value) match {
+                      case Left(err) => accumulate(err)
+                      case _         => ()
+                    }
                 case DynamoDBCodec.objectType  =>
                   field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
                     case Right(v)  => regs.setObject(field.offset, v)
@@ -836,7 +843,7 @@ class DynamoDBCodecDeriver private (
                         val av    = codec.asInstanceOf[DynamoDBCodec[Double]].encoder(value)
                         mapBuilder.addOne(avName, av)
                       case DynamoDBCodec.unitType    =>
-                        mapBuilder.addOne(avName, AttributeValue.Map.empty)
+                        mapBuilder.addOne(avName, codec.asInstanceOf[DynamoDBCodec[Unit]].encoder(()))
                       case DynamoDBCodec.objectType  =>
                         val value = regs.getObject(offset)
 
@@ -939,7 +946,13 @@ class DynamoDBCodecDeriver private (
                                 case Right(value) => regs.setDouble(offset, value)
                                 case Left(err)    => accumulate(err)
                               }
-                            case DynamoDBCodec.unitType    => () // Unit fields occupy no register
+                            case DynamoDBCodec.unitType    =>
+                              // As for tuples: no register, but an override's decoder can reject the value.
+                              if (field.getCodec ne unitCodec)
+                                field.getCodec.asInstanceOf[DynamoDBCodec[Unit]].decoder(av) match {
+                                  case Left(err) => accumulate(err)
+                                  case _         => ()
+                                }
                             case DynamoDBCodec.objectType  =>
                               field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
                                 case Right(value) => regs.setObject(offset, value)
@@ -2340,7 +2353,12 @@ private object FieldCodecs {
   def index(fields: Array[FieldInfo]): java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]] = {
     val m = new java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]](fields.length * 2)
     fields.foreach(fi =>
-      m.put(fi.span.name, DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(fi.getName), fi.getCodec))
+      m.put(
+        fi.span.name,
+        // A transient field is never written, so no attribute path reaches it.
+        if (fi.nonTransient) DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(fi.getName), fi.getCodec)
+        else Left(s"field '${fi.span.name}' is transient, so it isn't stored and has no attribute path")
+      )
     )
     m
   }

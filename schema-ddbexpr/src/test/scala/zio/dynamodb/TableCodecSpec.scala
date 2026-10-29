@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.ZIO
-import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, Schema, Traversal }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprInterpreter, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
@@ -45,11 +45,14 @@ object TableCodecSpec extends ZIOSpecDefault {
 
   private val reading = Reading("r-1", Sensor("probe", "C"), 21)
 
-  final case class Tagged(id: String, tags: List[String])
+  final case class Tagged(id: String, tags: List[String], counts: Map[String, Int])
   object Tagged extends CompanionOptics[Tagged] {
-    implicit val schema: Schema[Tagged]  = Schema.derived
-    val id: Lens[Tagged, String]         = $(_.id)
-    val tags: Lens[Tagged, List[String]] = $(_.tags)
+    implicit val schema: Schema[Tagged]        = Schema.derived
+    val id: Lens[Tagged, String]               = $(_.id)
+    val tags: Lens[Tagged, List[String]]       = $(_.tags)
+    val eachTag: Traversal[Tagged, String]     = $(_.tags.each)
+    val counts: Lens[Tagged, Map[String, Int]] = $(_.counts)
+    val eachCount: Traversal[Tagged, Int]      = $(_.counts.eachValue)
   }
 
   // Stores the list as one comma-separated string, so it has no list index on the wire.
@@ -62,7 +65,8 @@ object TableCodecSpec extends ZIOSpecDefault {
   private val tagged =
     Table("tagged", Tagged.schema.deriving(DynamoDBCodecDeriver).instance(Tagged.tags, tagsAsCsv).derive)
 
-  private val notAList = "is not stored as a list"
+  private val notAList  = "is not stored as a list"
+  private val traversal = "traversal"
 
   private val intAsString: DynamoDBCodec[Int] = new DynamoDBCodec[Int] {
     def encoder: Encoder[Int] = i => ToAttributeValue[String].toAttributeValue(i.toString)
@@ -180,6 +184,16 @@ object TableCodecSpec extends ZIOSpecDefault {
       test("a field whose codec doesn't store a list builds, then fails in the effect") {
         val q = update(tagged)(Tagged.id.partitionKey === "t-1")(Tagged.tags.remove(0))
         assertZIO(run(q.toQuery).either)(isLeft(hasMessage(containsString(notAList))))
+      }
+    ),
+    suite("a traversal has no single attribute path")(
+      test("over list elements: a filter builds, then fails in the effect") {
+        val q = scan(Table[Tagged]("tagged"), limit = 10).filter(Tagged.eachTag === "x")
+        assertZIO(run(q.toQuery).either)(isLeft(hasMessage(containsString(traversal))))
+      },
+      test("over map values: an update builds, then fails in the effect") {
+        val q = update(Table[Tagged]("tagged"))(Tagged.id.partitionKey === "t-1")(Tagged.eachCount.set(0))
+        assertZIO(run(q.toQuery).either)(isLeft(hasMessage(containsString(traversal))))
       }
     ),
     suite("a hand-written top-level codec")(

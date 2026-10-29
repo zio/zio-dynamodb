@@ -38,6 +38,12 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
 
   final case class Prefs(id: Int, counts: Map[String, Int]) derives Schema
 
+  final case class Draft(
+    id: String,
+    @Modifier.transient cache: String = "",
+    @Modifier.encodeTransient seenBy: String = ""
+  ) derives Schema
+
   sealed trait Delivery derives Schema
   final case class Courier(address: Address) extends Delivery derives Schema
   final case class Pickup(lockerId: String)  extends Delivery derives Schema
@@ -254,6 +260,15 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
         }
     ),
     suite("paths that follow the actual wire shape")(
+      test("a transient field isn't stored, so it has no path; an encode-only-transient one is read, so it does") {
+        val codec  = Schema[Draft].deriving(DynamoDBCodecDeriver).derive
+        val cache  = CodecNavigator.resolve(codec, DynamicOptic.root.field("cache"))
+        val seenBy = CodecNavigator.resolve(codec, DynamicOptic.root.field("seenBy"))
+        assertTrue(
+          cache.left.exists(_.contains("transient")),
+          seenBy.map(_.path.toString) == Right("seenBy")
+        )
+      },
       test("a map key is encoded with the key codec, as the stored item's keys are") {
         val codec = Schema[Prefs].deriving(DynamoDBCodecDeriver).instance(Schema[String].reflect.typeId, upper).derive
         val item  = codec.toItem(Prefs(1, Map("home" -> 2)))
@@ -367,18 +382,21 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
         assertTrue(delivery.map(_.codec.encoder(courier)).toOption == codec.toItem(order).map.get("delivery"))
       },
       test("list element, map value, set element and wrapper positions") {
-        val codec = Schema[Order].deriving(DynamoDBCodecDeriver).derive
-        val line  = CodecNavigator.resolve(codec, Order.lines.toDynamic.apply(DynamicOptic.elements))
-        val place = CodecNavigator.resolve(codec, Order.places.toDynamic.apply(DynamicOptic.mapValues))
-        val label = CodecNavigator.resolve(codec, Order.labels.toDynamic.apply(DynamicOptic.elements))
-        val sku   = CodecNavigator.resolve(codec, Order.lineSku.toDynamic)
+        val codec                                                  = Schema[Order].deriving(DynamoDBCodecDeriver).derive
+        // Element / value codecs come from the collection's own codec; as a path, a traversal is rejected.
+        def inner(optic: Optic[Order, ?], node: DynamicOptic.Node) =
+          CodecNavigator.resolve(codec, optic.toDynamic).flatMap(_.codec.codecAt(node)).map(_.codec)
+        val line                                                   = inner(Order.lines, DynamicOptic.Node.Elements)
+        val place                                                  = CodecNavigator.resolve(codec, Order.places.toDynamic.apply(DynamicOptic.mapValues))
+        val label                                                  = inner(Order.labels, DynamicOptic.Node.Elements)
+        val sku                                                    = CodecNavigator.resolve(codec, Order.lineSku.toDynamic)
         assertTrue(
-          line.map(r => (r.path.toString, r.codec.encoder(Line(Sku("s-9"), 3)))).toOption ==
+          line.map(_.encoder(Line(Sku("s-9"), 3))).toOption ==
             codec.toItem(order.copy(lines = List(Line(Sku("s-9"), 3)))).map.get("lines").collect {
-              case AttributeValue.List(items) => ("lines", items.head)
+              case AttributeValue.List(items) => items.head
             },
-          place.map(_.path.toString) == Right("places"),
-          label.map(_.codec.encoder("x")) == Right(AttributeValue.String("x")),
+          place.left.exists(_.contains("traversal")),
+          label.map(_.encoder("x")) == Right(AttributeValue.String("x")),
           sku.map(r => (r.path.toString, r.codec.encoder(Sku("s-1")))) == Right(
             ("lines[0].sku", AttributeValue.String("s-1"))
           )

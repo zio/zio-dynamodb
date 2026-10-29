@@ -2800,11 +2800,34 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
 
   private val counter = Counter("c-1", 7)
 
+  private case class Flagged(id: String, marker: Unit)
+  private object Flagged extends CompanionOptics[Flagged] {
+    implicit val schema: Schema[Flagged] = Schema.derived
+    val marker: Lens[Flagged, Unit]      = $(_.marker)
+  }
+
+  // Stores Unit as `true`, rather than the default empty map.
+  private val unitAsTrue: DynamoDBCodec[Unit] = new DynamoDBCodec[Unit] {
+    def encoder: Encoder[Unit] = _ => ToAttributeValue[Boolean].toAttributeValue(true)
+    def decoder: Decoder[Unit] = av => FromAttributeValue[Boolean].fromAttributeValue(av).map(_ => ())
+  }
+
   private def countStoredAsString(codec: DynamoDBCodec[Counter]) =
     assertTrue(codec.toItem(counter).map.get("count").contains(AttributeValue.String("7"))) &&
       assert(codec.fromItem(codec.toItem(counter)))(isRight(equalTo(counter)))
 
   private val configuredInCodeSuite = suite("configured in code")(
+    suite("a hand-written codec on a Unit field")(
+      test("is used to encode and decode it") {
+        val codec = Flagged.schema.deriving(DynamoDBCodecDeriver).instance(Flagged.marker, unitAsTrue).derive
+        val item  = codec.toItem(Flagged("f-1", ()))
+        assertTrue(
+          item.map.get("marker").contains(AttributeValue.Bool(true)),
+          codec.fromItem(item) == Right(Flagged("f-1", ())),
+          codec.fromItem(item + ("marker" -> AttributeValue.String("no"))).isLeft
+        )
+      }
+    ),
     suite("a hand-written codec on a primitive field")(
       test("by optic: the field round-trips through it") {
         countStoredAsString(Counter.schema.deriving(DynamoDBCodecDeriver).instance(Counter.count, intAsString).derive)
