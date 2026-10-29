@@ -505,15 +505,17 @@ class DynamoDBCodecDeriver private (
           private[this] val constructor   = recordBinding.constructor
           private[this] val usedRegisters = offset
 
-          // Encoded as a positional List, so a field step is a list index - except in the legacy
+          // Encoded as a positional List, so a field is a list index - except in the legacy
           // Schema1 nested-pair format, which has no stable position per field.
-          override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+          override private[dynamodb] def codecAt(
+            node: DynamicOptic.Node
+          ): Either[String, DynamoDBCodec.CodecAtSegment] =
             node match {
               case DynamicOptic.Node.Field(n) if schema1TupleCompat == Schema1Compat.ReadBothWriteOld =>
                 Left(s"field '$n' is in a tuple stored in the legacy Schema1 format, which has no path")
               case DynamicOptic.Node.Field(n)                                                         =>
                 val idx = fieldInfos.indexWhere(_.span.name == n)
-                if (idx >= 0) DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Index(idx), fieldInfos(idx).getCodec)
+                if (idx >= 0) DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Index(idx), fieldInfos(idx).getCodec)
                 else Left(s"field '$n' not found")
               case other                                                                              => DynamoDBCodec.notNavigable(other)
             }
@@ -767,16 +769,18 @@ class DynamoDBCodecDeriver private (
             private[this] val deconstructor                                                 = recordBinding.deconstructor
             private[this] val usedRegisters                                                 = offset
             private[this] val fields                                                        = fieldInfos
-            private[this] lazy val fieldSteps                                               = FieldSteps.index(fields)
+            private[this] lazy val fieldCodecs                                              = FieldCodecs.index(fields)
 
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
-              FieldSteps.step(node, fieldSteps)
-            private[this] val skipNone                                                                       = transientNone
-            private[this] val skipEmptyCollection                                                            = transientEmptyCollection
-            private[this] val skipDefaultValue                                                               = transientDefaultValue
-            private[this] val discriminatorField                                                             = discriminatorFields.get.headOption.orNull
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment]                     =
+              FieldCodecs.codecAt(node, fieldCodecs)
+            private[this] val skipNone                                          = transientNone
+            private[this] val skipEmptyCollection                               = transientEmptyCollection
+            private[this] val skipDefaultValue                                  = transientDefaultValue
+            private[this] val discriminatorField                                = discriminatorFields.get.headOption.orNull
             // null when extra-field rejection is off — avoids capturing aliasMap in the default case
-            private[this] val knownFields: java.util.HashMap[String, FieldInfo]                              =
+            private[this] val knownFields: java.util.HashMap[String, FieldInfo] =
               if (rejectExtra) aliasMap else null
 
             override def encoder: Encoder[A] = { value =>
@@ -979,11 +983,14 @@ class DynamoDBCodecDeriver private (
           new DerivedCodec[Option[Any]] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[Any]]
 
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.Case("Some")   => DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, this)
+                case DynamicOptic.Node.Case("Some")   =>
+                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, this)
                 case DynamicOptic.Node.Field("value") =>
-                  DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, valueCodec)
+                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, valueCodec)
                 case other                            => DynamoDBCodec.notNavigable(other)
               }
 
@@ -1144,11 +1151,13 @@ class DynamoDBCodecDeriver private (
                   private[this] val root                   = new CaseNodeInfo(discr, getInfos(cases, Nil))
                   private[this] val caseMap                = map
                   private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
-                  private[this] lazy val caseSteps         =
-                    CaseSteps.index(caseMap, this, _ => DynamoDBCodec.Segment.Transparent)
+                  private[this] lazy val caseCodecs        =
+                    CaseCodecs.index(caseMap, this, _ => DynamoDBCodec.Segment.Transparent)
 
-                  override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
-                    CaseSteps.step(node, caseSteps)
+                  override private[dynamodb] def codecAt(
+                    node: DynamicOptic.Node
+                  ): Either[String, DynamoDBCodec.CodecAtSegment] =
+                    CaseCodecs.codecAt(node, caseCodecs)
 
                   override def encoder: Encoder[A] =
                     (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
@@ -1209,7 +1218,9 @@ class DynamoDBCodecDeriver private (
                   private[this] val root           = new CaseNodeInfo(discr, getInfos(cases))
                   private[this] val caseLeafCodecs = codecs.result()
 
-                  override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+                  override private[dynamodb] def codecAt(
+                    node: DynamicOptic.Node
+                  ): Either[String, DynamoDBCodec.CodecAtSegment] =
                     node match {
                       case DynamicOptic.Node.Case(_) =>
                         Left("cannot build a path through a variant case with DiscriminatorKind.None")
@@ -1274,13 +1285,15 @@ class DynamoDBCodecDeriver private (
                 }
 
                 new DerivedCodec[A] {
-                  private[this] val root           = new CaseNodeInfo(discr, getInfos(cases, Nil)) // Stackoverflow (3)
-                  private[this] val caseMap        = map
-                  private[this] lazy val caseSteps =
-                    CaseSteps.index(caseMap, this, leaf => DynamoDBCodec.Segment.Name(leaf.getName))
+                  private[this] val root            = new CaseNodeInfo(discr, getInfos(cases, Nil)) // Stackoverflow (3)
+                  private[this] val caseMap         = map
+                  private[this] lazy val caseCodecs =
+                    CaseCodecs.index(caseMap, this, leaf => DynamoDBCodec.Segment.Name(leaf.getName))
 
-                  override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
-                    CaseSteps.step(node, caseSteps)
+                  override private[dynamodb] def codecAt(
+                    node: DynamicOptic.Node
+                  ): Either[String, DynamoDBCodec.CodecAtSegment] =
+                    CaseCodecs.codecAt(node, caseCodecs)
 
                   override def encoder: Encoder[A] =
                     (a: A) => {
@@ -1338,10 +1351,13 @@ class DynamoDBCodecDeriver private (
           // Set[String] → AttributeValue.StringSet
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
           new DerivedCodec[Col[Elem]] {
-            private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            private[this] lazy val elementsCodecAt          =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, codec)
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.Elements => elementsStep
+                case DynamicOptic.Node.Elements => elementsCodecAt
                 case other                      => DynamoDBCodec.notNavigable(other) // a DynamoDB set has no index
               }
 
@@ -1388,10 +1404,13 @@ class DynamoDBCodecDeriver private (
         ) {
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
           new DerivedCodec[Col[Elem]] {
-            private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            private[this] lazy val elementsCodecAt          =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, codec)
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.Elements => elementsStep
+                case DynamicOptic.Node.Elements => elementsCodecAt
                 case other                      => DynamoDBCodec.notNavigable(other) // a DynamoDB set has no index
               }
 
@@ -1432,10 +1451,13 @@ class DynamoDBCodecDeriver private (
         ) {
           val codec = elementCodec.asInstanceOf[DynamoDBCodec[Elem]]
           new DerivedCodec[Col[Elem]] {
-            private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, codec)
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            private[this] lazy val elementsCodecAt          =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, codec)
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.Elements => elementsStep
+                case DynamicOptic.Node.Elements => elementsCodecAt
                 case other                      => DynamoDBCodec.notNavigable(other) // a DynamoDB set has no index
               }
 
@@ -1565,11 +1587,15 @@ class DynamoDBCodecDeriver private (
           }
         } else {
           new DerivedCodec[Col[Elem]] {
-            private[this] lazy val elementsStep                                                              = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, elementCodec)
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            private[this] lazy val elementsCodecAt          =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, elementCodec)
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.AtIndex(i) => DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Index(i), elementCodec)
-                case DynamicOptic.Node.Elements   => elementsStep
+                case DynamicOptic.Node.AtIndex(i) =>
+                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Index(i), elementCodec)
+                case DynamicOptic.Node.Elements   => elementsCodecAt
                 case other                        => DynamoDBCodec.notNavigable(other)
               }
 
@@ -1645,13 +1671,16 @@ class DynamoDBCodecDeriver private (
 
         if (isNativeMap)
           new DerivedCodec[Map[Key, Value]] {
-            private[this] lazy val valuesStep                                                                = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, valueCodec)
-            override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+            private[this] lazy val valuesCodecAt            =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, valueCodec)
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
                 case DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String(k))) =>
-                  DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Name(k), valueCodec)
+                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(k), valueCodec)
                 case DynamicOptic.Node.MapValues                                                  =>
-                  valuesStep
+                  valuesCodecAt
                 case other                                                                        => DynamoDBCodec.notNavigable(other)
               }
 
@@ -1798,8 +1827,10 @@ class DynamoDBCodecDeriver private (
           private[this] val wrap                                 = wrapperBinding.wrap
           private[this] val wrappedCodec: DynamoDBCodec[Wrapped] = codec.asInstanceOf[DynamoDBCodec[Wrapped]]
 
-          override private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
-            wrappedCodec.step(node)
+          override private[dynamodb] def codecAt(
+            node: DynamicOptic.Node
+          ): Either[String, DynamoDBCodec.CodecAtSegment] =
+            wrappedCodec.codecAt(node)
 
           override def encoder: Encoder[A] = (a: A) => wrappedCodec.encoder(unwrap(a))
 
@@ -2280,54 +2311,56 @@ private final class FieldInfo(
 
 }
 
-// Optic steps for record codecs: a field by its Scala name, adding its wire name. Steps are built
-// once, so resolving a key or path allocates nothing.
-private object FieldSteps {
-  def index(fields: Array[FieldInfo]): java.util.HashMap[String, Either[String, DynamoDBCodec.Step]] = {
-    val m = new java.util.HashMap[String, Either[String, DynamoDBCodec.Step]](fields.length * 2)
-    fields.foreach(fi => m.put(fi.span.name, DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Name(fi.getName), fi.getCodec)))
+// The codec at each field of a record codec, keyed by Scala name and adding its wire name. Built once,
+// so resolving a key or path allocates nothing.
+private object FieldCodecs {
+  def index(fields: Array[FieldInfo]): java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]] = {
+    val m = new java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]](fields.length * 2)
+    fields.foreach(fi =>
+      m.put(fi.span.name, DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(fi.getName), fi.getCodec))
+    )
     m
   }
 
-  def step(
+  def codecAt(
     node: DynamicOptic.Node,
-    steps: java.util.HashMap[String, Either[String, DynamoDBCodec.Step]]
-  ): Either[String, DynamoDBCodec.Step] =
+    codecs: java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]]
+  ): Either[String, DynamoDBCodec.CodecAtSegment] =
     node match {
       case DynamicOptic.Node.Field(n) =>
-        val step = steps.get(n)
-        if (step ne null) step else Left(s"field '$n' not found")
+        val atSegment = codecs.get(n)
+        if (atSegment ne null) atSegment else Left(s"field '$n' not found")
       case other                      => DynamoDBCodec.notNavigable(other)
     }
 }
 
-// Optic steps for variant codecs. Nested sealed traits are flattened into their leaf cases on the wire,
-// so a step naming one is transparent; a leaf step adds `segment(leaf)`. Built once, as for records.
-private object CaseSteps {
+// The codec at each case of a variant codec. Nested sealed traits are flattened into their leaf cases on
+// the wire, so naming one adds no segment; a leaf case adds `segment(leaf)`. Built once, as for records.
+private object CaseCodecs {
   def index(
     caseMap: java.util.HashMap[String, CaseLeafInfo],
     self: DynamoDBCodec[_],
     segment: CaseLeafInfo => DynamoDBCodec.Segment
-  ): java.util.HashMap[String, Either[String, DynamoDBCodec.Step]] = {
-    val steps  = new java.util.HashMap[String, Either[String, DynamoDBCodec.Step]]()
-    val toSelf = DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Transparent, self)
+  ): java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]] = {
+    val codecs = new java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]]()
+    val toSelf = DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, self)
     val it     = caseMap.values.iterator
     while (it.hasNext) {
       val leaf = it.next()
-      steps.put(leaf.spans.head.name, DynamoDBCodec.stepTo(segment(leaf), leaf.codec))
-      leaf.spans.tail.foreach(span => steps.putIfAbsent(span.name, toSelf))
+      codecs.put(leaf.spans.head.name, DynamoDBCodec.codecAtSegment(segment(leaf), leaf.codec))
+      leaf.spans.tail.foreach(span => codecs.putIfAbsent(span.name, toSelf))
     }
-    steps
+    codecs
   }
 
-  def step(
+  def codecAt(
     node: DynamicOptic.Node,
-    steps: java.util.HashMap[String, Either[String, DynamoDBCodec.Step]]
-  ): Either[String, DynamoDBCodec.Step] =
+    codecs: java.util.HashMap[String, Either[String, DynamoDBCodec.CodecAtSegment]]
+  ): Either[String, DynamoDBCodec.CodecAtSegment] =
     node match {
       case DynamicOptic.Node.Case(n) =>
-        val step = steps.get(n)
-        if (step ne null) step else Left(s"case '$n' not found")
+        val atSegment = codecs.get(n)
+        if (atSegment ne null) atSegment else Left(s"case '$n' not found")
       case other                     => DynamoDBCodec.notNavigable(other)
     }
 }

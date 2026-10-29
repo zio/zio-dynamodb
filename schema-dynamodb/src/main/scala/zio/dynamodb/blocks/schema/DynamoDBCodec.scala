@@ -36,12 +36,12 @@ abstract class DynamoDBCodec[A] {
   def decoder: Decoder[A]
 
   /**
-   * One optic step into the value this codec encodes: the attribute-path segment the step adds and
-   * the codec at that position. Lets the library resolve an optic against the codec that actually
+   * The codec at one optic node inside the value this codec encodes, with the attribute-path segment
+   * that node adds. Lets the library resolve an optic against the codec that actually
    * writes the item, rather than restating its naming rules. A codec that doesn't override it (for
    * example a hand-written one) can't be navigated.
    */
-  private[dynamodb] def step(node: DynamicOptic.Node): Either[String, DynamoDBCodec.Step] =
+  private[dynamodb] def codecAt(node: DynamicOptic.Node): Either[String, DynamoDBCodec.CodecAtSegment] =
     DynamoDBCodec.notNavigable(node)
 
   private[dynamodb] val recordFieldNames: Chunk[String] = Chunk.empty
@@ -94,7 +94,7 @@ object DynamoDBCodec {
   private[dynamodb] val doubleType  = 8
   private[dynamodb] val unitType    = 9
 
-  private[dynamodb] final class Step(val segment: Segment, val codec: DynamoDBCodec[Any])
+  private[dynamodb] final class CodecAtSegment(val segment: Segment, val codec: DynamoDBCodec[Any])
 
   private[dynamodb] sealed trait Segment
   private[dynamodb] object Segment {
@@ -103,10 +103,10 @@ object DynamoDBCodec {
     final case class Index(index: Int)  extends Segment
   }
 
-  private[dynamodb] def stepTo(segment: Segment, codec: DynamoDBCodec[_]): Either[String, Step] =
-    Right(new Step(segment, codec.asInstanceOf[DynamoDBCodec[Any]]))
+  private[dynamodb] def codecAtSegment(segment: Segment, codec: DynamoDBCodec[_]): Either[String, CodecAtSegment] =
+    Right(new CodecAtSegment(segment, codec.asInstanceOf[DynamoDBCodec[Any]]))
 
-  private[dynamodb] def notNavigable(node: DynamicOptic.Node): Either[String, Step] =
+  private[dynamodb] def notNavigable(node: DynamicOptic.Node): Either[String, CodecAtSegment] =
     node match {
       case DynamicOptic.Node.Field(name)                                                  =>
         Left(s"path segment '$name' is not a record field")

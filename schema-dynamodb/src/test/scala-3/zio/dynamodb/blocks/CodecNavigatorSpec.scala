@@ -258,7 +258,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
           item.map.get("pair").contains(AttributeValue.List(List(AttributeValue.String("p"), AttributeValue.Number(1))))
         )
       },
-      test("a nested sealed trait is flattened on the wire, so its step adds no segment") {
+      test("a nested sealed trait is flattened on the wire, so naming it adds no segment") {
         val codec = Schema[Bill].deriving(DynamoDBCodecDeriver).derive
         val item  = codec.toItem(Bill("b-1", Visa("4111")))
         assertTrue(
@@ -329,7 +329,7 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
       }
     ),
     suite("errors")(
-      test("missing fields and cases, and steps into the wrong shape") {
+      test("missing fields and cases, and nodes of the wrong shape") {
         val codec = Schema[Order].deriving(DynamoDBCodecDeriver).derive
         assertTrue(
           CodecNavigator

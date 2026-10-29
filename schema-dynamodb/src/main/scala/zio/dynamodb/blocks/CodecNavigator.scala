@@ -36,15 +36,15 @@ private[dynamodb] object CodecNavigator {
     var error: String                    = null
     var idx                              = 0
     while (idx < nodes.length && (error eq null)) {
-      current.step(nodes(idx)) match {
-        case Right(step) =>
-          step.segment match {
+      current.codecAt(nodes(idx)) match {
+        case Right(atSegment) =>
+          atSegment.segment match {
             case DynamoDBCodec.Segment.Name(name)   => path = ProjectionExpression.MapElement(path, name)
             case DynamoDBCodec.Segment.Index(index) => path = ProjectionExpression.ListElement(path, index)
             case DynamoDBCodec.Segment.Transparent  =>
           }
-          current = step.codec
-        case Left(msg)   => error = msg
+          current = atSegment.codec
+        case Left(msg)        => error = msg
       }
       idx += 1
     }

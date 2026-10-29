@@ -54,15 +54,15 @@ private[ddbexpr] final class ExprCtx(private[ddbexpr] val codec: DynamoDBCodec[_
     }
   }
 
-  // A key optic is a single top-level field: one step on the root codec, which is a prebuilt
+  // A key optic is a single top-level field: one `codecAt` on the root codec, which is a prebuilt
   // lookup, so key conditions skip the cache and allocate nothing.
-  private[ddbexpr] def topLevelField(field: DynamicOptic.Node.Field): Either[String, DynamoDBCodec.Step] =
-    if (opaque ne null) opaque else codec.step(field)
+  private[ddbexpr] def topLevelField(field: DynamicOptic.Node.Field): Either[String, DynamoDBCodec.CodecAtSegment] =
+    if (opaque ne null) opaque else codec.codecAt(field)
 
   // The codec for an element of the collection at `resolved` - list, set or map values.
   private[ddbexpr] def elementCodec(resolved: CodecNavigator.Resolved): Either[String, DynamoDBCodec[Any]] =
-    resolved.codec.step(DynamicOptic.Node.Elements) match {
-      case Right(step) => Right(step.codec)
-      case Left(_)     => Left(s"no element codec at '${resolved.path}'")
+    resolved.codec.codecAt(DynamicOptic.Node.Elements) match {
+      case Right(atSegment) => Right(atSegment.codec)
+      case Left(_)          => Left(s"no element codec at '${resolved.path}'")
     }
 }

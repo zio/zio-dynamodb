@@ -78,42 +78,42 @@ private[dynamodb] object DdbKeyExprInterpreter {
 
   // -- Helpers -------------------------------------------------------------
 
-  // A key optic's step: its attribute name (always a `Name` segment) and the codec its value encodes
+  // A key optic's attribute name (always a `Name` segment) and the codec its value encodes
   // with. A valid key optic is a single top-level field, so the common case returns the table codec's
-  // prebuilt step as is - no allocation. Anything else resolves the full path and is rejected unless it
+  // prebuilt `CodecAtSegment` as is - no allocation. Anything else resolves the full path and is rejected unless it
   // came out as a single top-level attribute.
-  private def keyField[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.Step] = {
+  private def keyField[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.CodecAtSegment] = {
     val nodes = optic.toDynamic.nodes
     if (nodes.length == 1)
       nodes.head match {
         case field: DynamicOptic.Node.Field =>
-          val step = ctx.topLevelField(field)
-          step match {
+          val atSegment = ctx.topLevelField(field)
+          atSegment match {
             case Right(st) if !st.segment.isInstanceOf[DynamoDBCodec.Segment.Name] =>
               Left(s"key field must be a single top-level field, got: $optic")
-            case _                                                                 => step
+            case _                                                                 => atSegment
           }
         case _                              => fallback(optic, ctx)
       }
     else fallback(optic, ctx)
   }
 
-  private def fallback[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.Step] =
+  private def fallback[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.CodecAtSegment] =
     ctx.at(optic) match {
       case Right(r)    =>
         r.path match {
           case ProjectionExpression.MapElement(ProjectionExpression.Root, key) =>
-            DynamoDBCodec.stepTo(DynamoDBCodec.Segment.Name(key), r.codec)
+            DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(key), r.codec)
           case pe                                                              =>
             Left(s"key field must be a single top-level field, got path: $pe")
         }
       case Left(error) => Left(error)
     }
 
-  private def keyName(step: DynamoDBCodec.Step): String =
-    step.segment match {
+  private def keyName(atSegment: DynamoDBCodec.CodecAtSegment): String =
+    atSegment.segment match {
       case DynamoDBCodec.Segment.Name(name) => name
-      case other                            => other.toString // unreachable: keyField only returns Name steps
+      case other                            => other.toString // unreachable: keyField only returns Name segments
     }
 
   private def toSortKeyRange[S](
