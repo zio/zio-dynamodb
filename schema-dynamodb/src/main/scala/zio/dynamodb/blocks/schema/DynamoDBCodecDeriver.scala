@@ -1693,7 +1693,15 @@ class DynamoDBCodecDeriver private (
             ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
                 case DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String(k))) =>
-                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(k), valueCodec)
+                  // The key on the wire is what the encoder writes: the key codec's output, not the raw key.
+                  if (keyCodec eq stringCodec) DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(k), valueCodec)
+                  else
+                    keyEncoder.asInstanceOf[Any => AttributeValue](k) match {
+                      case AttributeValue.String(wire) =>
+                        DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(wire), valueCodec)
+                      case other                       =>
+                        Left(s"map key '$k' encodes as ${other.showType}, not a String, so it can't be a path segment")
+                    }
                 case DynamicOptic.Node.MapValues                                                  =>
                   valuesCodecAt
                 case other                                                                        => DynamoDBCodec.notNavigable(other)

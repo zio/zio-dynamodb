@@ -36,6 +36,8 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
 
   final case class Parcel(id: String, to: Maybe[Address]) derives Schema
 
+  final case class Prefs(id: Int, counts: Map[String, Int]) derives Schema
+
   sealed trait Delivery derives Schema
   final case class Courier(address: Address) extends Delivery derives Schema
   final case class Pickup(lockerId: String)  extends Delivery derives Schema
@@ -252,6 +254,31 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
         }
     ),
     suite("paths that follow the actual wire shape")(
+      test("a map key is encoded with the key codec, as the stored item's keys are") {
+        val codec = Schema[Prefs].deriving(DynamoDBCodecDeriver).instance(Schema[String].reflect.typeId, upper).derive
+        val item  = codec.toItem(Prefs(1, Map("home" -> 2)))
+        val path  = CodecNavigator.resolve(
+          codec,
+          DynamicOptic(
+            IndexedSeq(
+              DynamicOptic.Node.Field("counts"),
+              DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("home")))
+            )
+          )
+        )
+        assertTrue(path.map(_.path.toString) == Right("counts.HOME")) &&
+        assert(item.map.get("counts"))(
+          Assertion.isSome(
+            Assertion.isSubtype[AttributeValue.Map](
+              Assertion.hasField[AttributeValue.Map, Set[AttributeValue.String]](
+                "keys",
+                _.value.keySet.toSet,
+                Assertion.equalTo(Set(AttributeValue.String("HOME")))
+              )
+            )
+          )
+        )
+      },
       test("a Maybe is transparent on the wire, so its Present case and value add no segment") {
         val codec = Schema[Parcel].deriving(DynamoDBCodecDeriver).derive
         val item  = codec.toItem(Parcel("p-1", Maybe.present(Address("Main St", GeoPoint(0, 0)))))
