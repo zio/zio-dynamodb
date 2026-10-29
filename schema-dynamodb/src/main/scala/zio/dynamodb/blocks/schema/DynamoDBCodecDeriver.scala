@@ -983,14 +983,17 @@ class DynamoDBCodecDeriver private (
           new DerivedCodec[Option[Any]] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[Any]]
 
+            // An Option is transparent on the wire: `Some` and its `value` add no path segment.
+            private[this] lazy val someCodecAt  = DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, this)
+            private[this] lazy val valueCodecAt =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, valueCodec)
+
             override private[dynamodb] def codecAt(
               node: DynamicOptic.Node
             ): Either[String, DynamoDBCodec.CodecAtSegment] =
               node match {
-                case DynamicOptic.Node.Case("Some")   =>
-                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, this)
-                case DynamicOptic.Node.Field("value") =>
-                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, valueCodec)
+                case DynamicOptic.Node.Case("Some")   => someCodecAt
+                case DynamicOptic.Node.Field("value") => valueCodecAt
                 case other                            => DynamoDBCodec.notNavigable(other)
               }
 
