@@ -111,6 +111,40 @@ class CeEffectStackBench extends BaseBenchmark {
   private val cannedGetResponseBigScanamo: GetItemResponse =
     GetItemResponse.builder().item(ScanamoCodec.bigRecord.write(bigRecord).toAttributeValue.m()).build()
 
+  // BigRecord after the 12-field update below - 7 top-level fields and 5 nested ones, across
+  // String / Int / Long / Double / Boolean and an enum. Returned as ALL_NEW in each library's
+  // own wire shape, since Scanamo's update always decodes the updated item.
+  private val bigRecordUpdated: BigRecord = bigRecord.copy(
+    name = "Widget Assembly, Deluxe Mk II",
+    description = "Revised housing; extended warranty now standard.",
+    priority = Priority.Critical,
+    quantityOnHand = 1_100,
+    reorderPoint = 250,
+    discontinued = true,
+    averageRating = 4.41,
+    billingAddress = bigRecord.billingAddress.copy(city = "Oakland"),
+    price = bigRecord.price.copy(amountMinor = 139_99L),
+    audit = bigRecord.audit.copy(updatedBy = "pricing-job", version = 8),
+    dimensions = bigRecord.dimensions.copy(weightG = 2_450L)
+  )
+
+  private val cannedUpdateResponseBigBlocks: UpdateItemResponse =
+    UpdateItemResponse
+      .builder()
+      .attributes(
+        AwsCodecs.toAwsItem(
+          FromAttributeValue.attrMapFromAttributeValue
+            .fromAttributeValue(zioBlocksBigCodec.encoder(bigRecordUpdated))
+            .fold(e => sys.error(s"blocks BigRecord encode failed: $e"), identity)
+        )
+      )
+      .build()
+
+  private val cannedEmptyUpdateResponse: UpdateItemResponse = UpdateItemResponse.builder().build()
+
+  private val cannedUpdateResponseBigScanamo: UpdateItemResponse =
+    UpdateItemResponse.builder().attributes(ScanamoCodec.bigRecord.write(bigRecordUpdated).toAttributeValue.m()).build()
+
   // ── blocks-dynamodb CE interpreter ─────────────────────────────────────
 
   // Stub AwsDynamoDB[IO]: returns canned responses as already-completed IO.pure
@@ -120,7 +154,13 @@ class CeEffectStackBench extends BaseBenchmark {
     def getItem(req: GetItemRequest): IO[GetItemResponse]                                  =
       IO.pure(if (req.tableName == BIG_TABLE) cannedGetResponseBigBlocks else cannedGetResponse)
     def putItem(req: PutItemRequest): IO[PutItemResponse]                                  = IO.pure(cannedPutResponse)
-    def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse]                         = IO.pure(cannedUpdateResponse)
+    def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse]                         =
+      IO.pure(
+        if (req.tableName != BIG_TABLE) cannedUpdateResponse
+        // DynamoDB returns no attributes unless asked for them
+        else if (req.returnValues == ReturnValue.ALL_NEW) cannedUpdateResponseBigBlocks
+        else cannedEmptyUpdateResponse
+      )
     def deleteItem(req: DeleteItemRequest): IO[DeleteItemResponse]                         = unsupported
     def batchGetItem(req: BatchGetItemRequest): IO[BatchGetItemResponse]                   = unsupported
     def batchWriteItem(req: BatchWriteItemRequest): IO[BatchWriteItemResponse]             = unsupported
@@ -154,6 +194,46 @@ class CeEffectStackBench extends BaseBenchmark {
     val priority     = $(_.priority)          // sealed-trait (enum) field — case name remaps under caseNameMapper
     val auditVersion = $(_.audit.version)     // 2-segment Lens through a plain nested record
     val priceMinor   = $(_.price.amountMinor) // 2-segment; remaps under SnakeCase (amount_minor)
+
+    // The rest of the 12-field update
+    val description    = $(_.description)
+    val quantityOnHand = $(_.quantityOnHand)
+    val reorderPoint   = $(_.reorderPoint)
+    val discontinued   = $(_.discontinued)
+    val averageRating  = $(_.averageRating)
+    val billingCity    = $(_.billingAddress.city)
+    val auditUpdatedBy = $(_.audit.updatedBy)
+    val weightG        = $(_.dimensions.weightG)
+  }
+
+  private def blocksUpdateBig12Action =
+    BigRecordOps.name.set(bigRecordUpdated.name) +
+      BigRecordOps.description.set(bigRecordUpdated.description) +
+      BigRecordOps.priority.set(bigRecordUpdated.priority) +
+      BigRecordOps.quantityOnHand.set(bigRecordUpdated.quantityOnHand) +
+      BigRecordOps.reorderPoint.set(bigRecordUpdated.reorderPoint) +
+      BigRecordOps.discontinued.set(bigRecordUpdated.discontinued) +
+      BigRecordOps.averageRating.set(bigRecordUpdated.averageRating) +
+      BigRecordOps.billingCity.set(bigRecordUpdated.billingAddress.city) +
+      BigRecordOps.priceMinor.set(bigRecordUpdated.price.amountMinor) +
+      BigRecordOps.auditVersion.set(bigRecordUpdated.audit.version) +
+      BigRecordOps.auditUpdatedBy.set(bigRecordUpdated.audit.updatedBy) +
+      BigRecordOps.weightG.set(bigRecordUpdated.dimensions.weightG)
+
+  private def scanamoUpdateBig12Expression = {
+    import org.scanamo.query.AttributeName
+    set("name", bigRecordUpdated.name) and
+      set("description", bigRecordUpdated.description) and
+      set("priority", bigRecordUpdated.priority)(using ScanamoCodec.priority) and
+      set("quantityOnHand", bigRecordUpdated.quantityOnHand) and
+      set("reorderPoint", bigRecordUpdated.reorderPoint) and
+      set("discontinued", bigRecordUpdated.discontinued) and
+      set("averageRating", bigRecordUpdated.averageRating) and
+      set(AttributeName.of("billingAddress") \ "city", bigRecordUpdated.billingAddress.city) and
+      set(AttributeName.of("price") \ "amountMinor", bigRecordUpdated.price.amountMinor) and
+      set(AttributeName.of("audit") \ "version", bigRecordUpdated.audit.version) and
+      set(AttributeName.of("audit") \ "updatedBy", bigRecordUpdated.audit.updatedBy) and
+      set(AttributeName.of("dimensions") \ "weightG", bigRecordUpdated.dimensions.weightG)
   }
 
   // ── Scanamo sync wrapped in IO.delay ────────────────────────────────────
@@ -167,7 +247,9 @@ class CeEffectStackBench extends BaseBenchmark {
           if (args(0).asInstanceOf[GetItemRequest].tableName == BIG_TABLE) cannedGetResponseBigScanamo
           else cannedGetResponse
         case "putItem"     => cannedPutResponse
-        case "updateItem"  => cannedUpdateResponse
+        case "updateItem"  =>
+          if (args(0).asInstanceOf[UpdateItemRequest].tableName == BIG_TABLE) cannedUpdateResponseBigScanamo
+          else cannedUpdateResponse
         case "serviceName" => "dynamodb"
         case "close"       => null
         case name          => throw new UnsupportedOperationException(s"Stub: $name not implemented")
@@ -229,6 +311,14 @@ class CeEffectStackBench extends BaseBenchmark {
       DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
     prebuiltBigGetQuery = DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)
     prebuiltBigPutQuery = DdbExprApi.put(bigDdbTable, bigRecord)
+
+    // Both sides must really decode the updated record, or the comparison measures an error path.
+    val blocksResult  = blocksUpdateBig12
+    val scanamoResult = scanamoUpdateBig12
+    if (!blocksResult.contains(Right(bigRecordUpdated)))
+      sys.error(s"blocksUpdateBig12 did not decode the updated record: $blocksResult")
+    if (!scanamoResult.contains(bigRecordUpdated))
+      sys.error(s"scanamoUpdateBig12 did not decode the updated record: $scanamoResult")
   }
 
   // ── Benchmarks ──────────────────────────────────────────────────────────
@@ -307,6 +397,30 @@ class CeEffectStackBench extends BaseBenchmark {
   /** Construction only of a transaction condition check. */
   @Benchmark def blocksConditionCheckConstructOnly: DynamoDBQuery[_, _] =
     conditionCheck(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name === newName)
+
+  // -- BigRecord, 12 fields updated at once (7 top-level, 5 nested). Scanamo's update always returns
+  //    and decodes the updated item, so blocksUpdateBig12 asks for ALL_NEW too; NoReturn is the
+  //    default blocks update, and ConstructOnly isolates path resolution + literal encoding.
+
+  @Benchmark def blocksUpdateBig12: Option[Either[ItemError.DecodingError, BigRecord]] =
+    interpreter
+      .run(
+        DdbExprApi
+          .update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(blocksUpdateBig12Action)
+          .returning(ReturnValues.AllNew)
+      )
+      .unsafeRunSync()
+
+  @Benchmark def scanamoUpdateBig12: Either[ScanamoError, BigRecord] =
+    IO.delay(scanamo.exec(bigScanamoTable.update("id" === bigId, scanamoUpdateBig12Expression))).unsafeRunSync()
+
+  @Benchmark def blocksUpdateBig12NoReturn: Unit =
+    interpreter
+      .run(DdbExprApi.update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(blocksUpdateBig12Action))
+      .unsafeRunSync()
+
+  @Benchmark def blocksUpdateBig12ConstructOnly: DynamoDBQuery[BigRecord, Unit] =
+    DdbExprApi.update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(blocksUpdateBig12Action)
 
   @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Unit] =
     DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
