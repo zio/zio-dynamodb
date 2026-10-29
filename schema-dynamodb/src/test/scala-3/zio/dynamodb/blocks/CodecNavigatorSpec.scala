@@ -16,6 +16,7 @@
 
 package zio.dynamodb.blocks
 
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.json.DiscriminatorKind
@@ -32,6 +33,8 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
 
   final case class GeoPoint(lat: Double, lng: Double) derives Schema
   final case class Address(street: String, geo: GeoPoint) derives Schema
+
+  final case class Parcel(id: String, to: Maybe[Address]) derives Schema
 
   sealed trait Delivery derives Schema
   final case class Courier(address: Address) extends Delivery derives Schema
@@ -249,6 +252,33 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
         }
     ),
     suite("paths that follow the actual wire shape")(
+      test("a Maybe is transparent on the wire, so its Present case and value add no segment") {
+        val codec = Schema[Parcel].deriving(DynamoDBCodecDeriver).derive
+        val item  = codec.toItem(Parcel("p-1", Maybe.present(Address("Main St", GeoPoint(0, 0)))))
+        val path  = CodecNavigator.resolve(
+          codec,
+          DynamicOptic(
+            IndexedSeq(
+              DynamicOptic.Node.Field("to"),
+              DynamicOptic.Node.Case("Present"),
+              DynamicOptic.Node.Field("value"),
+              DynamicOptic.Node.Field("street")
+            )
+          )
+        )
+        assertTrue(path.map(_.path.toString) == Right("to.street")) &&
+        assert(item.map.get("to"))(
+          Assertion.isSome(
+            Assertion.isSubtype[AttributeValue.Map](
+              Assertion.hasField[AttributeValue.Map, Option[AttributeValue]](
+                "value",
+                _.value.get(AttributeValue.String("street")),
+                Assertion.isSome(Assertion.equalTo(AttributeValue.String("Main St")))
+              )
+            )
+          )
+        )
+      },
       test("a tuple is a positional list, so a tuple field is a list index") {
         val codec = Schema[Order].deriving(DynamoDBCodecDeriver).derive
         val item  = codec.toItem(order)

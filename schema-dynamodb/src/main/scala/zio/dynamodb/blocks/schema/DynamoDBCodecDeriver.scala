@@ -1017,6 +1017,21 @@ class DynamoDBCodecDeriver private (
           new DerivedCodec[AnyRef] {
             private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[AnyRef]]
 
+            // Like Option, a Maybe is transparent on the wire: `Present` and its `value` add no path segment.
+            private[this] lazy val presentCodecAt =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, this)
+            private[this] lazy val valueCodecAt   =
+              DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, valueCodec)
+
+            override private[dynamodb] def codecAt(
+              node: DynamicOptic.Node
+            ): Either[String, DynamoDBCodec.CodecAtSegment] =
+              node match {
+                case DynamicOptic.Node.Case("Present") => presentCodecAt
+                case DynamicOptic.Node.Field("value")  => valueCodecAt
+                case other                             => DynamoDBCodec.notNavigable(other)
+              }
+
             override def encoder: Encoder[AnyRef] = { value =>
               if (MaybeSupport.isAbsent(value)) AttributeValue.Null
               else valueCodec.encoder(MaybeSupport.innerValue(value))
