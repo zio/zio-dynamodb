@@ -89,7 +89,7 @@ jobs:
         - '25'
         scala:
         - '2.13'
-        - '3.3'
+        - '3.9'
     steps:
     - name: Git Checkout
       uses: actions/checkout@v7.0.1
