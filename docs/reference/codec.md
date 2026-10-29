@@ -119,7 +119,10 @@ val orders = Table(
 
 `.instance(optic, codec)` swaps in a hand-written codec for one field the same way. Every
 expression on the table (`.where`, `.filter`, key conditions, updates) resolves its attribute
-paths and encodes its literals with this codec, so they always match the stored item. That
+paths and encodes its literals with this codec, so they always match the stored item: with an
+upper-casing codec on `name`, `Person.name === "Ada"` sends `"ADA"`. The exceptions are
+`beginsWith` and `contains`, whose argument is a fragment of the stored string, matched as
+written - for that field, write `Person.name.beginsWith("AD")`. That
 needs a codec derived by `DynamoDBCodecDeriver` at the top level: with a hand-written
 top-level codec, `put` and unfiltered scans work, but anything with a path - key conditions
 included - fails in the effect.
