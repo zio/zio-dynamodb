@@ -21,7 +21,7 @@ import zio.blocks.schema.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue, ToAttributeValue }
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Schema1Compat }
 import zio.test.*
 
 object CodecNavigatorSpec extends ZIOSpecDefault {
@@ -37,6 +37,8 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
   final case class Parcel(id: String, to: Maybe[Address]) derives Schema
 
   final case class Prefs(id: Int, counts: Map[String, Int]) derives Schema
+
+  final case class Blob(id: String, data: zio.blocks.chunk.Chunk[Byte]) derives Schema
 
   final case class Draft(
     id: String,
@@ -267,6 +269,21 @@ object CodecNavigatorSpec extends ZIOSpecDefault {
         assertTrue(
           cache.left.exists(_.contains("transient")),
           seenBy.map(_.path.toString) == Right("seenBy")
+        )
+      },
+      test("a byte sequence has an index path only in the legacy format, where it's stored as a list") {
+        val legacy = Schema[Blob]
+          .deriving(DynamoDBCodecDeriver.withSchema1ByteSequenceCompatibility(Schema1Compat.ReadBothWriteOld))
+          .derive
+        val binary = Schema[Blob].deriving(DynamoDBCodecDeriver).derive
+        val second = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("data"), DynamicOptic.Node.AtIndex(1)))
+        val blob   = Blob("b-1", zio.blocks.chunk.Chunk[Byte](7, 8, 9))
+        assertTrue(
+          CodecNavigator.resolve(legacy, second).map(r => (r.path.toString, r.codec.encoder(8.toByte))) ==
+            Right(("data[1]", AttributeValue.Number(BigDecimal(8)))),
+          CodecNavigator.resolve(binary, second).isLeft
+        ) && assert(legacy.toItem(blob).map.get("data"))(
+          Assertion.isSome(Assertion.isSubtype[AttributeValue.List](Assertion.anything))
         )
       },
       test("a map key is encoded with the key codec, as the stored item's keys are") {

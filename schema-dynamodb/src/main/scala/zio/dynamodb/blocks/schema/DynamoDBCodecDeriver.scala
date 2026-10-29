@@ -1595,6 +1595,19 @@ class DynamoDBCodecDeriver private (
               }
             case Schema1Compat.ReadBothWriteOld =>
               new DerivedCodec[Col[Elem]] {
+                // Written as a List of Numbers, so - unlike the Binary formats - its bytes have index paths.
+                private[this] lazy val elementsCodecAt          =
+                  DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Transparent, elementCodec)
+                override private[dynamodb] def codecAt(
+                  node: DynamicOptic.Node
+                ): Either[String, DynamoDBCodec.CodecAtSegment] =
+                  node match {
+                    case DynamicOptic.Node.AtIndex(i) =>
+                      DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Index(i), elementCodec)
+                    case DynamicOptic.Node.Elements   => elementsCodecAt
+                    case other                        => DynamoDBCodec.notNavigable(other)
+                  }
+
                 override def encoder: Encoder[Col[Elem]] = { (col: Col[Elem]) =>
                   val len = deconstructor.size(col)
                   val avs = new Array[AttributeValue](len)
