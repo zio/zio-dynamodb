@@ -16,7 +16,7 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.{ Optic, Reflect, Schema }
+import zio.blocks.schema.{ DynamicOptic, Optic, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, ProjectionExpression, UpdateExpression }
@@ -93,7 +93,12 @@ private[dynamodb] object DdbUpdateExprInterpreter {
       case DdbUpdateExpr.Remove(optic)               =>
         at(optic)((p, _) => RemoveAction(p))
       case DdbUpdateExpr.RemoveAt(optic, index)      =>
-        at(optic)((p, _) => RemoveAction(ProjectionExpression.ListElement(p, index)))
+        // `path[index]` only exists if the field's codec stores a list (a hand-written codec may not); asking
+        // for its elements answers that without allocating, as list codecs prebuild the result.
+        at(optic)((p, c) =>
+          if (c.codecAt(DynamicOptic.Node.Elements).isRight) RemoveAction(ProjectionExpression.ListElement(p, index))
+          else Action.Failure(s"'$p' is not stored as a list, so it has no element $index to remove")
+        )
       case DdbUpdateExpr.Increment(optic, delta, _)  =>
         at(optic)((p, c) => SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand(c.encoder(delta))))
       case DdbUpdateExpr.Decrement(optic, delta, _)  =>

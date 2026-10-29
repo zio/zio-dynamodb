@@ -45,6 +45,25 @@ object TableCodecSpec extends ZIOSpecDefault {
 
   private val reading = Reading("r-1", Sensor("probe", "C"), 21)
 
+  final case class Tagged(id: String, tags: List[String])
+  object Tagged extends CompanionOptics[Tagged] {
+    implicit val schema: Schema[Tagged]  = Schema.derived
+    val id: Lens[Tagged, String]         = $(_.id)
+    val tags: Lens[Tagged, List[String]] = $(_.tags)
+  }
+
+  // Stores the list as one comma-separated string, so it has no list index on the wire.
+  private val tagsAsCsv: DynamoDBCodec[List[String]] = new DynamoDBCodec[List[String]] {
+    def encoder: Encoder[List[String]] = xs => ToAttributeValue[String].toAttributeValue(xs.mkString(","))
+    def decoder: Decoder[List[String]] =
+      av => FromAttributeValue[String].fromAttributeValue(av).map(_.split(',').toList)
+  }
+
+  private val tagged =
+    Table("tagged", Tagged.schema.deriving(DynamoDBCodecDeriver).instance(Tagged.tags, tagsAsCsv).derive)
+
+  private val notAList = "is not stored as a list"
+
   private val intAsString: DynamoDBCodec[Int] = new DynamoDBCodec[Int] {
     def encoder: Encoder[Int] = i => ToAttributeValue[String].toAttributeValue(i.toString)
     def decoder: Decoder[Int] = av => FromAttributeValue[String].fromAttributeValue(av).map(_.toInt)
@@ -151,6 +170,16 @@ object TableCodecSpec extends ZIOSpecDefault {
             )
           )
         )
+      }
+    ),
+    suite("removing a list element by index")(
+      test("works on a list field") {
+        val q = update(Table[Tagged]("tagged"))(Tagged.id.partitionKey === "t-1")(Tagged.tags.remove(0))
+        assertZIO(run(q.toQuery).either)(isRight(anything))
+      },
+      test("a field whose codec doesn't store a list builds, then fails in the effect") {
+        val q = update(tagged)(Tagged.id.partitionKey === "t-1")(Tagged.tags.remove(0))
+        assertZIO(run(q.toQuery).either)(isLeft(hasMessage(containsString(notAList))))
       }
     ),
     suite("a hand-written top-level codec")(
