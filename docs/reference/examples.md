@@ -26,11 +26,10 @@ Client lifecycle is handled two different ways deliberately, one per effect syst
 ## `OrdersConfigured`
 
 The same `Order`/`Status` model, focused on **codec configuration** in the High-Level API,
-done entirely on the `Table` value via `.deriving` — the model carries no `@Modifier`
-annotations and nothing is resolved from implicit scope. Chains `withFieldNameMapper` /
-`withCaseNameMapper` (deriver-wide) and `withModifier(typeId, field, Modifier.rename(...))`
-(per-field) on the `DynamoDBCodecDeriverConfig` value passed into `.deriving`. Shows the
-precedence: the per-field `withModifier` rename wins over the table-wide field-name mapper.
+done entirely in code — the model carries no `@Modifier` annotations. Derives the codec with
+`withFieldNameMapper` / `withCaseNameMapper` (deriver-wide) and `.modifier(Order.customerId,
+Modifier.rename(...))` (per-field, by optic), and passes it to `Table(name, codec)`. Shows the
+precedence: the per-field rename wins over the deriver-wide field-name mapper.
 
 ## `CapacityWarnings`
 

@@ -50,7 +50,7 @@ import zio.dynamodb.ExecuteSyntax._
  *   - Scala 3 `enum` as a field type
  *   - Opaque types encoding as their underlying primitive
  *   - `@Modifier.fieldNaming` per-type snake_case mapping
- *   - deriver config attached to a `Table` via `.deriving` (per-field rename)
+ *   - a configured codec passed to `Table(name, codec)` (per-field rename)
  *   - put / get / update / deleteFrom / scan / query (imported from DdbExprApi._)
  *   - Condition expressions: attributeNotExists, between, in, &&, ! (Not)
  *   - Update expressions: .set, .add, combined (+)
@@ -165,12 +165,14 @@ class CEHighLevelSpec extends CatsEffectSuite:
     val ts      = $(_.ts)
     val message = $(_.message)
 
-  // Per-field rename applied through `.deriving` at the call site below — the config is not
-  // attached to the model or its companion.
+  // Per-field rename applied by the codec passed to the Table below — not attached to the model
+  // or its companion.
   case class Member(id: String, name: String, age: Int) derives Schema
 
   object Member extends CompanionOptics[Member]:
-    val id = $(_.id)
+    val id   = $(_.id)
+    val name = $(_.name)
+    val age  = $(_.age)
 
   // ---- CRUD tests -----------------------------------------------------------
 
@@ -379,14 +381,17 @@ class CEHighLevelSpec extends CatsEffectSuite:
     }
   }
 
-  test("Table.deriving per-field rename reflected in DynamoDB item and round-trips") {
+  test("a configured codec rename is reflected in the DynamoDB item and round-trips") {
     singleKeyTable { tableName =>
-      val memberType = summon[Schema[Member]].reflect.typeId
-      val table      = Table[Member](tableName).deriving(
-        _.withModifier(memberType, "name", Modifier.rename("fullName"))
-          .withModifier(memberType, "age", Modifier.rename("yearsOld"))
+      val table  = Table(
+        tableName,
+        Schema[Member]
+          .deriving(DynamoDBCodecDeriver)
+          .modifier(Member.name, Modifier.rename("fullName"))
+          .modifier(Member.age, Modifier.rename("yearsOld"))
+          .derive
       )
-      val member     = Member("m1", "Alice", 30)
+      val member = Member("m1", "Alice", 30)
       for
         _      <- put(table, member).execute
         raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "m1")).execute

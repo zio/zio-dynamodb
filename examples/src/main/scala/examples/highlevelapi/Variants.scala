@@ -21,6 +21,7 @@ import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 /**
  * Sealed-trait fields: `Status` (all cases field-less, stored as a plain string) versus
@@ -73,12 +74,15 @@ object Variants {
 
   // Same Item, but the case is stored under a sibling "type" field instead of as the map key.
   val itemsFieldDiscriminated: Table[Item] =
-    Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    Table(
+      "items",
+      Item.schema.deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))).derive
+    )
 
   // DiscriminatorKind.None compiles, but a `.when[Case]` path can't be used against a Table
   // configured this way — it fails when the query runs, not at compile time.
   val itemsNoDiscriminator: Table[Item] =
-    Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.None))
+    Table("items", Item.schema.deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)).derive)
 
   // Wired into the six CRUD operations — see VariantsSpec for these actually run.
   val putQuery: DynamoDBQuery[Item, Unit] =

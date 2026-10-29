@@ -17,6 +17,7 @@
 package zio.dynamodb.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.{ DynamicOptic, DynamicValue, PrimitiveValue }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.{ Decoder, Encoder, FromAttributeValue, Item, ToAttributeValue }
 
@@ -33,6 +34,15 @@ abstract class DynamoDBCodec[A] {
 
   def encoder: Encoder[A]
   def decoder: Decoder[A]
+
+  /**
+   * The codec at one optic node inside the value this codec encodes, with the attribute-path segment
+   * that node adds. Lets the library resolve an optic against the codec that actually
+   * writes the item, rather than restating its naming rules. A codec that doesn't override it (for
+   * example a hand-written one) can't be navigated.
+   */
+  private[dynamodb] def codecAt(node: DynamicOptic.Node): Either[String, DynamoDBCodec.CodecAtSegment] =
+    DynamoDBCodec.notNavigable(node)
 
   private[dynamodb] val recordFieldNames: Chunk[String] = Chunk.empty
 
@@ -67,6 +77,10 @@ abstract class DynamoDBCodec[A] {
 
 }
 
+// Every codec `DynamoDBCodecDeriver` builds, so a `Table` can tell a derived codec, which can be navigated,
+// from a hand-written one, which can't.
+private[dynamodb] abstract class DerivedCodec[A] extends DynamoDBCodec[A]
+
 /** `valueType` tag constants used internally to dispatch on a field's primitive register type without boxing. */
 object DynamoDBCodec {
   private[dynamodb] val objectType  = 0
@@ -79,4 +93,32 @@ object DynamoDBCodec {
   private[dynamodb] val floatType   = 7
   private[dynamodb] val doubleType  = 8
   private[dynamodb] val unitType    = 9
+
+  private[dynamodb] final class CodecAtSegment(val segment: Segment, val codec: DynamoDBCodec[Any])
+
+  private[dynamodb] sealed trait Segment
+  private[dynamodb] object Segment {
+    case object Transparent             extends Segment
+    final case class Name(name: String) extends Segment
+    final case class Index(index: Int)  extends Segment
+  }
+
+  private[dynamodb] def codecAtSegment(segment: Segment, codec: DynamoDBCodec[_]): Either[String, CodecAtSegment] =
+    Right(new CodecAtSegment(segment, codec.asInstanceOf[DynamoDBCodec[Any]]))
+
+  private[dynamodb] def notNavigable(node: DynamicOptic.Node): Either[String, CodecAtSegment] =
+    node match {
+      case DynamicOptic.Node.Field(name)                                                  =>
+        Left(s"path segment '$name' is not a record field")
+      case DynamicOptic.Node.Case(name)                                                   =>
+        Left(s"path segment 'case $name' is not a variant")
+      case DynamicOptic.Node.AtIndex(index)                                               =>
+        Left(s"'$index' is not a sequence index")
+      case DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String(key))) =>
+        Left(s"'$key' is not a map key")
+      case DynamicOptic.Node.AtMapKey(key)                                                =>
+        Left(s"found map key '$key' — only String keys are supported in DDB")
+      case other                                                                          =>
+        Left(s"unexpected optic node: $other")
+    }
 }

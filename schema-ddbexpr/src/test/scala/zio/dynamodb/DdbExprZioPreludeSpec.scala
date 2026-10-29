@@ -17,11 +17,10 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.prelude.{ Newtype, Subtype }
 import zio.test._
 import zio.test.Assertion._
@@ -31,19 +30,17 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
   // ── zio-prelude Newtype/Subtype models ──────────────────────────────────────
 
   // Per-field DDB operators (===, .partitionKey, .sortKey, etc.) each need a
-  // Schema[A]/DynamoDBCodec[A] implicit in their own right, so an explicit instance
+  // Schema[A] implicit in their own right, so an explicit instance
   // is required here — same as value classes (DdbExprValueClassSpec) and Scala 3
   // opaque types (DdbExprOpaqueTypeSpec). ZB's auto-derivation (see the
   // "Schema.derived auto-derivation" suite below) only elides this boilerplate
   // for a *containing* case class's Schema.derived, not for standalone field use.
   private object UserId extends Newtype[String] {
-    implicit val schema: Schema[UserId.Type]       = Schema[String].transform(UserId.wrap, UserId.unwrap)
-    implicit val codec: DynamoDBCodec[UserId.Type] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[UserId.Type] = Schema[String].transform(UserId.wrap, UserId.unwrap)
   }
 
   private object Weight extends Subtype[Int] {
-    implicit val schema: Schema[Weight.Type]       = Schema[Int].transform(Weight.wrap, Weight.unwrap)
-    implicit val codec: DynamoDBCodec[Weight.Type] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[Weight.Type] = Schema[Int].transform(Weight.wrap, Weight.unwrap)
   }
 
   private case class Product(userId: UserId.Type, weight: Weight.Type)
@@ -70,10 +67,10 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
   private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
     schema: Schema[S]
   ): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbExprInterpreter.toConditionExpression(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   private def interpretKey[S](expr: DdbKeyExpr[S])(implicit schema: Schema[S]): Either[String, KeyConditionExpr[S]] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbKeyExprInterpreter.toKeyConditionExpr(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   // ── Spec ──────────────────────────────────────────────────────────────────────
 

@@ -84,7 +84,10 @@ trait DdbKeyExprSyntax {
     def sortKey: DdbKeyExpr.SortKeyBuilder[S, A]           = new DdbKeyExpr.SortKeyBuilder(optic)
   }
 
-  // String-specific sort key ops — resolved via implicit class when B =:= String.
+  /**
+   * `begins_with` on a `String` sort key. As for `contains` / `beginsWith` on a field, the prefix is a fragment of
+   * the stored key, matched as written - not passed through the key's codec, unlike the other key comparisons.
+   */
   implicit class SortKeyBuilderStrOps[S](private val b: DdbKeyExpr.SortKeyBuilder[S, String]) {
     def beginsWith(prefix: String): DdbKeyExpr.SortKeyRange[S] =
       DdbKeyExpr.SortKeyRange.BeginsWith(b.optic, prefix)

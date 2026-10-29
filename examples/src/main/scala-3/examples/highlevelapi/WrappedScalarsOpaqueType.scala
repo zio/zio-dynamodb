@@ -19,7 +19,6 @@ package examples.highlevelapi
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr
 import zio.dynamodb.blocks.ddbexpr.dsl.*
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 /**
  * A Scala 3 opaque type wrapping a scalar field — see `WrappedScalars.scala` for the same
@@ -29,9 +28,8 @@ object WrappedScalarsOpaqueType {
 
   opaque type WidgetId = String
   object WidgetId {
-    given Schema[WidgetId]                      = Schema.string
-    implicit val codec: DynamoDBCodec[WidgetId] = summon[Schema[WidgetId]].deriving(DynamoDBCodecDeriver).derive
-    def apply(s: String): WidgetId              = s
+    given Schema[WidgetId]         = Schema.string
+    def apply(s: String): WidgetId = s
   }
 
   final case class Widget(widgetId: WidgetId) derives Schema

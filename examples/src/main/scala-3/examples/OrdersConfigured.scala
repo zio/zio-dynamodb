@@ -22,22 +22,20 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 /**
- * Scala 3 / ZIO example of codec configuration in the high-level API done entirely on the
- * `Table` value — the model carries no `@Modifier` annotations, nothing is resolved from
- * implicit scope.
+ * Scala 3 / ZIO example of codec configuration in the high-level API done entirely in code — the
+ * model carries no `@Modifier` annotations. Derive the codec with ZIO Blocks' derivation builder
+ * and pass it to `Table(name, codec)`:
  *
- * `Table[Order]("orders").deriving(configure)` hands you a `DynamoDBCodecDeriverConfig`
- * value and you set fields on it:
+ *   - `DynamoDBCodecDeriver.withFieldNameMapper` / `withCaseNameMapper` — deriver-wide policy
+ *   - `.modifier(Order.customerId, Modifier.rename(...))` — per-field wire name, addressed by
+ *     optic (the value-level equivalent of `@Modifier.rename` on the model)
  *
- *   - `withFieldNameMapper` / `withCaseNameMapper` — deriver-wide policy
- *   - `withModifier(typeId, field, Modifier.rename(...))` — per-field wire name (same call
- *     as on `Deriver`; the value-level equivalent of `@Modifier.rename` on the model)
- *
- * With the config below an `Order` is stored as:
+ * With the codec below an `Order` is stored as:
  * {{{
- *   cust        (customerId — pinned by withModifier(rename), the field-name mapper is not applied)
+ *   cust        (customerId — pinned by the rename, the field-name mapper is not applied)
  *   order_id    (orderId    — snake_case from withFieldNameMapper)
  *   total       (total)
  *   status      (status)    — value "pending" / "shipped" from withCaseNameMapper
@@ -62,16 +60,17 @@ object OrdersConfigured extends ZIOAppDefault {
     val status: Lens[Order, Status]     = $(_.status)
   }
 
-  // All configuration is a value on the Table — no annotations on Order, no implicit
-  // DynamoDBCodecDeriverConfig. Deriver-wide flags then the per-field withModifier.
+  // Deriver-wide flags, then the per-field rename by optic.
   val orders: Table[Order] =
-    Table[Order]("orders").deriving { cfg =>
-      val orderType = summon[Schema[Order]].reflect.typeId
-      cfg
-        .withFieldNameMapper(NameMapper.SnakeCase)
-        .withCaseNameMapper(NameMapper.SnakeCase)
-        .withModifier(orderType, "customerId", Modifier.rename("cust"))
-    }
+    Table(
+      "orders",
+      Schema[Order]
+        .deriving(
+          DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase).withCaseNameMapper(NameMapper.SnakeCase)
+        )
+        .modifier(Order.customerId, Modifier.rename("cust"))
+        .derive
+    )
 
   val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
     ZLayer.scoped {
@@ -86,12 +85,12 @@ object OrdersConfigured extends ZIOAppDefault {
       for {
         _ <- put(orders, Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 
-        // every op on `orders` derives with the config the Table carries
+        // every op on `orders` uses the codec the Table carries
         order <- get(orders)(
                    Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1"
                  ).execute
 
-        // the filter literal (Status.Shipped) is encoded with that same config
+        // the filter literal (Status.Shipped) is encoded with that same codec
         shipped <- scan(orders, limit = 20).filter(Order.status === Status.Shipped).execute
       } yield ()
     }

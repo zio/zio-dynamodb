@@ -17,12 +17,12 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.dynamodb.blocks.ddbexpr.dsl._
 // Only needed here to reference the ADT node types (DdbKeyExpr.KeyRange, DdbExpr.And) in
 // isSubtype[...] assertions below — real call sites never need this, only tests that
 // inspect the internal expression shape do. put/get/scan/=== etc. all come from `dsl._`
 // alone, unqualified, since dsl extends DdbExprApiSyntax/DdbKeyExprSyntax/DdbExprSyntax directly.
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbKeyExpr, DdbUpdateExprInterpreter }
 import zio.test._
 import zio.test.Assertion._
@@ -118,7 +118,7 @@ object DslSpec extends ZIOSpecDefault {
     },
     test("update syntax (OpticUpdateOps) renders a SET action") {
       val action =
-        DdbUpdateExprInterpreter.toAction(Task.score.set(99), DynamoDBCodecDeriverConfig[Task](), Task.schema.reflect)
+        DdbUpdateExprInterpreter.toAction(Task.score.set(99), Task.schema.deriving(DynamoDBCodecDeriver).derive)
       assertTrue(action.render.execute._2.startsWith("set"))
     }
   )

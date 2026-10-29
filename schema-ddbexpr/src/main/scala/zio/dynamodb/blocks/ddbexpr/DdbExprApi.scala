@@ -26,17 +26,6 @@ import scala.language.implicitConversions
 
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
 
-// Keyed by Schema (reference identity - Schema instances are per-type singletons) and
-// DynamoDBCodecDeriverConfig (value equality - it is now a case class). Used by ExprCtx's
-// per-literal codec cache.
-private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
-  override val hashCode: Int           = System.identityHashCode(r0) * 31 + r1.hashCode
-  override def equals(o: Any): Boolean = o match {
-    case k: CodecCacheKey => (r0 eq k.r0) && (r1 == k.r1)
-    case _                => false
-  }
-}
-
 // Shared helper for the builders below: interpret a DdbExpr / SchemaExpr condition with the
 // originating table's deriver configuration, so `.filter` / `.where` resolve the same
 // attribute names and encode literals the same way as the item body. Kept top-level (not

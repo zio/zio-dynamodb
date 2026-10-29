@@ -17,11 +17,10 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.test._
 import zio.test.Assertion._
 
@@ -33,14 +32,12 @@ object DdbExprValueClassSpec extends ZIOSpecDefault {
   // record. This is the practical pattern for value classes used as domain IDs/wrappers.
   private case class UserId(value: String) extends AnyVal
   private object UserId {
-    implicit val schema: Schema[UserId]       = Schema.string.transform(UserId(_), _.value)
-    implicit val codec: DynamoDBCodec[UserId] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[UserId] = Schema.string.transform(UserId(_), _.value)
   }
 
   private case class Weight(value: Int) extends AnyVal
   private object Weight {
-    implicit val schema: Schema[Weight]       = Schema.int.transform(Weight(_), _.value)
-    implicit val codec: DynamoDBCodec[Weight] = schema.deriving(DynamoDBCodecDeriver).derive
+    implicit val schema: Schema[Weight] = Schema.int.transform(Weight(_), _.value)
   }
 
   private case class Product(userId: UserId, weight: Weight)
@@ -58,10 +55,10 @@ object DdbExprValueClassSpec extends ZIOSpecDefault {
   private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
     schema: Schema[S]
   ): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbExprInterpreter.toConditionExpression(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   private def interpretKey[S](expr: DdbKeyExpr[S])(implicit schema: Schema[S]): Either[String, KeyConditionExpr[S]] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbKeyExprInterpreter.toKeyConditionExpr(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   // ── Spec ──────────────────────────────────────────────────────────────────────
 

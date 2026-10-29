@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.test._
 import zio.test.Assertion._
 
@@ -31,6 +32,9 @@ object TableSpec extends ZIOSpecDefault {
 
   private val ada = Person("Ada", "Lovelace", 36)
 
+  private def snakeCase: Table[Person] =
+    Table("people", Person.schema.deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)).derive)
+
   def spec = suite("Table")(
     suite("decode / encode")(
       test("encode then decode round-trips through the configured codec") {
@@ -43,28 +47,26 @@ object TableSpec extends ZIOSpecDefault {
         assert(people.decode(broken))(isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
       }
     ),
-    suite(".deriving affects decode / encode")(
+    suite("a configured codec affects decode / encode")(
       test("withFieldNameMapper changes the encoded attribute names, and decode reads them back") {
-        val snake = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+        val snake = snakeCase
         val item  = snake.encode(ada)
         assert(item.map(_.map.keySet))(isRight(equalTo(Set("first_name", "last_name", "age")))) &&
         assert(item.flatMap(snake.decode))(isRight(equalTo(ada)))
       },
-      test("two Table values for the same type carry independent config") {
+      test("two Table values for the same type carry independent codecs") {
         val plain = Table[Person]("people")
-        val snake = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+        val snake = snakeCase
         assertTrue(plain.encode(ada).toOption.map(_.map.keySet) != snake.encode(ada).toOption.map(_.map.keySet))
-      },
-      test("a second .deriving call replaces the previous config rather than composing with it") {
-        val snake          = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
-        val snakeThenPlain = snake.deriving(_.withEnumValuesAsStrings(false))
-        assert(snakeThenPlain.encode(ada).map(_.map.keySet))(isRight(equalTo(Set("firstName", "lastName", "age"))))
       }
     ),
-    suite(".deriving reaches key-condition attribute names")(
+    suite("a configured codec reaches key-condition attribute names")(
       test("a renamed partition-key field is used, not its Scala name, in the GetItem key") {
-        val renamed  = Table[Person]("people")
-          .deriving(_.withModifier(Person.schema.reflect.typeId, "firstName", Modifier.rename("fn")))
+        val renamed  =
+          Table(
+            "people",
+            Person.schema.deriving(DynamoDBCodecDeriver).modifier(Person.firstName, Modifier.rename("fn")).derive
+          )
         val q        = get(renamed)(Person.firstName.partitionKey === "Ada")
         val keyAttrs = q match {
           case DynamoDBQuery.Map(gi: DynamoDBQuery.GetItem, _) => gi.key.map.keySet
@@ -73,7 +75,7 @@ object TableSpec extends ZIOSpecDefault {
         assertTrue(keyAttrs == Set("fn"))
       },
       test("withFieldNameMapper is applied to the partition-key attribute name") {
-        val snake    = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+        val snake    = snakeCase
         val q        = get(snake)(Person.firstName.partitionKey === "Ada")
         val keyAttrs = q match {
           case DynamoDBQuery.Map(gi: DynamoDBQuery.GetItem, _) => gi.key.map.keySet

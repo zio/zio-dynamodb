@@ -122,7 +122,11 @@ trait DdbExprSyntax {
       DdbExpr.Size(optic)
   }
 
-  // String-specific DDB functions.
+  /**
+   * DynamoDB's `contains` / `begins_with` on a `String` attribute. The argument is a fragment of the
+   * stored string, matched as written: unlike `===`, it isn't passed through the field's codec, so for a
+   * field with a custom codec (e.g. one that upper-cases) write the fragment in its stored form.
+   */
   implicit class OpticStringDdbExprOps[S](private val optic: Optic[S, String]) {
     def contains(value: String): DdbExpr[S, Boolean]    = DdbExpr.Contains(optic, value)
     def beginsWith(prefix: String): DdbExpr[S, Boolean] = DdbExpr.BeginsWith(optic, prefix)

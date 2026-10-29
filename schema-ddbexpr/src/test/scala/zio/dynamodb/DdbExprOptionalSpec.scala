@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ OpticDdbExprOps, OpticUpdateOps }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -48,7 +48,7 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
 
   private def renderAction[From](u: DdbUpdateExpr[From])(implicit schema: Schema[From]): String =
     DdbUpdateExprInterpreter
-      .toAction(u, DynamoDBCodecDeriverConfig[From](), schema.reflect)
+      .toAction(u, schema.deriving(DynamoDBCodecDeriver).derive)
       .render
       .execute
       ._2
@@ -56,7 +56,7 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
   private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
     schema: Schema[S]
   ): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
+    DdbExprInterpreter.toConditionExpression(expr, schema.deriving(DynamoDBCodecDeriver).derive)
 
   def spec = suite("DdbExpr — Optional optic paths")(
     suite("Optional via when[Case].field")(

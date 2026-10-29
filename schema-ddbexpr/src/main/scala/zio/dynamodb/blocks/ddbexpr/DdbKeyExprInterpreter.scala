@@ -18,17 +18,15 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.{ DynamicOptic, Optic, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.ProjectionResolver
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, ProjectionExpression, SortKey }
 
 /**
  * Interprets a [[DdbKeyExpr]][S] into a [[KeyConditionExpr]][S].
  *
- *  Field references and literal values are both resolved through the calling table's
- *  [[ExprCtx]] — the same `ProjectionResolver` / literal-codec cache `.where` / `.filter`
- *  use, so a key condition and a filter condition agree on a configured field-name mapper
- *  / `@Modifier.rename` by construction.
+ *  Field references and literal values are both resolved against the calling table's codec
+ *  through its [[ExprCtx]], as `.where` / `.filter` are, so key conditions, filters and the
+ *  stored item agree on names and encodings by construction.
  *
  *  Only single-segment optics (top-level fields) are valid as partition or sort keys; a
  *  multi-segment path returns a Left with a descriptive message.
@@ -42,21 +40,18 @@ private[dynamodb] object DdbKeyExprInterpreter {
     ctx: ExprCtx
   ): Either[String, KeyConditionExpr.PrimaryKeyExpr[S]] =
     expr match {
-      case DdbKeyExpr.PartitionKeyEquals(optic, value, schema) =>
-        fieldName(optic, ctx).map { name =>
-          KeyConditionExpr.PartitionKeyEquals[S](PartitionKey[S, Any](name), ctx.encode(value, schema))
+      case DdbKeyExpr.PartitionKeyEquals(optic, value, _) =>
+        keyField(optic, ctx).map { pk =>
+          KeyConditionExpr.PartitionKeyEquals[S](PartitionKey[S, Any](keyName(pk)), pk.codec.encoder(value))
         }
-      case DdbKeyExpr.Composite(pkExpr, skEq)                  =>
+      case DdbKeyExpr.Composite(pkExpr, skEq)             =>
         for {
-          pkName <- fieldName(pkExpr.optic, ctx)
-          skName <- fieldName(skEq.optic, ctx)
+          pk <- keyField(pkExpr.optic, ctx)
+          sk <- keyField(skEq.optic, ctx)
         } yield {
-          val pkNode = KeyConditionExpr.PartitionKeyEquals[S](
-            PartitionKey[S, Any](pkName),
-            ctx.encode(pkExpr.value, pkExpr.schema)
-          )
-          val skNode =
-            KeyConditionExpr.SortKeyEquals[S](SortKey[S, Any](skName), ctx.encode(skEq.value, skEq.schema))
+          val pkNode =
+            KeyConditionExpr.PartitionKeyEquals[S](PartitionKey[S, Any](keyName(pk)), pk.codec.encoder(pkExpr.value))
+          val skNode = KeyConditionExpr.SortKeyEquals[S](SortKey[S, Any](keyName(sk)), sk.codec.encoder(skEq.value))
           KeyConditionExpr.CompositePrimaryKeyExpr[S](pkNode, skNode)
         }
     }
@@ -69,58 +64,56 @@ private[dynamodb] object DdbKeyExprInterpreter {
         toPrimaryKeyExpr(pk, ctx)
       case DdbKeyExpr.KeyRange(pkExpr, skRange) =>
         for {
-          pkName <- fieldName(pkExpr.optic, ctx)
+          pk     <- keyField(pkExpr.optic, ctx)
           skNode <- toSortKeyRange[S](skRange, ctx)
         } yield KeyConditionExpr.KeyRangeExpr[S](
-          KeyConditionExpr.PartitionKeyEquals[S](
-            PartitionKey[S, Any](pkName),
-            ctx.encode(pkExpr.value, pkExpr.schema)
-          ),
+          KeyConditionExpr.PartitionKeyEquals[S](PartitionKey[S, Any](keyName(pk)), pk.codec.encoder(pkExpr.value)),
           skNode
         )
     }
 
-  /**
-   * Overload for callers that hold a config + reflect rather than a `Table`'s `ExprCtx`
-   *  (tests, and any direct non-`Table` use). Allocates a one-off `ExprCtx`; the hot
-   *  `whereKey` path goes through `toKeyConditionExpr(expr, table.exprCtx)`.
-   */
-  def toKeyConditionExpr[S](
-    expr: DdbKeyExpr[S],
-    config: DynamoDBCodecDeriverConfig[S],
-    rootReflect: Reflect[Binding, S]
-  ): Either[String, KeyConditionExpr[S]] = {
-    val root     = new Schema(rootReflect).deriving(config.toResolverDeriver).derive
-    val resolver = new ProjectionResolver(root)
-    toKeyConditionExpr(expr, new ExprCtx(config, resolver))
-  }
+  // For callers without a `Table` (tests); allocates a one-off `ExprCtx`, unlike the `Table` path.
+  def toKeyConditionExpr[S](expr: DdbKeyExpr[S], codec: DynamoDBCodec[S]): Either[String, KeyConditionExpr[S]] =
+    toKeyConditionExpr(expr, new ExprCtx(codec))
 
   // -- Helpers -------------------------------------------------------------
 
-  // Resolves a partition / sort key optic to its DynamoDB attribute name through the table's
-  // ProjectionResolver, so a key condition honours the same field-name mapper / @Modifier.rename
-  // as the item body and `.where` / `.filter`. A valid key optic is always a single top-level
-  // field, so the common case takes ProjectionResolver.resolveTopLevelField (a plain Map.get);
-  // anything else - a multi-segment path - drops to `fallback`, which resolves the full path
-  // and then rejects it unless it came out as a single top-level attribute.
-  private def fieldName[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] = {
+  // A key optic's attribute name (always a `Name` segment) and the codec its value encodes
+  // with. A valid key optic is a single top-level field, so the common case returns the table codec's
+  // prebuilt `CodecAtSegment` as is - no allocation. Anything else resolves the full path and is rejected unless it
+  // came out as a single top-level attribute.
+  private def keyField[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.CodecAtSegment] = {
     val nodes = optic.toDynamic.nodes
     if (nodes.length == 1)
       nodes.head match {
-        case DynamicOptic.Node.Field(scalaName) => ctx.resolver.resolveTopLevelField(scalaName)
-        case _                                  => fallback(optic, ctx)
+        case field: DynamicOptic.Node.Field =>
+          val atSegment = ctx.topLevelField(field)
+          atSegment match {
+            case Right(st) if !st.segment.isInstanceOf[DynamoDBCodec.Segment.Name] =>
+              Left(s"key field must be a single top-level field, got: $optic")
+            case _                                                                 => atSegment
+          }
+        case _                              => fallback(optic, ctx)
       }
     else fallback(optic, ctx)
   }
 
-  private def fallback[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] =
-    ctx.peOf(optic) match {
-      case Right(ProjectionExpression.MapElement(ProjectionExpression.Root, key)) =>
-        Right(key)
-      case Right(pe)                                                              =>
-        Left(s"key field must be a single top-level field, got path: $pe")
-      case Left(error)                                                            =>
-        Left(error)
+  private def fallback[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, DynamoDBCodec.CodecAtSegment] =
+    ctx.at(optic) match {
+      case Right(r)    =>
+        r.path match {
+          case ProjectionExpression.MapElement(ProjectionExpression.Root, key) =>
+            DynamoDBCodec.codecAtSegment(DynamoDBCodec.Segment.Name(key), r.codec)
+          case pe                                                              =>
+            Left(s"key field must be a single top-level field, got path: $pe")
+        }
+      case Left(error) => Left(error)
+    }
+
+  private def keyName(atSegment: DynamoDBCodec.CodecAtSegment): String =
+    atSegment.segment match {
+      case DynamoDBCodec.Segment.Name(name) => name
+      case other                            => other.toString // unreachable: keyField only returns Name segments
     }
 
   private def toSortKeyRange[S](
@@ -128,30 +121,30 @@ private[dynamodb] object DdbKeyExprInterpreter {
     ctx: ExprCtx
   ): Either[String, KeyConditionExpr.SortKeyRange[S, _]] =
     sortKey match {
-      case DdbKeyExpr.SortKeyRange.Gt(optic, value, schema)       =>
-        fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.SortKeyRange.GreaterThan(SortKey[S, Any](n), ctx.encode(value, schema))
+      case DdbKeyExpr.SortKeyRange.Gt(optic, value, _)       =>
+        keyField(optic, ctx).map(sk =>
+          KeyConditionExpr.SortKeyRange.GreaterThan(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Gte(optic, value, schema)      =>
-        fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.SortKeyRange.GreaterThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
+      case DdbKeyExpr.SortKeyRange.Gte(optic, value, _)      =>
+        keyField(optic, ctx).map(sk =>
+          KeyConditionExpr.SortKeyRange.GreaterThanOrEqual(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Lt(optic, value, schema)       =>
-        fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.SortKeyRange.LessThan(SortKey[S, Any](n), ctx.encode(value, schema))
+      case DdbKeyExpr.SortKeyRange.Lt(optic, value, _)       =>
+        keyField(optic, ctx).map(sk =>
+          KeyConditionExpr.SortKeyRange.LessThan(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Lte(optic, value, schema)      =>
-        fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.SortKeyRange.LessThanOrEqual(SortKey[S, Any](n), ctx.encode(value, schema))
+      case DdbKeyExpr.SortKeyRange.Lte(optic, value, _)      =>
+        keyField(optic, ctx).map(sk =>
+          KeyConditionExpr.SortKeyRange.LessThanOrEqual(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Between(optic, lo, hi, schema) =>
-        fieldName(optic, ctx).map(n =>
+      case DdbKeyExpr.SortKeyRange.Between(optic, lo, hi, _) =>
+        keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange
-            .Between(SortKey[S, Any](n), ctx.encode(lo, schema), ctx.encode(hi, schema))
+            .Between(SortKey[S, Any](keyName(sk)), sk.codec.encoder(lo), sk.codec.encoder(hi))
         )
-      case DdbKeyExpr.SortKeyRange.BeginsWith(optic, prefix)      =>
-        fieldName(optic, ctx).map(n =>
-          KeyConditionExpr.SortKeyRange.BeginsWith(SortKey[S, Any](n), AttributeValue.String(prefix))
+      case DdbKeyExpr.SortKeyRange.BeginsWith(optic, prefix) =>
+        keyField(optic, ctx).map(sk =>
+          KeyConditionExpr.SortKeyRange.BeginsWith(SortKey[S, Any](keyName(sk)), AttributeValue.String(prefix))
         )
     }
 }
