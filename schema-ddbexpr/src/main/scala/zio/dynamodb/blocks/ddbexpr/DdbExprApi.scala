@@ -310,32 +310,15 @@ trait DdbExprApiSyntax {
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: DdbUpdateExpr[From]
   ): TableWriteBuilder[From, Unit, WriteOp.Update] =
-    updateWith(table, keyExpr)(DdbUpdateExprInterpreter.toAction(action, table.exprCtx))
-
-  /**
-   * Escape hatch for an already-built `core` [[UpdateExpression.Action]] — e.g. one assembled
-   *  with the low-level `ProjectionExpression` syntax (`$("field").set(value)`), or composed
-   *  by hand. Passed to `updateItem` verbatim: unlike a [[DdbUpdateExpr]], a raw `Action` was
-   *  never derived from a `Schema` optic, so there is no table configuration for it to miss —
-   *  the same role `where(ce: ConditionExpression[From])` plays on [[TableWriteBuilder]].
-   *  Same retry caveat as [[update]] applies to `action` here.
-   */
-  // A separate name rather than a third `update` overload: two curried methods identical
-  // except in the last parameter list resolve fine under Scala 3 but are ambiguous under
-  // Scala 2.13's overload resolution for a call site holding the argument in a typed `val`.
-  def updateAction[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
-    action: UpdateExpression.Action[From]
-  ): TableWriteBuilder[From, Unit, WriteOp.Update] =
-    updateWith(table, keyExpr)(action)
-
-  private def updateWith[From](table: Table[From], keyExpr: DdbKeyExpr.PrimaryKey[From])(
-    action: UpdateExpression.Action[From]
-  ): TableWriteBuilder[From, Unit, WriteOp.Update] =
     new TableWriteBuilder[From, Unit, WriteOp.Update](
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
-          DynamoDBQuery.UpdateItem(table.name, pkExpr.asAttrMap, UpdateExpression(action))
+          DynamoDBQuery.UpdateItem(
+            table.name,
+            pkExpr.asAttrMap,
+            UpdateExpression(DdbUpdateExprInterpreter.toAction(action, table.exprCtx))
+          )
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
       },

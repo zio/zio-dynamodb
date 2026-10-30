@@ -17,14 +17,12 @@
 package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page, ProjectionExpression, UpdateExpression }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
 /**
- * Every CRUD builder — `put`, `get`, `deleteFrom`, `update`, `query`, `scan` — plus
- * `updateAction`, an escape hatch for a raw update action built without an `Optic` (e.g. a
- * dynamic attribute name). See `CrudWalkthroughZio`/`CrudWalkthroughCE` for these queries
- * actually run against a table.
+ * Every CRUD builder — `put`, `get`, `deleteFrom`, `update`, `query`, `scan`. See
+ * `CrudWalkthroughZio`/`CrudWalkthroughCE` for these queries actually run against a table.
  */
 object CrudBuilders {
 
@@ -61,12 +59,6 @@ object CrudBuilders {
 
   val updateWithCondition: DynamoDBQuery[Task, Unit] =
     update(tasks)(Task.id.partitionKey === "t1")(Task.priority.increment(1)).where(Task.done === false)
-
-  // Escape hatch: a raw core Action built with the low-level ProjectionExpression `$` syntax.
-  val rawAction: UpdateExpression.Action[Task] = ProjectionExpression.$("priority").set(5)
-
-  val updateActionQuery: DynamoDBQuery[Task, Unit] =
-    updateAction(tasks)(Task.id.partitionKey === "t1")(rawAction)
 
   // sortOrder is a method on DynamoDBQuery itself, not on the builder, so the builder converts
   // to a DynamoDBQuery implicitly at that point in the chain.
