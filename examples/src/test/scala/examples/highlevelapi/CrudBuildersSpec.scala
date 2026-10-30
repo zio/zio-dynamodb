@@ -35,7 +35,6 @@ object CrudBuildersSpec extends ZIOSpecDefault {
         _ <- CrudBuilders.deleteWithCondition.execute
         _ <- CrudBuilders.updateQuery.execute
         _ <- CrudBuilders.updateWithCondition.execute
-        _ <- CrudBuilders.updateActionQuery.execute
         _ <- CrudBuilders.queryQuery.execute
         _ <- CrudBuilders.scanQuery.execute
       } yield assertCompletes

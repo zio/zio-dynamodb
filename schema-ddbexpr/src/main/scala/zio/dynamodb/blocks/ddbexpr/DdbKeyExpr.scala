@@ -75,8 +75,6 @@ trait DdbKeyExprSyntax {
   //   Task.id.partitionKey === "alice"                                   (partition key only)
   //   Task.id.partitionKey === "alice" && Task.score.sortKey === 42      (composite)
   //   Task.id.partitionKey === "alice" && Task.score.sortKey > 10        (key range)
-  // The apply() method on PartitionKeyBuilder also preserves:
-  //   Task.id.partitionKey("alice")     (call-style, backward compatible)
   // Not `extends AnyVal`: value classes may only be top-level or object members, not
   // trait members, and this trait is mixed into more than one object (DdbKeyExpr, dsl).
   implicit class LensKeyOps[S, A](private val optic: Optic[S, A]) {
@@ -135,21 +133,10 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
 
   // ── Partition key builder ─────────────────────────────────────────────────
 
-  // Returned by .partitionKey and the standalone partitionKey() factory. Provides
-  // === for the operator-style  Task.id.partitionKey === "alice"  and apply() so the
-  // previous call-style  Task.id.partitionKey("alice")  continues to compile unchanged.
   final class PartitionKeyBuilder[S, A](val optic: Optic[S, A]) {
-    def ===(value: A)(implicit schema: Schema[A]): PartitionKeyEquals[S, A]   =
-      PartitionKeyEquals(optic, value, schema)
-    def apply(value: A)(implicit schema: Schema[A]): PartitionKeyEquals[S, A] =
+    def ===(value: A)(implicit schema: Schema[A]): PartitionKeyEquals[S, A] =
       PartitionKeyEquals(optic, value, schema)
   }
-
-  // ── Standalone factories ───────────────────────────────────────────────────
-
-  def partitionKey[S, A](optic: Optic[S, A]): PartitionKeyBuilder[S, A] = new PartitionKeyBuilder(optic)
-
-  def sortKey[S, B](optic: Optic[S, B]): SortKeyBuilder[S, B] = new SortKeyBuilder(optic)
 
   // ── Sort key builder ──────────────────────────────────────────────────────
 
