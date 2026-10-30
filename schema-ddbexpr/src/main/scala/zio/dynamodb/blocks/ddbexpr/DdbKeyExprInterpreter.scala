@@ -16,8 +16,7 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.{ DynamicOptic, Optic, Reflect, Schema }
-import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.{ DynamicOptic, Optic }
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, ProjectionExpression, SortKey }
 
@@ -40,11 +39,11 @@ private[dynamodb] object DdbKeyExprInterpreter {
     ctx: ExprCtx
   ): Either[String, KeyConditionExpr.PrimaryKeyExpr[S]] =
     expr match {
-      case DdbKeyExpr.PartitionKeyEquals(optic, value, _) =>
+      case DdbKeyExpr.PartitionKeyEquals(optic, value) =>
         keyField(optic, ctx).map { pk =>
           KeyConditionExpr.PartitionKeyEquals[S](PartitionKey[S, Any](keyName(pk)), pk.codec.encoder(value))
         }
-      case DdbKeyExpr.Composite(pkExpr, skEq)             =>
+      case DdbKeyExpr.Composite(pkExpr, skEq)          =>
         for {
           pk <- keyField(pkExpr.optic, ctx)
           sk <- keyField(skEq.optic, ctx)
@@ -121,23 +120,23 @@ private[dynamodb] object DdbKeyExprInterpreter {
     ctx: ExprCtx
   ): Either[String, KeyConditionExpr.SortKeyRange[S, _]] =
     sortKey match {
-      case DdbKeyExpr.SortKeyRange.Gt(optic, value, _)       =>
+      case DdbKeyExpr.SortKeyRange.Gt(optic, value)          =>
         keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange.GreaterThan(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Gte(optic, value, _)      =>
+      case DdbKeyExpr.SortKeyRange.Gte(optic, value)         =>
         keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange.GreaterThanOrEqual(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Lt(optic, value, _)       =>
+      case DdbKeyExpr.SortKeyRange.Lt(optic, value)          =>
         keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange.LessThan(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Lte(optic, value, _)      =>
+      case DdbKeyExpr.SortKeyRange.Lte(optic, value)         =>
         keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange.LessThanOrEqual(SortKey[S, Any](keyName(sk)), sk.codec.encoder(value))
         )
-      case DdbKeyExpr.SortKeyRange.Between(optic, lo, hi, _) =>
+      case DdbKeyExpr.SortKeyRange.Between(optic, lo, hi)    =>
         keyField(optic, ctx).map(sk =>
           KeyConditionExpr.SortKeyRange
             .Between(SortKey[S, Any](keyName(sk)), sk.codec.encoder(lo), sk.codec.encoder(hi))
