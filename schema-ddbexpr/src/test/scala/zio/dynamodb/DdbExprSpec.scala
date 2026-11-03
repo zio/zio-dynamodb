@@ -285,7 +285,11 @@ object DdbExprSpec extends ZIOSpecDefault {
         } yield assertTrue(onNumber.isLeft, onString.isRight)
       }
     ),
-    suite("inSet — scalar field IN a set of values")(
+    suite("inSet — field IN a set of values")(
+      test("inSet on a set-typed field renders IN with value aliases") {
+        val expr = Score.tags.inSet(Set(Set("a"), Set("b", "c")))
+        assert(interpret(expr).map(render))(isRight(containsString("IN") && containsString(":v")))
+      },
       test("inSet on an Int field renders IN with value aliases") {
         val expr = Score.score.inSet(Set(1, 2, 3))
         interpret(expr)

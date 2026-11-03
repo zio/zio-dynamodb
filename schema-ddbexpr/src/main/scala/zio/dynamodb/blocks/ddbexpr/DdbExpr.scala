@@ -94,15 +94,15 @@ trait DdbExprSyntax {
     ): DdbExpr[S, Boolean]                      =
       DdbExpr.Between(optic, lo, hi, schema)
 
-    /** `path IN (values)`, for a field of any type. */
+    /** `path IN (values)`, for a field of any type. DynamoDB accepts at most 100 values. */
     def in(head: A, rest: A*)(implicit schema: Schema[A]): DdbExpr[S, Boolean] =
       DdbExpr.In(optic, head +: rest, schema)
 
-    /** Like [[in]], taking a `Set`; number, string and binary fields only, checked at compile time. */
-    def inSet(values: Set[A])(implicit
-      schema: Schema[A],
-      @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
-    ): DdbExpr[S, Boolean] =
+    /**
+     * Like [[in]], taking a `Set` of candidate values. DynamoDB accepts 1 to 100 values: an empty
+     * set or more than 100 fails in the effect with DynamoDB's validation error.
+     */
+    def inSet(values: Set[A])(implicit schema: Schema[A]): DdbExpr[S, Boolean] =
       DdbExpr.In(optic, values.toSeq, schema)
 
     /** `contains(path, element)` on a set field: true when the set has `element`. */

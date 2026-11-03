@@ -52,7 +52,7 @@ object WrappedScalars {
 
   val widgets: Table[Widget] = Table[Widget]("widgets")
 
-  // `===`/`>` work on a value class, but `between`/`in`/`inSet` do not — see
+  // `===`/`>`/`in`/`inSet` work on a value class, but `between` does not — see
   // CompileTimeRejections.scala.
   val skuEq: DdbExpr[Widget, Boolean] = Widget.sku === Sku("SKU-1")
 
