@@ -42,20 +42,6 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       }
     ),
     suite("compile-time rejections")(
-      test("inSet only works on a scalar field, not a list") {
-        typeCheck("""
-          import zio.blocks.schema.{ CompanionOptics, Schema }
-          import zio.dynamodb.blocks.ddbexpr.dsl._
-
-          final case class Widget(id: String, tags: List[String])
-          object Widget extends CompanionOptics[Widget] {
-            implicit val schema: Schema[Widget] = Schema.derived
-            val tags = $(_.tags)
-          }
-
-          Widget.tags.inSet(Set(List("a")))
-        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
-      },
       test("remove(index) only works on a list field") {
         typeCheck("""
           import zio.blocks.schema.{ CompanionOptics, Schema }
@@ -176,32 +162,26 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft, messageIndicatesRejection)
         }
       },
-      test("inSet doesn't work on a plain AnyVal value class") {
-        typeCheck("""
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+      test("but in and inSet work fine on a plain AnyVal value class (they have no Allows constraint)") {
+        // in / inSet take only an implicit Schema, no Allows evidence — unlike between, they
+        // aren't shape-gated at all, so they work on any type with a Schema.
+        for {
+          viaIn    <- typeCheck("""
+                        import zio.dynamodb.blocks.ddbexpr.dsl._
 
-          examples.highlevelapi.WrappedScalars.Widget.sku.inSet(
-            Set(examples.highlevelapi.WrappedScalars.Sku("a"), examples.highlevelapi.WrappedScalars.Sku("z"))
-          )
-        """).map { result =>
-          val messageIndicatesRejection = result.swap.exists { msg =>
-            val lower = msg.toLowerCase
-            lower.contains("allows") || lower.contains("not a member")
-          }
-          assertTrue(result.isLeft, messageIndicatesRejection)
-        }
-      },
-      test("but in works fine on a plain AnyVal value class (it has no Allows constraint)") {
-        // DdbExprSyntax.in takes only an implicit Schema, no Allows evidence — unlike
-        // between/inSet, it isn't shape-gated at all, so it works on any type with a Schema.
-        typeCheck("""
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+                        examples.highlevelapi.WrappedScalars.Widget.sku.in(
+                          examples.highlevelapi.WrappedScalars.Sku("a"),
+                          examples.highlevelapi.WrappedScalars.Sku("z")
+                        )
+                      """)
+          viaInSet <- typeCheck("""
+                        import zio.dynamodb.blocks.ddbexpr.dsl._
 
-          examples.highlevelapi.WrappedScalars.Widget.sku.in(
-            examples.highlevelapi.WrappedScalars.Sku("a"),
-            examples.highlevelapi.WrappedScalars.Sku("z")
-          )
-        """).map(result => assertTrue(result.isRight))
+                        examples.highlevelapi.WrappedScalars.Widget.sku.inSet(
+                          Set(examples.highlevelapi.WrappedScalars.Sku("a"), examples.highlevelapi.WrappedScalars.Sku("z"))
+                        )
+                      """)
+        } yield assertTrue(viaIn.isRight, viaInSet.isRight)
       }
     ),
     suite("PrimaryKey vs KeyRange")(

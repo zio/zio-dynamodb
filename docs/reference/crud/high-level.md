@@ -293,8 +293,8 @@ The other condition operators, for `.where` and `.filter`:
 
 | Operator | Applies to | Example |
 |---|---|---|
-| `in(a, b, ...)` | any field | `Order.status.in(Status.Pending, Status.Shipped)` |
-| `inSet(values)` | number, string or binary fields | `Order.customerId.inSet(Set("cust-1", "cust-2"))` |
+| `in(a, b, ...)` | any field; at most 100 values | `Order.status.in(Status.Pending, Status.Shipped)` |
+| `inSet(values)` | any field; 1 to 100 values | `Order.customerId.inSet(Set("cust-1", "cust-2"))` |
 | `between(lo, hi)` | number, string or binary fields | `Order.total.between(10.0, 100.0)` |
 | `beginsWith(prefix)` / `contains(s)` | string fields | `Order.orderId.beginsWith("ord-2026")` |
 | `containsElement(e)` | set fields | for a `tags: Set[String]` field, `tags.containsElement("urgent")` |
