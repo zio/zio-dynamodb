@@ -82,7 +82,7 @@ lazy val core = (project in file("core"))
   )
 
 lazy val aws = (project in file("aws"))
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")
   .settings(
     name               := "zio-dynamodb-aws",
     crossScalaVersions := Seq(scala3Version, scala213Version),
@@ -140,7 +140,7 @@ lazy val zioInterpreter = (project in file("zio"))
   )
 
 lazy val schemaDdbExpr = (project in file("schema-ddbexpr"))
-  .dependsOn(schemaDynamodb)
+  .dependsOn(schemaDynamodb, core % "test->test")
   .settings(
     name               := "zio-dynamodb-schema-ddbexpr",
     crossScalaVersions := Seq(scala3Version, scala213Version),
@@ -198,7 +198,7 @@ lazy val it = (project in file("it"))
   )
 
 lazy val benchmarks = (project in file("benchmarks"))
-  .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr)
+  .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr, core % "compile->test")
   .enablePlugins(JmhPlugin)
   .settings(
     name            := "zio-dynamodb-benchmarks",
@@ -225,7 +225,7 @@ lazy val benchmarksZd2 = (project in file("benchmarks-zd2"))
   )
 
 lazy val examples = (project in file("examples"))
-  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr)
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr, core % "test->test")
   .settings(
     name               := "zio-dynamodb-examples",
     publish / skip     := true,
