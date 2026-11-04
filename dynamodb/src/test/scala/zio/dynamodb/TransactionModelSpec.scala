@@ -226,6 +226,11 @@ object TransactionModelSpec extends ZIOSpecDefault {
       },
       test("batch write item") {
         assertZIO(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))
+      },
+      test("conditionCheck returns public ConditionCheck type") {
+        val check: DynamoDBQuery.ConditionCheck =
+          DynamoDBQuery.conditionCheck("table", PrimaryKey("a" -> 1))($("a") === 1)
+        assertTrue(check.tableName == tableName)
       }
     )
   )

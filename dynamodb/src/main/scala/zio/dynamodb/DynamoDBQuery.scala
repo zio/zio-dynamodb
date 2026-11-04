@@ -1105,7 +1105,7 @@ object DynamoDBQuery {
     returnValues: ReturnValues = ReturnValues.None
   ) extends Constructor[Any, Option[Item]]
 
-  private[dynamodb] final case class ConditionCheck(
+  final case class ConditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
     conditionExpression: ConditionExpression[_]
