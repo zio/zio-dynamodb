@@ -53,7 +53,7 @@ object CiWorkflow {
     )
   }
 
-  // `benchmarks` and `benchmarksZd2` sit outside root's aggregate, so the Test and Build jobs never
+  // `benchmarks` and `benchmarksSeries2` sit outside root's aggregate, so the Test and Build jobs never
   // compile them, and the plugin's Build job is `continue-on-error`, so a step added there can't
   // fail CI. This job reuses the Build job's setup steps (everything before its own check steps)
   // and compiles the JMH sources; the `ci` gate waits on every job in `ciBuildJobs`, so a failure
@@ -69,7 +69,7 @@ object CiWorkflow {
       steps = build.steps.dropRight(checkSteps.size) :+
         SingleStep(
           name = "Check benchmarks compile",
-          run = Some("sbt --no-colors benchmarks/Jmh/compile benchmarksZd2/Jmh/compile")
+          run = Some("sbt --no-colors benchmarks/Jmh/compile benchmarksSeries2/Jmh/compile")
         )
     )
   }

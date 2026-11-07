@@ -29,7 +29,7 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 /**
  * Codec encode/decode throughput comparison across three libraries:
  * zio-blocks (this library), Dynosaur, and Scanamo. The zio-dynamodb 2.x (zio-schema)
- * equivalent is `ZioDynamoDB2CodecBenchmarks` in the `benchmarksZd2` module.
+ * equivalent is `ZioDynamoDB2CodecBenchmarks` in the `benchmarksSeries2` module.
  *
  * Measures `reading` (decode) and `writing` (encode) of a `List[Person]`
  * of varying length, exercising each library's codec on the same data.

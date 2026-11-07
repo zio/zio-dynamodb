@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
  * `zio.dynamodb.AttributeValue`, so they must not share a classpath.
  *
  * {{{
- * sbt "benchmarksZd2/Jmh/run -prof gc ZioDynamoDB2CodecBenchmarks"
+ * sbt "benchmarksSeries2/Jmh/run -prof gc ZioDynamoDB2CodecBenchmarks"
  * }}}
  */
 @State(JScope.Thread)
