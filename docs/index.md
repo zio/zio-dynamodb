@@ -8,8 +8,12 @@ Simple, type-safe, and efficient access to DynamoDB
 
 @PROJECT_BADGES@
 
-> **ZIO DynamoDB 3 is in development** on the [`series/3.x`](https://github.com/zio/zio-dynamodb/tree/series/3.x) branch:
-> a rewrite with one API for ZIO, Cats Effect or `Future`, and ZIO Blocks schemas.
+> **ZIO DynamoDB 3 is in development** on the [`series/3.x`](https://github.com/zio/zio-dynamodb/tree/series/3.x) branch. Highlights of the rewrite:
+>
+> - **Effect-neutral**: no longer tied to ZIO - the same queries run on ZIO, Cats Effect or `Future`, each through its own interpreter.
+> - **Modular**: a small core with no AWS SDK dependency, plus a module per effect and for schema support, so you depend only on what you use.
+> - **High-Level API based on [ZIO Blocks Schema](https://github.com/zio/zio-blocks)**, with derived codecs and type-safe expressions built from optics.
+>
 > Snapshots are published from that branch. This branch (2.x) is in maintenance mode.
 
 ## Introduction
