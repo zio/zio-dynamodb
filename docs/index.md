@@ -8,6 +8,10 @@ Simple, type-safe, and efficient access to DynamoDB
 
 @PROJECT_BADGES@
 
+> **ZIO DynamoDB 3 is in development** on the [`series/3.x`](https://github.com/zio/zio-dynamodb/tree/series/3.x) branch:
+> a rewrite with one API for ZIO, Cats Effect or `Future`, and ZIO Blocks schemas.
+> Snapshots are published from that branch. This branch (2.x) is in maintenance mode.
+
 ## Introduction
 
 ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate free access to AWS's DynamoDB service. It provides a type-safe API for many query types and the number of type-safe APIs is expanding. ZIO DynamoDB will automatically batch queries and execute un-batchable queries in parallel.

@@ -8,6 +8,10 @@ Simple, type-safe, and efficient access to DynamoDB
 
 [![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-dynamodb/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/maven-central/v/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Release)](https://central.sonatype.com/artifact/dev.zio/zio-dynamodb_2.13) [![Sonatype Snapshots](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fdev%2Fzio%2Fzio-dynamodb_2.13%2Fmaven-metadata.xml&label=Sonatype%20Snapshot)](https://central.sonatype.com/repository/maven-snapshots/dev/zio/zio-dynamodb_2.13/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-dynamodb_2.13/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-dynamodb_2.13) [![ZIO DynamoDB](https://img.shields.io/github/stars/zio/zio-dynamodb?style=social)](https://github.com/zio/zio-dynamodb)
 
+> **ZIO DynamoDB 3 is in development** on the [`series/3.x`](https://github.com/zio/zio-dynamodb/tree/series/3.x) branch:
+> a rewrite with one API for ZIO, Cats Effect or `Future`, and ZIO Blocks schemas.
+> Snapshots are published from that branch. This branch (2.x) is in maintenance mode.
+
 ## Introduction
 
 ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate free access to AWS's DynamoDB service. It provides a type-safe API for many query types and the number of type-safe APIs is expanding. ZIO DynamoDB will automatically batch queries and execute un-batchable queries in parallel.
