@@ -38,8 +38,10 @@ object TimeToLiveSpec extends DynamoDBLocalSpec {
 
   final case class EpochSeconds(value: Instant)
   object EpochSeconds {
-    implicit val schema: Schema[EpochSeconds] =
-      Schema[Long].transform(seconds => EpochSeconds(Instant.ofEpochSecond(seconds)), _.value.getEpochSecond)
+    private def read(seconds: Long): EpochSeconds = EpochSeconds(Instant.ofEpochSecond(seconds))
+    private def write(ttl: EpochSeconds): Long    = ttl.value.getEpochSecond
+
+    implicit val schema: Schema[EpochSeconds] = Schema[Long].transform[EpochSeconds](read, write)
   }
 
   final case class Session(id: String, userId: String, updatedAt: Instant, ttl: EpochSeconds)
