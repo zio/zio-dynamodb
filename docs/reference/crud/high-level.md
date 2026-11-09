@@ -315,6 +315,46 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .execute
 ```
 
+## Time to live
+
+A [time to live](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/time-to-live-ttl-before-you-start.html)
+attribute is an ordinary model field. DynamoDB expects a Number of epoch seconds and ignores any
+other format, and an `Instant` field is written as a string, so wrap it in a type stored as a `Long`:
+
+```scala mdoc:compile-only
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.blocks.ddbexpr.DdbUpdateExpr
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+final case class EpochSeconds(value: Instant)
+object EpochSeconds {
+  private def read(seconds: Long): EpochSeconds = EpochSeconds(Instant.ofEpochSecond(seconds))
+  private def write(ttl: EpochSeconds): Long    = ttl.value.getEpochSecond
+
+  implicit val schema: Schema[EpochSeconds] = Schema[Long].transform[EpochSeconds](read, write)
+}
+
+final case class Session(id: String, updatedAt: Instant, ttl: EpochSeconds) derives Schema
+object Session extends CompanionOptics[Session] {
+  val updatedAt: Lens[Session, Instant] = $(_.updatedAt)
+  val ttl: Lens[Session, EpochSeconds]  = $(_.ttl)
+
+  def expiry(at: Instant): EpochSeconds           = EpochSeconds(at.plus(90, ChronoUnit.DAYS))
+  def create(id: String, now: Instant): Session   = Session(id, now, expiry(now))
+  def touch(now: Instant): DdbUpdateExpr[Session] = updatedAt.set(now) + ttl.set(expiry(now))
+}
+```
+
+Calculate the expiry in one place. `put` writes the whole item, but `update` only writes the
+attributes it names, so an update that changes `updatedAt` must set `ttl` too, as `touch` does.
+A `ttl` attribute is fine even though `TTL` is a DynamoDB reserved word. Items written before the
+field was added need it to be an `Option` or have a default value to decode.
+
+The library doesn't enable time to live on a table: call `UpdateTimeToLive` through the AWS SDK or
+your infrastructure tooling, naming the attribute.
+
 ## Transactions
 
 `transactWriteItems` accepts High-Level `put`/`update`/`deleteFrom`/`conditionCheck` values
