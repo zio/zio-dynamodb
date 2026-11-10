@@ -74,9 +74,12 @@ final class Table[From] private (val name: String, mkCodec: () => DynamoDBCodec[
 
   /**
    * Encodes `a` into an [[Item]] for the Low-Level API's `Item`-shaped operations, with this table's
-   * codec. `Left` when `From`'s codec does not produce a top-level map.
+   * codec. Throws when `From`'s codec does not produce a top-level map, which can never be a table item.
    */
-  def encode(a: From): Either[DynamoDBError, Item] =
+  def encode(a: From): Item = entry.codec.toItem(a)
+
+  // For `put`, which is a query and so has to fail in the effect.
+  private[ddbexpr] def encodeEither(a: From): Either[DynamoDBError, Item] =
     FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(entry.codec.encoder(a))
 
   override def toString: String = s"Table($name)"

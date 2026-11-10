@@ -29,6 +29,10 @@ object DynamoDBErrorSpec extends ZIOSpecDefault {
         assertTrue(e.message == "bad type")
       },
 
+      test("DecodingError.causes lists every cause, in order") {
+        val e = DecodingError.missingField("a") ++ DecodingError.failure("bad")
+        assertTrue(e.causes.toList == List(DecodingError.MissingField("a"), DecodingError.Failure("bad")))
+      },
       test("DecodingError.MissingField formats message") {
         val s = DecodingError.MissingField("name")
         assertTrue(s.message == "missing field 'name'")

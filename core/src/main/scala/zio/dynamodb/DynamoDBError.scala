@@ -159,7 +159,7 @@ object DynamoDBError {
         with Product
         with Serializable {
 
-      def causes: Array[DecodingError.Cause] = underlying
+      def causes: Chunk[DecodingError.Cause] = Chunk.fromArray(underlying)
 
       def message: String = underlying.iterator.map(_.message).mkString("; ")
 
@@ -170,7 +170,7 @@ object DynamoDBError {
       def canEqual(other: Any): Boolean  = other.isInstanceOf[DecodingError]
       def productArity: Int              = 1
       def productElement(n: Int): Any    = n match {
-        case 0 => underlying
+        case 0 => causes
         case _ => throw new IndexOutOfBoundsException(n.toString)
       }
       override def productPrefix: String = "DecodingError"
@@ -205,7 +205,7 @@ object DynamoDBError {
        * Build from a pre-populated array — used by the codec deriver to finalize
        *  an `ArrayBuffer[Cause]` in one `toArray` call.
        */
-      def apply(causes: Array[Cause]): DecodingError =
+      private[dynamodb] def apply(causes: Array[Cause]): DecodingError =
         new DecodingError(causes)
 
       def failure(detail: String): DecodingError =

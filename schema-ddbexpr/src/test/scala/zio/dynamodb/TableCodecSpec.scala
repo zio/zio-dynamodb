@@ -198,7 +198,12 @@ object TableCodecSpec extends ZIOSpecDefault {
     ),
     suite("a hand-written top-level codec")(
       test("whole items still encode and decode") {
-        assert(handWrittenReadings.encode(reading).flatMap(handWrittenReadings.decode))(isRight(equalTo(reading)))
+        assert(handWrittenReadings.decode(handWrittenReadings.encode(reading)))(isRight(equalTo(reading)))
+      },
+      test("a put with a codec that doesn't encode to a map builds, then fails in the effect") {
+        assertZIO(run(put(Table[Int]("ints"), 1)).either)(
+          isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything))
+        )
       },
       test("a put builds and runs") {
         assertZIO(run(put(handWrittenReadings, reading)).either)(isRight(anything))
