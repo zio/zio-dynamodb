@@ -135,8 +135,8 @@ To type the raw `Item`s that come back from a `Batch.GetResult`, call `Table#dec
 table's configured, cached codec, so the hand-rolled path stays consistent with the rest of
 your High-Level code instead of re-deriving a codec by hand.
 
-To write models in a batch, encode each one with `Table#encode`. It throws only for a hand-written
-codec that doesn't encode to a map, which can't be a table item.
+To write models in a batch, encode each one with `Table#encode`. It throws when the codec doesn't
+encode to a map, since that can't be a table item.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
