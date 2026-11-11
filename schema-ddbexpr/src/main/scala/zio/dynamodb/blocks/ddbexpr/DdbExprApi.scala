@@ -276,7 +276,7 @@ trait DdbExprApiSyntax {
   def put[A](table: Table[A], a: A): TableWriteBuilder[A, Unit, WriteOp.Put] =
     new TableWriteBuilder[A, Unit, WriteOp.Put](
       table,
-      table.encode(a) match {
+      table.encodeEither(a) match {
         case Right(encodedItem) => DynamoDBQuery.PutItem(table.name, encodedItem)
         case Left(err)          => DynamoDBQuery.fail(err)
       },

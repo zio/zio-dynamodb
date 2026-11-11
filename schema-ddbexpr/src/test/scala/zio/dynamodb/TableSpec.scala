@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import zio.ZIO
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
@@ -39,7 +40,7 @@ object TableSpec extends ZIOSpecDefault {
     suite("decode / encode")(
       test("encode then decode round-trips through the configured codec") {
         val people = Table[Person]("people")
-        assert(people.encode(ada).flatMap(people.decode))(isRight(equalTo(ada)))
+        assert(people.decode(people.encode(ada)))(isRight(equalTo(ada)))
       },
       test("decode surfaces a DecodingError for a malformed item rather than throwing") {
         val people = Table[Person]("people")
@@ -47,17 +48,23 @@ object TableSpec extends ZIOSpecDefault {
         assert(people.decode(broken))(isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
       }
     ),
+    suite("a codec that does not encode to a map")(
+      test("encode throws") {
+        val ints = Table[Int]("ints")
+        assertZIO(ZIO.attempt(ints.encode(1)).exit)(fails(isSubtype[IllegalArgumentException](anything)))
+      }
+    ),
     suite("a configured codec affects decode / encode")(
       test("withFieldNameMapper changes the encoded attribute names, and decode reads them back") {
         val snake = snakeCase
         val item  = snake.encode(ada)
-        assert(item.map(_.map.keySet))(isRight(equalTo(Set("first_name", "last_name", "age")))) &&
-        assert(item.flatMap(snake.decode))(isRight(equalTo(ada)))
+        assertTrue(item.map.keySet == Set("first_name", "last_name", "age")) &&
+        assert(snake.decode(item))(isRight(equalTo(ada)))
       },
       test("two Table values for the same type carry independent codecs") {
         val plain = Table[Person]("people")
         val snake = snakeCase
-        assertTrue(plain.encode(ada).toOption.map(_.map.keySet) != snake.encode(ada).toOption.map(_.map.keySet))
+        assertTrue(plain.encode(ada).map.keySet != snake.encode(ada).map.keySet)
       }
     ),
     suite("a configured codec reaches key-condition attribute names")(

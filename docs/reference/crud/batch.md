@@ -134,3 +134,19 @@ To type the raw `Item`s that come back from a `Batch.GetResult`, call `Table#dec
 `Table#encode` on the same `Table` value you use for High-Level `get`/`put`. That reuses the
 table's configured, cached codec, so the hand-rolled path stays consistent with the rest of
 your High-Level code instead of re-deriving a codec by hand.
+
+To write models in a batch, encode each one with `Table#encode`. It throws when the codec doesn't
+encode to a map, since that can't be a table item.
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+import zio.dynamodb._
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+case class Order(customerId: String, orderId: String, total: Double) derives Schema
+
+val table     = Table[Order]("orders")
+val newOrders = List(Order("cust-42", "ord-1", 129.99), Order("cust-42", "ord-2", 15.0))
+
+val batch = DynamoDBQuery.batchWriteItem(newOrders)(order => DynamoDBQuery.putItem(table.name, table.encode(order)))
+```
