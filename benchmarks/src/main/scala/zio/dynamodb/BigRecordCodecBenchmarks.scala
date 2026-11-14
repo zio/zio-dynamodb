@@ -26,8 +26,8 @@ import org.scanamo.{ DynamoValue => ScanamoValue }
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 /**
- * `DynamoDBCodecBenchmarks` for `BigRecord` (26 fields, nested records and sum types) instead of the
- * flat `Person`, for zio-blocks, Scanamo and Dynosaur.
+ * The same read / write benchmarks as `DynamoDBCodecBenchmarks`, but on `BigRecord` (26 fields,
+ * nested records and sum types) instead of the flat `Person`, for zio-blocks, Scanamo and Dynosaur.
  *
  * {{{
  * sbt "benchmarks/Jmh/run -prof gc BigRecordCodecBenchmarks"
