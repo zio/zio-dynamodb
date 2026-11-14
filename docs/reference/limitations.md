@@ -65,7 +65,7 @@ can't reach — ordered by how much work each takes:
    $("BilledMonthly.amount") === 42.0
    ```
    See `OopModelWithAbstractFieldsSpec`
-   (`schema-ddbexpr/src/test/scala/zio/dynamodb/OopModelWithAbstractFieldsSpec.scala`) for the
+   (`blocks-schema-ddbexpr/src/test/scala/zio/dynamodb/OopModelWithAbstractFieldsSpec.scala`) for the
    full worked example, including matching across every case of a shared abstract field with
    an explicit `||`.
 2. **Write a case class adapter** — for a model that can't derive a `Schema` at all, a plain

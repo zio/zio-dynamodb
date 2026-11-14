@@ -21,10 +21,15 @@ import software.amazon.awssdk.services.dynamodb.model.{ ConditionalCheckFailedEx
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps, SchemaExprBoolBridge }
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr.{
+  DdbExprBoolSyntax,
+  OpticDdbExprOps,
+  OpticUpdateOps,
+  SchemaExprBoolBridge
+}
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.test._
 import zio.test.Assertion._
@@ -795,7 +800,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       test("scan.filter on a combined (&&) config-mapped condition") {
         // A combined (&&) filter against a configured table: the two conditions combine
         // via SchemaExpr's own && and `.filter` resolves both field names and the enum
-        // literal against the table config. DdbExprFilterConfigSpec (schema-ddbexpr) covers
+        // literal against the table config. DdbExprFilterConfigSpec (blocks-schema-ddbexpr) covers
         // the import-shape variations without Docker.
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = configuredArticleTable(tableName)

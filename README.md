@@ -25,7 +25,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ CEInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 object Example extends IOApp.Simple {
 
@@ -73,7 +73,7 @@ import zio.*
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 object ZioExample extends ZIOAppDefault {
 
@@ -186,7 +186,7 @@ resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repos
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-dynamodb-ce"             % "3.0.0-SNAPSHOT", // brings core + the Low-Level API; swap for -zio / -future
-  "dev.zio" %% "zio-dynamodb-schema-ddbexpr" % "3.0.0-SNAPSHOT"  // the High-Level API (Table, DdbExprApi, dsl)
+  "dev.zio" %% "zio-dynamodb-blocks-schema-ddbexpr" % "3.0.0-SNAPSHOT"  // the High-Level API (Table, DdbExprApi, dsl)
 )
 ```
 

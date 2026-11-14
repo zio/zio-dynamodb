@@ -29,9 +29,9 @@ import software.amazon.awssdk.services.dynamodb.model._
 import zio.blocks.schema.CompanionOptics
 import zio.dynamodb.BinaryBenchmarkDomain._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr._
 
 import java.lang.reflect.{ InvocationHandler, Method, Proxy }
 import scala.collection.JavaConverters._

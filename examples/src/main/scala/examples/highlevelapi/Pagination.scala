@@ -22,7 +22,7 @@ import zio.Task
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, Interpreter, LastEvaluatedKey, PrimaryKey }
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 import zio.stream.ZStream
 
 /**

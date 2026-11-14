@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.*
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 import zio.test.*
 
 /**
@@ -31,7 +31,7 @@ import zio.test.*
  *  ZioInterpreter + dsl facade + .execute mechanics are already exercised for real
  *  elsewhere (ZioInterpreterSpec and friends).
  *
- *  Lives in `it` rather than `zio` because zioInterpreter doesn't depend on schemaDdbExpr
+ *  Lives in `it` rather than `zio` because zioInterpreter doesn't depend on blocksSchemaDdbExpr
  *  (only ceInterpreter does, for Test) — the HL dsl facade isn't on zioInterpreter's
  *  classpath.
  */

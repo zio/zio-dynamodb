@@ -27,10 +27,10 @@ import software.amazon.awssdk.services.dynamodb.model._
 import zio.blocks.schema.{ CompanionOptics, NameMapper }
 import zio.dynamodb.BenchmarkDomain._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps // .set on an optic
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr.OpticUpdateOps // .set on an optic
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 import org.openjdk.jmh.annotations.{ Benchmark, Setup, Warmup }

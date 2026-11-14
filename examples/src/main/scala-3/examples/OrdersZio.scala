@@ -21,7 +21,7 @@ import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 /**
  * Scala 3 / ZIO showcase example — the ZIO counterpart of `OrdersCE.scala` (the Cats Effect

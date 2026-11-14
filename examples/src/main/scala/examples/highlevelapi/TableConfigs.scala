@@ -19,7 +19,7 @@ package examples.highlevelapi
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 /**

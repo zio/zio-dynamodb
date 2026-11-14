@@ -14,7 +14,7 @@ whole transaction is cancelled and the effect fails. `transactGetItems` is Low-L
 import zio.dynamodb._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 case class Order(customerId: String, orderId: String, total: Double, status: String) derives Schema
 

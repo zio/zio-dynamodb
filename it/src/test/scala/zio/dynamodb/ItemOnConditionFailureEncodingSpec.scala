@@ -22,8 +22,8 @@ import software.amazon.awssdk.services.dynamodb.model.{
 }
 import zio._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 import zio.test.Assertion._
 import zio.test._
 

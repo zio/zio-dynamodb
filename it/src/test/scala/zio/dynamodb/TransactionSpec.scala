@@ -21,9 +21,9 @@ import zio._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.TransactionError
 import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ schemaExprToDdbExpr, OpticUpdateOps }
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr.{ schemaExprToDdbExpr, OpticUpdateOps }
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr._
 import zio.test._
 import zio.test.Assertion.{ anything, equalTo, hasField, isLeft, isNone, isSome, isSubtype }
 

@@ -18,8 +18,8 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExpr, DdbUpdateExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * `Option[A]` fields: a top-level `Option[Int]` needs no narrowing (`attributeExists`/`set`

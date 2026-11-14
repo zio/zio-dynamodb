@@ -18,7 +18,7 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * Every CRUD builder — `put`, `get`, `deleteFrom`, `update`, `query`, `scan`. See

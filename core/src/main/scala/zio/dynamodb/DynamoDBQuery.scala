@@ -1107,7 +1107,7 @@ sealed abstract class BuilderNode[In, Out] extends DynamoDBQuery[In, Out] {
 
 // A write builder: `write` is the put / update / delete node and `finish` maps its raw result, so it
 // runs exactly like `Map(write, finish)` without allocating one. The concrete builders (Low-Level here
-// in core, High-Level in schema-ddbexpr) extend WriteBuilder / ConditionalWriteBuilder; nothing here
+// in core, High-Level in blocks-schema-ddbexpr) extend WriteBuilder / ConditionalWriteBuilder; nothing here
 // depends on them.
 sealed abstract class WriteNode[In, Out] private[dynamodb] (
   private[dynamodb] val write: DynamoDBQuery[In, Option[Item]],

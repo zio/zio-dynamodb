@@ -19,8 +19,8 @@ package examples.highlevelapi
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.DdbExpr
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * Relational and range operators (`===`, `>`, `<`, `>=`, `<=`, `!=`, `between`, `in`,

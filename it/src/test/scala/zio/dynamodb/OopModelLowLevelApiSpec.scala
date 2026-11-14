@@ -25,7 +25,7 @@ import zio.test._
 import zio.test.TestAspect
 
 // Integration-test companion to
-// schema-ddbexpr/src/test/scala/zio/dynamodb/OopModelWithAbstractFieldsSpec.scala.
+// blocks-schema-ddbexpr/src/test/scala/zio/dynamodb/OopModelWithAbstractFieldsSpec.scala.
 // See docs/design/SumTypesWithAbstractFields.md for the full design discussion — in short:
 // a root-level OO model with abstract/shared fields (`.id` on every case, `.amount` shared
 // by the Billed cases) is only usable as a real top-level DynamoDB item at all — for *any*

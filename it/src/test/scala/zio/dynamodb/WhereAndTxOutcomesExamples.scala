@@ -28,8 +28,8 @@ import zio.dynamodb.DynamoDBError.CancellationCode
 import zio.dynamodb.DynamoDBError.ItemError.{ ConditionFailed, DecodingError }
 import zio.dynamodb.DynamoDBError.TransactionError.TransactionCancelled
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 import zio.test._
 
 // Examples, not tests: each handles a conditional write / transaction outcome and prints it.

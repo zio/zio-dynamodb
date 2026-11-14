@@ -21,7 +21,7 @@ import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * ZIO version of the CRUD walkthrough — see `CrudWalkthroughCE.scala` for the Cats Effect

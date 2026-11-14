@@ -95,7 +95,7 @@ lazy val aws = (project in file("aws"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
-lazy val schemaDynamodb = (project in file("schema-dynamodb"))
+lazy val blocksSchema = (project in file("blocks-schema"))
   .dependsOn(core)
   .settings(
     name               := "zio-dynamodb-blocks-schema",
@@ -139,10 +139,10 @@ lazy val zioInterpreter = (project in file("zio"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
-lazy val schemaDdbExpr = (project in file("schema-ddbexpr"))
-  .dependsOn(schemaDynamodb, core % "test->test")
+lazy val blocksSchemaDdbExpr = (project in file("blocks-schema-ddbexpr"))
+  .dependsOn(blocksSchema, core % "test->test")
   .settings(
-    name               := "zio-dynamodb-schema-ddbexpr",
+    name               := "zio-dynamodb-blocks-schema-ddbexpr",
     crossScalaVersions := Seq(scala3Version, scala213Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % zioVersion        % Test,
@@ -165,7 +165,7 @@ lazy val futureInterpreter = (project in file("future"))
   )
 
 lazy val ceInterpreter = (project in file("ce"))
-  .dependsOn(aws, schemaDdbExpr % Test)
+  .dependsOn(aws, blocksSchemaDdbExpr % Test)
   .settings(
     name               := "zio-dynamodb-ce",
     crossScalaVersions := Seq(scala3Version, scala213Version),
@@ -180,7 +180,7 @@ lazy val ceInterpreter = (project in file("ce"))
   )
 
 lazy val it = (project in file("it"))
-  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr)
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, blocksSchema, blocksSchemaDdbExpr)
   .settings(
     name                     := "zio-dynamodb-it",
     publish / skip           := true,
@@ -198,7 +198,7 @@ lazy val it = (project in file("it"))
   )
 
 lazy val benchmarks = (project in file("benchmarks"))
-  .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr, core % "compile->test")
+  .dependsOn(aws, blocksSchema, ceInterpreter, blocksSchemaDdbExpr, core % "compile->test")
   .enablePlugins(JmhPlugin)
   .settings(
     name            := "zio-dynamodb-benchmarks",
@@ -225,7 +225,7 @@ lazy val benchmarksSeries2 = (project in file("benchmarks-series-2"))
   )
 
 lazy val examples = (project in file("examples"))
-  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr, core % "test->test")
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, blocksSchema, blocksSchemaDdbExpr, core % "test->test")
   .settings(
     name               := "zio-dynamodb-examples",
     publish / skip     := true,
@@ -256,25 +256,25 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
       core,
       aws,
-      schemaDynamodb,
+      blocksSchema,
       zioInterpreter,
-      schemaDdbExpr,
+      blocksSchemaDdbExpr,
       futureInterpreter,
       ceInterpreter
     ),
     libraryDependencies += "dev.zio"           %% "zio-streams" % zioVersion, // pagination recipe
     publish / skip                             := true
   )
-  .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter)
+  .dependsOn(core, aws, blocksSchema, zioInterpreter, blocksSchemaDdbExpr, futureInterpreter, ceInterpreter)
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
   .aggregate(
     core,
     aws,
-    schemaDynamodb,
+    blocksSchema,
     zioInterpreter,
-    schemaDdbExpr,
+    blocksSchemaDdbExpr,
     futureInterpreter,
     ceInterpreter,
     it,
