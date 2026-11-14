@@ -17,8 +17,8 @@
 package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExpr, DdbUpdateExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 /**
  * Scala 3 `enum` types work with `Schema` derivation the same way sealed traits do (see

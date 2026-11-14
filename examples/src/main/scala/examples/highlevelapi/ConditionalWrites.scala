@@ -31,7 +31,7 @@ import zio.dynamodb.DynamoDBError.CancellationCode
 import zio.dynamodb.DynamoDBError.ItemError.ConditionFailed
 import zio.dynamodb.DynamoDBError.TransactionError.TransactionCancelled
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 import scala.concurrent.{ ExecutionContext, Future }
 

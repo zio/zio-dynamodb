@@ -21,7 +21,7 @@ import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.Schema
 import zio.dynamodb.{ DynamoDBQuery, Interpreter, PrimaryKey, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 /**
  * Scala 3 / ZIO showcase for the Low-Level/High-Level split documented in

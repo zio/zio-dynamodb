@@ -18,7 +18,7 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.DynamoDBQuery
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * Shapes the query DSL rejects at compile time. `CompileTimeRejectionsSpec` verifies each one

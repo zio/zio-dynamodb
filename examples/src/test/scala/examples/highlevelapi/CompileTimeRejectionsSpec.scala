@@ -45,7 +45,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("remove(index) only works on a list field") {
         typeCheck("""
           import zio.blocks.schema.{ CompanionOptics, Schema }
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           final case class Widget(id: String, qty: Int)
           object Widget extends CompanionOptics[Widget] {
@@ -61,7 +61,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         // top-level) is the same List[String] field referenced there.
         typeCheck("""
           import examples.highlevelapi.Lists._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Catalog.names.containsElement("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -72,7 +72,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("increment only works on a numeric field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.increment("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -80,7 +80,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("decrement only works on a numeric field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.decrement("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -88,7 +88,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("add only works on a numeric field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.add("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -96,7 +96,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("addSet only works on a set field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.addSet("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -104,7 +104,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("deleteFromSet only works on a set field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.deleteFromSet("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -112,7 +112,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("appendList only works on a list field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.appendList(Seq("x"))
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -120,7 +120,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("prependList only works on a list field") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.id.prependList(Seq("x"))
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
@@ -128,7 +128,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test(".contains only works on a String field") {
         typeCheck("""
           import zio.blocks.schema.{ CompanionOptics, Schema }
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           final case class Widget(id: String, qty: Int)
           object Widget extends CompanionOptics[Widget] {
@@ -148,7 +148,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         // never resolves the extension method at all ("value between is not a member of
         // Lens[...]"). Either way it fails to compile.
         typeCheck("""
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           examples.highlevelapi.WrappedScalars.Widget.sku.between(
             examples.highlevelapi.WrappedScalars.Sku("a"),
@@ -167,7 +167,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         // aren't shape-gated at all, so they work on any type with a Schema.
         for {
           viaIn    <- typeCheck("""
-                        import zio.dynamodb.blocks.ddbexpr.dsl._
+                        import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
                         examples.highlevelapi.WrappedScalars.Widget.sku.in(
                           examples.highlevelapi.WrappedScalars.Sku("a"),
@@ -175,7 +175,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
                         )
                       """)
           viaInSet <- typeCheck("""
-                        import zio.dynamodb.blocks.ddbexpr.dsl._
+                        import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
                         examples.highlevelapi.WrappedScalars.Widget.sku.inSet(
                           Set(examples.highlevelapi.WrappedScalars.Sku("a"), examples.highlevelapi.WrappedScalars.Sku("z"))
@@ -198,7 +198,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("get rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val keyExpr = Event.streamId.partitionKey === "s1" && Event.seq.sortKey > 1L
           get(events)(keyExpr)
@@ -207,7 +207,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("update rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val keyExpr = Event.streamId.partitionKey === "s1" && Event.seq.sortKey > 1L
           update(events)(keyExpr)(Event.payload.set("x"))
@@ -216,7 +216,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("deleteFrom rejects a KeyRange (sort-key range) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val keyExpr = Event.streamId.partitionKey === "s1" && Event.seq.sortKey > 1L
           deleteFrom(events)(keyExpr)
@@ -225,7 +225,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("but get accepts a Composite (partition + sort equality) key") {
         typeCheck("""
           import examples.highlevelapi.KeyConditions._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           get(events)(Event.streamId.partitionKey === "s1" && Event.seq.sortKey === 1L)
         """).map(result => assertTrue(result.isRight))
@@ -253,7 +253,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).filter(ce)
@@ -263,7 +263,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).filter(ce)
@@ -273,7 +273,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           scan(widgets, limit = 20).where(ce)
@@ -283,7 +283,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           query(widgets, limit = 20).whereKey(Widget.id.partitionKey === "w-1").where(ce)
@@ -293,7 +293,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(ce)
@@ -306,7 +306,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("get rejects a DdbExpr passed to .filter (get has no builder to convert it)") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           get(widgets)(Widget.id.partitionKey === "w-1").filter(sBetween && nLte)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("conditionexpression"))))
@@ -318,7 +318,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ProjectionExpression
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           get(widgets)(Widget.id.partitionKey === "w-1").filter(ce)
@@ -333,7 +333,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).withoutItemOnConditionFailure
         """).map(result =>
@@ -344,7 +344,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).withoutItemOnConditionFailure
         """).map(result => assertTrue(result.isRight))
@@ -353,7 +353,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).returning(ReturnValues.AllOld)
@@ -363,7 +363,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)
           deleteFrom(widgets)(Widget.id.partitionKey === "w-1").returning(ReturnValues.AllOld)
@@ -375,7 +375,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllNew)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
@@ -384,7 +384,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).returning(ReturnValues.UpdatedNew)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
@@ -393,7 +393,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           deleteFrom(widgets)(Widget.id.partitionKey === "w-1").returning(ReturnValues.None)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
@@ -402,7 +402,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         typeCheck("""
           import examples.highlevelapi.Scalars._
           import zio.dynamodb.ReturnValues
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).where(Widget.qty > 0).returning(ReturnValues.UpdatedOld)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.contains("isn't valid here"))))
@@ -423,7 +423,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test(".set rejects a value of the wrong type") {
         typeCheck("""
           import examples.highlevelapi.Scalars._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Widget.qty.set("wrong")
         """).map(result => assertTrue(result.isLeft))
@@ -431,7 +431,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
       test("addSet rejects a set of the wrong element type") {
         typeCheck("""
           import examples.highlevelapi.Sets._
-          import zio.dynamodb.blocks.ddbexpr.dsl._
+          import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
           Inventory.tags.addSet(Set(1, 2, 3))
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("string"))))

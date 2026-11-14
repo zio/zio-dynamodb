@@ -18,8 +18,8 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * The three key-condition shapes: partition-key-only, `Composite` (partition + sort

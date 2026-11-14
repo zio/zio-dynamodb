@@ -18,8 +18,8 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBQuery
-import zio.dynamodb.blocks.ddbexpr.DdbUpdateExpr
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbUpdateExpr
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * Every update action: `set`/`set(otherOptic)`/`setIfNotExists` (any attribute type);

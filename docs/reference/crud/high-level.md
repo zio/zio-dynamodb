@@ -19,7 +19,7 @@ The examples below use the `dsl` import (see comment below), matching the
 import zio.dynamodb._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*             // adds `.execute` to any DynamoDBQuery
-import zio.dynamodb.blocks.ddbexpr.dsl.*        // get/put/update/... — same ops as DdbExprApi, one import
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*        // get/put/update/... — same ops as DdbExprApi, one import
 
 enum Status derives Schema {
   case Pending, Shipped
@@ -43,7 +43,7 @@ The same models on Scala 2, without `enum`/`derives`:
 import zio.dynamodb._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 sealed trait Status
 object Status {
@@ -77,7 +77,7 @@ Pass a configured codec to `Table(name, codec)` — deriver-wide settings on
 `DynamoDBCodecDeriver`, per-field ones by optic on the derivation builder:
 
 ```scala mdoc:compile-only
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.blocks.schema.{ Modifier, NameMapper, Schema }
 
@@ -102,7 +102,7 @@ The rest of this page assumes `Order`/`Status`/`orders` as defined above, matchi
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   get(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
@@ -116,7 +116,7 @@ no item with that key, `Left` when the stored item doesn't decode as an `Order`.
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   put(orders, Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
@@ -127,7 +127,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
@@ -148,7 +148,7 @@ failure can double-apply it. `update` never retries automatically for this reaso
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   deleteFrom(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
@@ -174,7 +174,7 @@ See AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/API
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
@@ -197,7 +197,7 @@ failure response is larger). Turn it off with `.withoutItemOnConditionFailure` a
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
@@ -221,7 +221,7 @@ parameterized by your model instead of `Item` — see
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   query(orders, limit = 20)
@@ -245,7 +245,7 @@ when the stream needs it:
 import zio.Task
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 import zio.stream.ZStream
 
 def allOrders(customerId: String)(implicit
@@ -272,7 +272,7 @@ the stream. The same shape works for `scan` and for the Low-Level API.
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   scan(orders, limit = 20).filter(Order.status === Status.Pending).execute
@@ -283,7 +283,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 `Order.customerId.partitionKey === "cust-42"`, `Order.orderId.sortKey > "ord-0"`,
 `Order.total > 50.0` — every comparison above is a plain Scala expression over the `Lens`es
 `CompanionOptics` generated, not a hand-written expression string. This is the
-`schema-ddbexpr` module's `DdbExpr`/`DdbKeyExpr` machinery: `===`/`>`/`<`/`>=`/`<=` work
+`blocks-schema-ddbexpr` module's `DdbExpr`/`DdbKeyExpr` machinery: `===`/`>`/`<`/`>=`/`<=` work
 directly on any `Lens` from a `CompanionOptics` object, including against `enum`/sealed-trait
 fields (`Order.status === Status.Pending` above) — the interpreter derives the field's
 `DynamoDBCodec` from the embedded `Schema` at evaluation time, so encoding rules like
@@ -305,7 +305,7 @@ The other condition operators, for `.where` and `.filter`:
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   scan(orders, limit = 20)
@@ -325,8 +325,8 @@ other format, and an `Instant` field is written as a string, so wrap it in a typ
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.ddbexpr.DdbUpdateExpr
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.DdbUpdateExpr
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 final case class EpochSeconds(value: Instant)
 object EpochSeconds {

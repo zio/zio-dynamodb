@@ -100,7 +100,7 @@ zio-blocks' derivation builder, addressed by optic — the value-level equivalen
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 
 case class Order(customerId: String, orderId: String) derives Schema

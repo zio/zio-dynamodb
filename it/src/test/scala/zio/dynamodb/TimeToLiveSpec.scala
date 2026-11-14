@@ -20,8 +20,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.{ TimeToLiveSpecification, UpdateTimeToLiveRequest }
 import zio._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbUpdateExpr }
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExprApi, DdbUpdateExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 import zio.test.Assertion._
 import zio.test._
 

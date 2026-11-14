@@ -17,8 +17,8 @@
 package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.blocks.ddbexpr.DdbExpr
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 /**
  * A Scala 3 opaque type wrapping a scalar field — see `WrappedScalars.scala` for the same

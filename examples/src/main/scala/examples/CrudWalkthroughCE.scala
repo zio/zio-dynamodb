@@ -21,7 +21,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.{ CEInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * Cats Effect version of the CRUD walkthrough — see `CrudWalkthroughZio.scala` for the ZIO

@@ -29,10 +29,10 @@ import java.net.URI
 import java.util.UUID
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Modifier, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
-import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExprApi._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.ddbexpr.DdbExpr.{
   DdbExprBoolSyntax,
   OpticDdbExprOps,
   OpticStringDdbExprOps,

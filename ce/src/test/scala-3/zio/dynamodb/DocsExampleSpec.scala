@@ -21,7 +21,7 @@ import munit.FunSuite
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 /**
  * Mirrors docs/index.md's "See it in action" (Cats Effect) snippet exactly, as a

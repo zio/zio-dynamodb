@@ -18,8 +18,8 @@ package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.blocks.schema.ddbexpr.{ DdbExpr, DdbUpdateExpr }
+import zio.dynamodb.blocks.schema.ddbexpr.dsl._
 
 /**
  * A three-level nested record path (`Order.shipping.geo.lat`), in both a condition and an

@@ -1,0 +1,406 @@
+/*
+ * Copyright 2021-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.dynamodb.blocks.schema.ddbexpr
+
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.SchemaExpr
+import zio.dynamodb._
+import zio.dynamodb.blocks.schema.DynamoDBCodec
+
+import scala.annotation.implicitNotFound
+import scala.language.implicitConversions
+
+private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
+
+// Shared helper for the builders below: interpret a DdbExpr / SchemaExpr condition with the
+// originating table's deriver configuration, so `.filter` / `.where` resolve the same
+// attribute names and encode literals the same way as the item body. Kept top-level (not
+// on DdbExprApiSyntax, which is mixed into more than one object) so there is a single
+// canonical helper regardless of which facade the call site imported.
+private[ddbexpr] object BuilderSupport {
+  def decode[From](table: Table[From], item: Item): Either[DynamoDBError.ItemError.DecodingError, From] =
+    table.decode(item).left.map {
+      case d: DynamoDBError.ItemError.DecodingError => d
+      case other                                    => DynamoDBError.ItemError.DecodingError.failure(other.message)
+    }
+
+  def decodeReturned[From](
+    table: Table[From]
+  ): Option[Item] => Option[Either[DynamoDBError.ItemError.DecodingError, From]] =
+    _.map(decode(table, _))
+
+  def condition[From](expr: DdbExpr[From, Boolean], table: Table[From]): ConditionExpression[From] =
+    DdbExprInterpreter
+      .toConditionExpression(expr, table.exprCtx)
+      .fold(ConditionExpression.Failure(_), identity)
+}
+
+/**
+ * Chainable builder returned by [[DdbExprApiSyntax.scan]]. `.filter` interprets its
+ *  argument with the originating [[Table]]'s deriver configuration so filtered attribute
+ *  names and encoded literals match what `put` writes for the item body. Converts
+ *  implicitly to the underlying [[DynamoDBQuery]] (so `interpreter.run(scan(t, 20))` and
+ *  `.map` chains keep working); `.execute` is also provided directly.
+ */
+final class ScanBuilder[From] private[ddbexpr] (
+  private[ddbexpr] val table: Table[From],
+  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]
+) {
+  private def attach(ce: ConditionExpression[From]): ScanBuilder[From] =
+    new ScanBuilder(table, query.filter(ce))
+
+  def filter(expr: DdbExpr[From, Boolean]): ScanBuilder[From]  = attach(BuilderSupport.condition(expr, table))
+  def filter(se: SchemaExpr[From, Boolean]): ScanBuilder[From] = filter(DdbExpr.Builtin(se))
+  def filter(ce: ConditionExpression[From]): ScanBuilder[From] = attach(ce)
+
+  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
+
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+    interpreter.run(query)
+}
+
+/**
+ * Chainable builder returned by [[DdbExprApiSyntax.query]]. `.whereKey` and `.filter`
+ *  interpret with the originating [[Table]]'s deriver configuration. Converts implicitly
+ *  to the underlying [[DynamoDBQuery]]; `.execute` is also provided directly.
+ */
+final class QueryBuilder[From] private[ddbexpr] (
+  private[ddbexpr] val table: Table[From],
+  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]
+) {
+  private def attach(ce: ConditionExpression[From]): QueryBuilder[From] =
+    new QueryBuilder(table, query.filter(ce))
+
+  /** Sets the key condition every `query` needs; see [[DdbExprApiSyntax.query]]. */
+  def whereKey(expr: DdbKeyExpr[From]): QueryBuilder[From] = {
+    val kce = DdbKeyExprInterpreter
+      .toKeyConditionExpr(expr, table.exprCtx)
+      .fold(KeyConditionExpr.Failure(_), identity)
+    new QueryBuilder(table, query.whereKey(kce))
+  }
+
+  def filter(expr: DdbExpr[From, Boolean]): QueryBuilder[From]  = attach(BuilderSupport.condition(expr, table))
+  def filter(se: SchemaExpr[From, Boolean]): QueryBuilder[From] = filter(DdbExpr.Builtin(se))
+  def filter(ce: ConditionExpression[From]): QueryBuilder[From] = attach(ce)
+
+  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
+
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+    interpreter.run(query)
+}
+
+/**
+ * The `ReturnValues` a High-Level write's `.returning` accepts, per operation - checked at compile time
+ * on the value's own type, so pass a literal (`ReturnValues.AllOld`). Narrower than the Low-Level set:
+ * `UpdatedOld` / `UpdatedNew` return only the updated attributes, which don't decode into the model.
+ */
+@implicitNotFound(
+  "${R} isn't valid here: put / deleteFrom accept only ReturnValues.AllOld; update accepts ReturnValues.AllOld " +
+    "or AllNew (UpdatedOld / UpdatedNew return only the updated attributes, which don't decode into the model). " +
+    "Pass the value itself (e.g. ReturnValues.AllOld), not a value typed ReturnValues"
+)
+sealed trait TableReturnValues[Op <: WriteOp, R <: ReturnValues]
+
+object TableReturnValues {
+  implicit val putAllOld: TableReturnValues[WriteOp.Put, ReturnValues.AllOld.type]       =
+    new TableReturnValues[WriteOp.Put, ReturnValues.AllOld.type] {}
+  implicit val deleteAllOld: TableReturnValues[WriteOp.Delete, ReturnValues.AllOld.type] =
+    new TableReturnValues[WriteOp.Delete, ReturnValues.AllOld.type] {}
+  implicit val updateAllOld: TableReturnValues[WriteOp.Update, ReturnValues.AllOld.type] =
+    new TableReturnValues[WriteOp.Update, ReturnValues.AllOld.type] {}
+  implicit val updateAllNew: TableReturnValues[WriteOp.Update, ReturnValues.AllNew.type] =
+    new TableReturnValues[WriteOp.Update, ReturnValues.AllNew.type] {}
+}
+
+/**
+ * Returned by [[DdbExprApiSyntax.put]] / [[DdbExprApiSyntax.update]] / [[DdbExprApiSyntax.deleteFrom]]:
+ * a [[zio.dynamodb.WriteBuilder]] whose `.returning` decodes the returned item with the table's codec
+ * (`Left` when it doesn't decode), and whose `.where` also accepts [[DdbExpr]] / `SchemaExpr`
+ * conditions.
+ */
+final class TableWriteBuilder[From, Out, Op <: WriteOp] private[ddbexpr] (
+  private[ddbexpr] val table: Table[From],
+  write0: DynamoDBQuery[From, Option[Item]],
+  finish0: Option[Item] => Out
+) extends WriteBuilder[From, Out](
+      write0,
+      finish0
+    ) {
+
+  /** See `WriteBuilder.where`. */
+  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]           =
+    where(BuilderSupport.condition(expr, table))
+  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]          = where(DdbExpr.Builtin(se))
+  override def where(ce: ConditionExpression[From]): ConditionalTableWriteBuilder[From, Out, Op] =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, WriteBuilder.conditional(write, ce), finish)
+
+  /**
+   * Executes to the item DynamoDB returns, decoded with the table's codec (`None` when it returns
+   * none, `Left` when it doesn't decode); the accepted `ReturnValues` are checked at compile time -
+   * see [[TableReturnValues]].
+   */
+  def returning[R <: ReturnValues](rv: R)(implicit
+    valid: TableReturnValues[Op, R]
+  ): TableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op] =
+    new TableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op](
+      table,
+      write.returns(rv),
+      table.decodeReturned
+    )
+
+  override def capacity(capacity: ReturnConsumedCapacity): TableWriteBuilder[From, Out, Op]        =
+    new TableWriteBuilder[From, Out, Op](table, write.capacity(capacity), finish)
+  override def metrics(itemMetrics: ReturnItemCollectionMetrics): TableWriteBuilder[From, Out, Op] =
+    new TableWriteBuilder[From, Out, Op](table, write.metrics(itemMetrics), finish)
+  override def withRetryPolicy(policy: RetryPolicy): TableWriteBuilder[From, Out, Op]              =
+    new TableWriteBuilder[From, Out, Op](table, write.withRetryPolicy(policy), finish)
+}
+
+/** A [[TableWriteBuilder]] with a condition - see [[ConditionalWriteBuilder]]. */
+final class ConditionalTableWriteBuilder[From, Out, Op <: WriteOp] private[ddbexpr] (
+  private[ddbexpr] val table: Table[From],
+  write0: DynamoDBQuery[From, Option[Item]],
+  finish0: Option[Item] => Out
+) extends ConditionalWriteBuilder[From, Out](
+      write0,
+      finish0
+    ) {
+
+  /** See `ConditionalWriteBuilder.where`. */
+  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]           =
+    where(BuilderSupport.condition(expr, table))
+  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out, Op]          = where(DdbExpr.Builtin(se))
+  override def where(ce: ConditionExpression[From]): ConditionalTableWriteBuilder[From, Out, Op] =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, write.withCondition(ce), finish)
+
+  override def withoutItemOnConditionFailure: ConditionalTableWriteBuilder[From, Out, Op] =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, WriteBuilder.withoutItemOnConditionFailure(write), finish)
+
+  /** See [[TableWriteBuilder.returning]]. */
+  def returning[R <: ReturnValues](rv: R)(implicit
+    valid: TableReturnValues[Op, R]
+  ): ConditionalTableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op] =
+    new ConditionalTableWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]], Op](
+      table,
+      write.returns(rv),
+      table.decodeReturned
+    )
+
+  override def capacity(capacity: ReturnConsumedCapacity): ConditionalTableWriteBuilder[From, Out, Op]        =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, write.capacity(capacity), finish)
+  override def metrics(itemMetrics: ReturnItemCollectionMetrics): ConditionalTableWriteBuilder[From, Out, Op] =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, write.metrics(itemMetrics), finish)
+  override def withRetryPolicy(policy: RetryPolicy): ConditionalTableWriteBuilder[From, Out, Op]              =
+    new ConditionalTableWriteBuilder[From, Out, Op](table, write.withRetryPolicy(policy), finish)
+}
+
+/**
+ * High-level CRUD API backed by [[DdbExpr]] condition expressions and [[DdbKeyExpr]]
+ *  key condition expressions.
+ *
+ *  Each operation takes a [[Table]] rather than a bare table name: build one
+ *  `Table[A]("name")` per table - only `Schema[A]` is needed implicitly (from `derives
+ *  Schema`); attach any deriver configuration with `Table`'s `.deriving(...)`. Its codec is
+ *  derived once and held on the value. Passing the `Table` rather than a `String` is also
+ *  what lets `A` be inferred for `query` / `scan`, which otherwise mention it nowhere in
+ *  their arguments.
+ *
+ *  `query` / `scan` return a [[QueryBuilder]] / [[ScanBuilder]]; `put` / `update` /
+ *  `deleteFrom` return a [[TableWriteBuilder]]. Chain `.whereKey` / `.filter` / `.where` on
+ *  them - each is interpreted with the table's deriver configuration, so filtered and
+ *  conditioned attribute names and literal encodings match what `put` writes for the item
+ *  body. The builders convert implicitly to the underlying [[DynamoDBQuery]] and also
+ *  expose `.execute` directly.
+ *
+ *  All ZB [[zio.blocks.schema.Optic]] operators (===, >, <, >=, <=) encode sealed-trait
+ *  literals correctly. Since zio-blocks v0.0.47
+ *  [[zio.blocks.schema.DynamicSchemaExpr.Literal]] carries a [[zio.blocks.schema.Schema]], the
+ *  interpreter derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]] at evaluation time -
+ *  `enumValuesAsStrings` and other encoding rules are preserved automatically.
+ *
+ *  Usage:
+ *  {{{
+ *    import DdbExprApi._
+ *    import DdbKeyExpr._
+ *    import DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticStringDdbExprOps, SchemaExprBoolBridge }
+ *
+ *    val tasks = Table[Task]("tasks")
+ *
+ *    // CRUD
+ *    DdbExprApi.put(tasks, task)
+ *    DdbExprApi.get(tasks)(Task.id.partitionKey === "t1")
+ *    DdbExprApi.deleteFrom(tasks)(Task.id.partitionKey === "t1")
+ *
+ *    // scalars and sealed traits - ZB Optic operators, lifted to Builtin
+ *    DdbExprApi.scan(tasks, 20).filter(Task.score > 0)
+ *    DdbExprApi.scan(tasks, 20).filter(Task.priority === Priority.High)
+ *
+ *    // DDB functions + combinators
+ *    DdbExprApi.query(tasks, 20)
+ *      .whereKey(Task.id.partitionKey === "alice" && Task.score.sortKey > 10)
+ *      .filter(Task.name.beginsWith("A") && Task.score.between(1, 100))
+ *  }}}
+ *
+ *  `.whereKey` / `.filter` / `.where` on the builders take `DdbKeyExpr` / `DdbExpr` /
+ *  `SchemaExpr` through overloads on the builder, each interpreting the argument against the
+ *  calling table's configuration. An argument that can't be interpreted (e.g. an optic that
+ *  doesn't resolve to an attribute) fails the query when it runs, before any request is sent.
+ */
+trait DdbExprApiSyntax {
+
+  // Re-export of the package-level `Table` so `DdbExprApi.Table` / `dsl.Table` (and an
+  // unqualified `Table` under `import DdbExprApi._` / `import dsl._`) all resolve to the
+  // single canonical type - it stays package-level rather than nested here because this
+  // trait is mixed into more than one object (DdbExprApi, dsl), and a nested class would
+  // give each a distinct path-dependent `Table`.
+  final type Table[From] = zio.dynamodb.blocks.schema.ddbexpr.Table[From]
+  final val Table: zio.dynamodb.blocks.schema.ddbexpr.Table.type = zio.dynamodb.blocks.schema.ddbexpr.Table
+
+  // -- CRUD operations ----------------------------------------------------------
+
+  /** Writes `a` with the table's codec, replacing any item with the same key. */
+  def put[A](table: Table[A], a: A): TableWriteBuilder[A, Unit, WriteOp.Put] =
+    new TableWriteBuilder[A, Unit, WriteOp.Put](
+      table,
+      table.encodeEither(a) match {
+        case Right(encodedItem) => DynamoDBQuery.PutItem(table.name, encodedItem)
+        case Left(err)          => DynamoDBQuery.fail(err)
+      },
+      WriteBuilder.discard
+    )
+
+  /** `None` when there is no item with that key, `Left` when the stored item doesn't decode as `From`. */
+  def get[From](
+    table: Table[From]
+  )(
+    keyExpr: DdbKeyExpr.PrimaryKey[From]
+  ): DynamoDBQuery[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]]] = {
+    val entry = table.entry
+    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+      case Right(pkExpr) =>
+        DynamoDBQuery
+          .getItem(table.name, pkExpr.asAttrMap, entry.projections: _*)
+          .map(_.map(BuilderSupport.decode(table, _)))
+      case Left(msg)     =>
+        DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+    }
+  }
+
+  /**
+   * Never retries automatically, unlike other operations — `action` may be a delta
+   * (`.add`/`.increment`/`.decrement`/`.appendList`/`.prependList`), and retrying one after an
+   * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
+   * `.withRetryPolicy(...)` on the resulting query only when `action` is idempotent
+   * (`.set`/`.remove`/`.deleteFromSet`).
+   */
+  def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
+    action: DdbUpdateExpr[From]
+  ): TableWriteBuilder[From, Unit, WriteOp.Update] =
+    new TableWriteBuilder[From, Unit, WriteOp.Update](
+      table,
+      DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+        case Right(pkExpr) =>
+          DynamoDBQuery.UpdateItem(
+            table.name,
+            pkExpr.asAttrMap,
+            UpdateExpression(DdbUpdateExprInterpreter.toAction(action, table.exprCtx))
+          )
+        case Left(msg)     =>
+          DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+      },
+      WriteBuilder.discard
+    )
+
+  def deleteFrom[From](
+    table: Table[From]
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): TableWriteBuilder[From, Unit, WriteOp.Delete] =
+    new TableWriteBuilder[From, Unit, WriteOp.Delete](
+      table,
+      DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+        case Right(pkExpr) =>
+          DynamoDBQuery.DeleteItem(table.name, pkExpr.asAttrMap)
+        case Left(msg)     =>
+          DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+      },
+      WriteBuilder.discard
+    )
+
+  /**
+   * A condition-only transact-write action with no mutation of its own — guards the whole
+   *  transaction on `table`'s state at `keyExpr` without writing anything itself. Interprets
+   *  `condition` with `table`'s deriver configuration, exactly like `.where` on [[TableWriteBuilder]].
+   *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too. See
+   *  [[ConditionCheckBuilder]] for the item a failed check returns.
+   */
+  def conditionCheck[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
+    condition: DdbExpr[From, Boolean]
+  ): ConditionCheckBuilder[From] =
+    new ConditionCheckBuilder[From](
+      DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+        case Right(pkExpr) =>
+          DynamoDBQuery.ConditionCheck(
+            table.name,
+            pkExpr.asAttrMap,
+            BuilderSupport.condition(condition, table),
+            returnValuesOnConditionCheckFailure = DynamoDBQuery.itemOnFailure
+          )
+        case Left(msg)     =>
+          DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+      }
+    )
+
+  /**
+   * One page of results, like `DynamoDBQuery.query`; needs `.whereKey`. Each item decodes on its
+   * own, so one that doesn't decode is a `Left` in the page, not a failed effect.
+   */
+  def query[From](table: Table[From], limit: Int): QueryBuilder[From] =
+    new QueryBuilder(table, mapPage(DynamoDBQuery.query(table.name, limit), table))
+
+  /** One page of results, decoded item by item like [[query]]'s. */
+  def scan[From](table: Table[From], limit: Int): ScanBuilder[From] =
+    new ScanBuilder(table, mapPage(DynamoDBQuery.scan(table.name, limit), table))
+
+  private def mapPage[From](
+    q: DynamoDBQuery[Any, Page[Item]],
+    table: Table[From]
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] =
+    q.map(page =>
+      Page(
+        items = page.items.map(item => table.decode(item)),
+        lastEvaluatedKey = page.lastEvaluatedKey,
+        count = page.count,
+        scannedCount = page.scannedCount
+      )
+    ).asInstanceOf[DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]]
+
+  // -- Builder -> DynamoDBQuery implicit conversions ---------------------------
+
+  implicit def scanBuilderToQuery[From](
+    b: ScanBuilder[From]
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
+
+  implicit def queryBuilderToQuery[From](
+    b: QueryBuilder[From]
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
+
+}
+
+/**
+ * The [[DdbExprApiSyntax]] singleton - `import DdbExprApi._` for explicit-object-style
+ * access; see the `dsl` facade for the single-import alternative.
+ */
+object DdbExprApi extends DdbExprApiSyntax

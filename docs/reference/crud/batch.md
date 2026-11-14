@@ -141,7 +141,7 @@ encode to a map, since that can't be a table item.
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 import zio.dynamodb._
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
 case class Order(customerId: String, orderId: String, total: Double) derives Schema
 
