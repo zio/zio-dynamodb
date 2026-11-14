@@ -19,7 +19,7 @@ package zio.dynamodb
 /**
  * Result types for batch execution with built-in retry.
  *
- *  Batch queries run through the same [[AwsInterpreter.run]] entry point as every other
+ *  Batch queries run through the same [[AbstractInterpreter.run]] entry point as every other
  *  [[DynamoDBQuery]] — build one with [[DynamoDBQuery.batchWriteItem]] or
  *  [[DynamoDBQuery.batchGetItem]] and call `interpreter.run(query)`. The interpreter honors the
  *  AWS batch retry contract internally — resubmitting unprocessed keys/items — so the caller

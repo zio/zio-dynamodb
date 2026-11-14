@@ -40,7 +40,7 @@ object RetryPolicy {
   /**
    * Per-execution retry state. `nextDelay` is consulted once per failed attempt of one retry
    * sequence — `None` means stop retrying and raise the error; `Some(d)` means wait `d` then
-   * try again. Driven internally by `AwsInterpreter.withRetry` for effect-level failures, and
+   * try again. Driven internally by `AbstractInterpreter.withRetry` for effect-level failures, and
    * by the batch-specific retry loop in `Batch` for unprocessed items/keys.
    */
   trait Attempt {
@@ -159,7 +159,7 @@ object RetryPolicy {
    * Token cost for [[RetryQuota]], consulted only for an error `isRetryable` already matched —
    * mirrors AWS's own two-tier split (5 for throttling, 14 for other transient errors;
    * see AWS SDKs and Tools Reference Guide, "Retry quota management"). Message-substring based,
-   * like `isRetryable`; `RealAwsInterpreter`'s override in `aws` classifies from the SDK's own
+   * like `isRetryable`; `AwsInterpreter`'s override in `aws` classifies from the SDK's own
    * `AwsServiceException#isThrottlingException` instead.
    */
   val retryCost: Throwable => Int = { t =>

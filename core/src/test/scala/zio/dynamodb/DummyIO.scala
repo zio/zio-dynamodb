@@ -32,11 +32,11 @@ object DummyIO                                   {
 }
 
 // -- DummyIO interpreter -------------------------------------------------
-// Stub interpreter extending AwsInterpreter directly with hardcoded no-ops.
+// Stub interpreter extending AbstractInterpreter directly with hardcoded no-ops.
 // No AWS SDK types involved; used for testing query-composition logic, and by BatchBench.
-// class DummyIOInterpreter(client) — extends RealAwsInterpreter, lives in aws/test.
+// class DummyIOInterpreter(client) — extends AwsInterpreter, lives in aws/test.
 
-object DummyIOInterpreter extends AwsInterpreter[DummyIO] {
+object DummyIOInterpreter extends AbstractInterpreter[DummyIO] {
 
   private[dynamodb] def pure[A](a: A): DummyIO[A]                                     = DummyIO.succeed(a)
   private[dynamodb] def map[A, B](fa: DummyIO[A])(f: A => B): DummyIO[B]              = fa.map(f)

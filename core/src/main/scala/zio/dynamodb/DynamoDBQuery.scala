@@ -37,7 +37,7 @@ import scala.+:
  * each shaped directly after one AWS SDK operation) or combinators (`Map`, `ZipPar`, ...)
  * built by chaining methods on an existing query. Nothing about a `DynamoDBQuery` value runs
  * anything — an interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`, all
- * extending [[AwsInterpreter]]) walks the ADT and issues the real AWS SDK calls.
+ * extending [[AbstractInterpreter]]) walks the ADT and issues the real AWS SDK calls.
  *
  * Modifiers (`capacity`, `withRetryPolicy`, `indexName`, ...) apply to each leg of a `zipPar`,
  * except [[withClientRequestToken]], which fails on a whole `zipPar` because a token names a

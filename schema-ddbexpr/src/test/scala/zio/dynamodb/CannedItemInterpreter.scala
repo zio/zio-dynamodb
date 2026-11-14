@@ -23,7 +23,7 @@ import scala.concurrent.duration.FiniteDuration
 
 // Answers every get/put/update/delete with `item` and records the request nodes it received, so
 // HL decoding and the requests the builders produce can be checked without an AWS client.
-final class CannedItemInterpreter(item: Option[Item]) extends AwsInterpreter[DummyIO] {
+final class CannedItemInterpreter(item: Option[Item]) extends AbstractInterpreter[DummyIO] {
   private var received: List[DynamoDBQuery[_, _]] = Nil
 
   def requests: List[DynamoDBQuery[_, _]] = received.reverse

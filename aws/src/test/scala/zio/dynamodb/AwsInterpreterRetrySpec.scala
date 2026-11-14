@@ -30,17 +30,17 @@ import zio.test._
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * `RealAwsInterpreter.isRetryable` classifies retryability from the AWS SDK's own exception
+ * `AwsInterpreter.isRetryable` classifies retryability from the AWS SDK's own exception
  * types rather than [[RetryPolicy.isRetryable]]'s message-substring check. These construct the
  * real generated exception types the way an unmarshalled DynamoDB response actually would
  * (status code + `awsErrorDetails().errorCode()`, not just a message string) to prove the
  * classification matches DynamoDB's real wire shape.
  */
-object RealAwsInterpreterRetrySpec extends ZIOSpecDefault {
+object AwsInterpreterRetrySpec extends ZIOSpecDefault {
 
-  // A RealAwsInterpreter[DummyIO] whose client is never called — only `isRetryable` is
+  // A AwsInterpreter[DummyIO] whose client is never called — only `isRetryable` is
   // exercised — with an accessor exposing that otherwise-protected member for the tests below.
-  private final class TestInterp extends RealAwsInterpreter[DummyIO](null) {
+  private final class TestInterp extends AwsInterpreter[DummyIO](null) {
     private[dynamodb] def pure[A](a: A): DummyIO[A]                                     = DummyIO.succeed(a)
     private[dynamodb] def map[A, B](fa: DummyIO[A])(f: A => B): DummyIO[B]              =
       DummyIO(() => f(fa.unsafeRun()))
@@ -72,7 +72,7 @@ object RealAwsInterpreterRetrySpec extends ZIOSpecDefault {
   private def withErrorCode(errorCode: String, statusCode: Int) =
     AwsErrorDetails.builder().errorCode(errorCode).build() -> statusCode
 
-  def spec = suite("RealAwsInterpreter.isRetryable")(
+  def spec = suite("AwsInterpreter.isRetryable")(
     suite("throttling — recognized via the SDK's error-code check, matching DynamoDB's real 400 responses")(
       test("ProvisionedThroughputExceededException is retryable") {
         val (details, status) = withErrorCode("ProvisionedThroughputExceededException", 400)

@@ -54,16 +54,16 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Full-stack `RetryQuota`: `DummyIOInterpreter` (a real `RealAwsInterpreter`) wired to a stub
+ * Full-stack `RetryQuota`: `DummyIOInterpreter` (a real `AwsInterpreter`) wired to a stub
  * `AwsDynamoDB[DummyIO]` client throwing real, SDK-generated exceptions, with a real
- * `RetryQuota[DummyIO]` attached — exercising `RealAwsInterpreter.retryCost`'s SDK-exception
+ * `RetryQuota[DummyIO]` attached — exercising `AwsInterpreter.retryCost`'s SDK-exception
  * cost split (5 throttling / 14 transient) end-to-end, at AWS's own real default capacity
  * (500), rather than the tiny artificial capacities (0, 5) the hand-rolled-stub unit specs use
  * to isolate the mechanism. Two volumes: comfortably under capacity (mixed error types, budget
  * recovers via crediting, nothing ever denied) and over capacity (a sustained failure drains
  * the budget until the quota — not the backoff curve — is what stops it).
  */
-object RealAwsInterpreterRetryQuotaSpec extends ZIOSpecDefault {
+object AwsInterpreterRetryQuotaSpec extends ZIOSpecDefault {
 
   private def withErrorCode(errorCode: String, statusCode: Int) =
     AwsErrorDetails.builder().errorCode(errorCode).build() -> statusCode
@@ -147,7 +147,7 @@ object RealAwsInterpreterRetryQuotaSpec extends ZIOSpecDefault {
     scala.util.Try(interp.run(query).unsafeRun())
   }
 
-  def spec = suite("RealAwsInterpreter — full-stack RetryQuota (real AWS exceptions, AWS's own 500-token default)")(
+  def spec = suite("AwsInterpreter — full-stack RetryQuota (real AWS exceptions, AWS's own 500-token default)")(
     test("below threshold: a realistic mix of throttling/transient blips, each costing well under capacity") {
       // 5 calls in a row through one shared quota, each failing once (a different real
       // exception each time — both throttling-tier and transient-tier) then succeeding.

@@ -43,7 +43,7 @@ class FutureInterpreter(
   override protected val retryQuota: Option[RetryQuota[Future]] = None,
   override protected val defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
 )(implicit ec: ExecutionContext)
-    extends RealAwsInterpreter[Future](client) {
+    extends AwsInterpreter[Future](client) {
 
   private[dynamodb] def pure[A](a: A): Future[A]                                   = Future.successful(a)
   private[dynamodb] def map[A, B](fa: Future[A])(f: A => B): Future[B]             = fa.map(f)
