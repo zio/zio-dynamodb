@@ -31,9 +31,9 @@ object ZIOBatchStreamingUtilsSpec extends ZIOSpecDefault {
     batchGetResponses: List[DynamoDBQuery.BatchGetItem.Response] = Nil,
     batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
     batchUnprocessedDefault: Option[RetryPolicy] = None
-  ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
+  ): ZIO[Any, Nothing, AbstractInterpreter[Task]] =
     Ref.make(batchGetResponses).map { getRef =>
-      new AwsInterpreter[Task] {
+      new AbstractInterpreter[Task] {
         override protected def defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy]  = batchUnprocessedDefault
         private[dynamodb] def pure[A](a: A): Task[A]                                    = ZIO.succeed(a)
         private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                = fa.map(f)

@@ -31,7 +31,7 @@ import scala.concurrent.duration.FiniteDuration
 /**
  * Proves a real transport-level failure (a genuine `SdkClientException`, not a mock) is
  * retried by zio-dynamodb's own effect-level retry loop, not just classified correctly in
- * isolation. `RealAwsInterpreterRetrySpec` (`aws` module) only unit-tests `isRetryable`'s
+ * isolation. `AwsInterpreterRetrySpec` (`aws` module) only unit-tests `isRetryable`'s
  * predicate directly; this exercises the real `DynamoDbAsyncClient`,
  * `ZioInterpreter.fromAsyncClient`'s `defaultRetryPolicy`, and `RetryInterceptor` together,
  * against the exact exception class that classification covers.

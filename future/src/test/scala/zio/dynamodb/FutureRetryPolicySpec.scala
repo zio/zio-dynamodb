@@ -29,13 +29,13 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
 
   private def await[A](f: Future[A]): A = Await.result(f, 5.seconds)
 
-  // Minimal AwsInterpreter[Future], mirroring zio/RetrySpec.scala's makeInterp stub.
+  // Minimal AbstractInterpreter[Future], mirroring zio/RetrySpec.scala's makeInterp stub.
   private def makeInterp(
     getItemEffect: () => Future[Option[Item]],
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Future]] = None,
     retryQuotaParam: Option[RetryQuota[Future]] = None
-  ): AwsInterpreter[Future] =
-    new AwsInterpreter[Future] {
+  ): AbstractInterpreter[Future] =
+    new AbstractInterpreter[Future] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = defaultRetryPolicyParam
       override protected def retryQuota: Option[RetryQuota[Future]]                   = retryQuotaParam
 

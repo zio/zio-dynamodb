@@ -20,16 +20,16 @@ import zio.dynamodb.DynamoDBError.ItemError
 
 import scala.concurrent.duration.FiniteDuration
 
-// Wires a synthetic AwsDynamoDB[DummyIO] through RealAwsInterpreter so that
+// Wires a synthetic AwsDynamoDB[DummyIO] through AwsInterpreter so that
 // codec and error-handling paths are exercised in unit tests without a real SDK client.
 // defaultRetryPolicy/retryQuota are constructor parameters, not override points — same shape
 // as ZioInterpreter/CEInterpreter/FutureInterpreter — so every test drives the same
-// RealAwsInterpreter.isRetryable/retryCost code path instead of a one-off subclass override.
+// AwsInterpreter.isRetryable/retryCost code path instead of a one-off subclass override.
 final class DummyIOInterpreter(
   client: AwsDynamoDB[DummyIO],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[DummyIO]] = None,
   override protected val retryQuota: Option[RetryQuota[DummyIO]] = None
-) extends RealAwsInterpreter[DummyIO](client) {
+) extends AwsInterpreter[DummyIO](client) {
   private[dynamodb] def pure[A](a: A): DummyIO[A]                                     = DummyIO.succeed(a)
   private[dynamodb] def map[A, B](fa: DummyIO[A])(f: A => B): DummyIO[B]              =
     DummyIO(() => f(fa.unsafeRun()))

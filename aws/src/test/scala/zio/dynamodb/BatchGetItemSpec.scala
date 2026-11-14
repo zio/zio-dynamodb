@@ -154,7 +154,7 @@ object BatchGetItemSpec extends ZIOSpecDefault {
     }
 
   // Unwraps the Batch.GetResult.Complete/Incomplete response — these tests exercise
-  // RealAwsInterpreter.runBatchGetItem end-to-end (codec + response propagation), not the
+  // AwsInterpreter.runBatchGetItem end-to-end (codec + response propagation), not the
   // batch unprocessed retry, so both outcomes carry a response we can inspect.
   private def evalBatch(resp: BatchGetItemResponse): scala.util.Try[DynamoDBQuery.BatchGetItem.Response] = {
     val interp = new DummyIOInterpreter(stubClient(resp))
@@ -203,7 +203,7 @@ object BatchGetItemSpec extends ZIOSpecDefault {
   )
 
   // -- Interpreter tests via stub client -------------------------------------
-  // Exercises RealAwsInterpreter.runBatchGetItem end-to-end:
+  // Exercises AwsInterpreter.runBatchGetItem end-to-end:
   //   codec (toBatchGetItemRequest / fromBatchGetItemResponse) + response propagation.
   // Unprocessed keys are a normal capacity side-effect, not an error — the response
   // is always returned successfully and callers inspect .unprocessedKeys themselves.

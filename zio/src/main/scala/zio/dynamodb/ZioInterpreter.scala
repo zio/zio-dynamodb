@@ -31,7 +31,7 @@ class ZioInterpreter(
   override protected val batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[Task]] = None,
   override protected val retryQuota: Option[RetryQuota[Task]] = None,
   override protected val defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
-) extends RealAwsInterpreter[Task](client) {
+) extends AwsInterpreter[Task](client) {
   private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
   private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
   private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)

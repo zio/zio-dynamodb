@@ -57,16 +57,16 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Full-stack retry loop: `DummyIOInterpreter` (a real `RealAwsInterpreter`) wired to a stub
+ * Full-stack retry loop: `DummyIOInterpreter` (a real `AwsInterpreter`) wired to a stub
  * `AwsDynamoDB[DummyIO]` client that throws real, SDK-generated exception instances — shaped
  * the way an unmarshalled DynamoDB response actually would be (status code +
  * `awsErrorDetails().errorCode()`), not synthetic `RuntimeException` messages. Where
- * `RealAwsInterpreterRetrySpec` tests `isRetryable`/`retryCost` classification in isolation
+ * `AwsInterpreterRetrySpec` tests `isRetryable`/`retryCost` classification in isolation
  * (`client = null`, never called), this drives the same classifiers through the real
  * `withRetry` loop, across a range of exceptions spanning both tiers AWS itself distinguishes
  * (throttling vs. other transient) and the 400-range exceptions that must NOT retry.
  */
-object RealAwsInterpreterRetryLoopSpec extends ZIOSpecDefault {
+object AwsInterpreterRetryLoopSpec extends ZIOSpecDefault {
 
   private def withErrorCode(errorCode: String, statusCode: Int) =
     AwsErrorDetails.builder().errorCode(errorCode).build() -> statusCode
@@ -114,7 +114,7 @@ object RealAwsInterpreterRetryLoopSpec extends ZIOSpecDefault {
     scala.util.Try(interp.run(query).unsafeRun())
   }
 
-  def spec = suite("RealAwsInterpreter — full-stack retry loop (DummyIOInterpreter + real AWS exceptions)")(
+  def spec = suite("AwsInterpreter — full-stack retry loop (DummyIOInterpreter + real AWS exceptions)")(
     suite("retryable — real exception, retries then succeeds")(
       test("ProvisionedThroughputExceededException (throttling, 400)") {
         val (details, status) = withErrorCode("ProvisionedThroughputExceededException", 400)

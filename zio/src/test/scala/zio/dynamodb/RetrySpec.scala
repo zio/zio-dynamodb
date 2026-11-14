@@ -37,7 +37,7 @@ import scala.jdk.CollectionConverters._
 
 object RetrySpec extends ZIOSpecDefault {
 
-  // Minimal AwsInterpreter[Task] backed by a per-test Ref so individual
+  // Minimal AbstractInterpreter[Task] backed by a per-test Ref so individual
   // tests can control what runBatchWriteItem / runBatchGetItem return.
   private def makeInterp(
     batchWriteResponses: List[DynamoDBQuery.BatchWriteItem.Response] = Nil,
@@ -54,11 +54,11 @@ object RetrySpec extends ZIOSpecDefault {
     batchRetryInterceptorParam: Option[BatchUnprocessedRetryInterceptor[Task]] = None,
     retryQuotaParam: Option[RetryQuota[Task]] = None,
     defaultBatchUnprocessedRetryPolicyParam: Option[RetryPolicy] = None
-  ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
+  ): ZIO[Any, Nothing, AbstractInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
       getRef   <- Ref.make(batchGetResponses)
-    } yield new AwsInterpreter[Task] {
+    } yield new AbstractInterpreter[Task] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]                           = defaultRetryPolicyParam
       override protected def retryInterceptor: Option[RetryInterceptor[Task]]                                 = retryInterceptorParam
       override protected def batchUnprocessedRetryInterceptor: Option[BatchUnprocessedRetryInterceptor[Task]] =

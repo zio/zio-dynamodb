@@ -20,7 +20,7 @@ import zio.test._
 import zio.test.Assertion.{ anything, isSubtype }
 
 /**
- * Batch queries run through the same [[AwsInterpreter.run]] entry point as every other
+ * Batch queries run through the same [[AbstractInterpreter.run]] entry point as every other
  *  [[DynamoDBQuery]] — there is no separate runner to defend against a mismatched query
  *  type, so these tests exercise the batch unprocessed retry (resubmitting
  *  unprocessedKeys/unprocessedItems) directly via `interp.run`.

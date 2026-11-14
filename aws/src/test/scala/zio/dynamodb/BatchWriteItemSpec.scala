@@ -123,7 +123,7 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
     }
 
   // Unwraps the Batch.WriteResult.Complete/Incomplete response — these tests exercise
-  // RealAwsInterpreter.runBatchWriteItem end-to-end (codec + response propagation), not the
+  // AwsInterpreter.runBatchWriteItem end-to-end (codec + response propagation), not the
   // batch unprocessed retry, so both outcomes carry a response we can inspect.
   private def evalBatch(resp: BatchWriteItemResponse): scala.util.Try[DynamoDBQuery.BatchWriteItem.Response] = {
     val interp = new DummyIOInterpreter(stubClient(resp))
@@ -179,7 +179,7 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
   )
 
   // -- Interpreter tests via stub client -------------------------------------
-  // Exercises RealAwsInterpreter.runBatchWriteItem end-to-end:
+  // Exercises AwsInterpreter.runBatchWriteItem end-to-end:
   //   codec (toBatchWriteItemRequest / fromBatchWriteItemResponse) + response propagation.
   // Unprocessed items are a normal capacity side-effect, not an error — the response
   // is always returned successfully and callers inspect .unprocessedItems themselves.

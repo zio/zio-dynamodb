@@ -27,9 +27,9 @@ import java.util.UUID
 object BatchSpec extends DynamoDBLocalSpec {
 
   private def withTable(
-    interp: AwsInterpreter[Task]
+    interp: AbstractInterpreter[Task]
   )(
-    f: (String, AwsInterpreter[Task]) => ZIO[Any, Throwable, TestResult]
+    f: (String, AbstractInterpreter[Task]) => ZIO[Any, Throwable, TestResult]
   ): Task[TestResult] =
     ZIO.scoped {
       for {

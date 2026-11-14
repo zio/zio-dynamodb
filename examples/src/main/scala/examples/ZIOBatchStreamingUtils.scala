@@ -18,7 +18,7 @@ package examples
 
 import zio._
 import zio.stream.ZStream
-import zio.dynamodb.{ AwsInterpreter, Batch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
+import zio.dynamodb.{ AbstractInterpreter, Batch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
 
 object ZIOBatchStreamingUtils {
 
@@ -40,18 +40,18 @@ object ZIOBatchStreamingUtils {
    * @param tableName  the one DynamoDB table every key is read from
    * @param keys       source stream of primary keys to fetch
    */
-  def batchGetItems(interp: AwsInterpreter[Task], tableName: String)(
+  def batchGetItems(interp: AbstractInterpreter[Task], tableName: String)(
     keys: ZStream[Any, Nothing, PrimaryKey]
   ): ZStream[Any, Nothing, Item] =
     batchGetItemsWith(interp, tableName, identity)(keys)
 
-  def batchGetItems(interp: AwsInterpreter[Task], tableName: String, unprocessedRetryPolicy: RetryPolicy)(
+  def batchGetItems(interp: AbstractInterpreter[Task], tableName: String, unprocessedRetryPolicy: RetryPolicy)(
     keys: ZStream[Any, Nothing, PrimaryKey]
   ): ZStream[Any, Nothing, Item] =
     batchGetItemsWith(interp, tableName, _.withBatchUnprocessedRetryPolicy(unprocessedRetryPolicy))(keys)
 
   private def batchGetItemsWith(
-    interp: AwsInterpreter[Task],
+    interp: AbstractInterpreter[Task],
     tableName: String,
     configure: DynamoDBQuery[Any, Batch.GetResult] => DynamoDBQuery[Any, Batch.GetResult]
   )(keys: ZStream[Any, Nothing, PrimaryKey]): ZStream[Any, Nothing, Item] =

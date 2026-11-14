@@ -37,7 +37,7 @@ class CEInterpreter[F[_]](
   override protected val retryQuota: Option[RetryQuota[F]] = None,
   override protected val defaultBatchUnprocessedRetryPolicy: Option[RetryPolicy] = None
 )(implicit F: Async[F])
-    extends RealAwsInterpreter[F](client) {
+    extends AwsInterpreter[F](client) {
   private[dynamodb] def pure[A](a: A): F[A]                         = F.pure(a)
   private[dynamodb] def map[A, B](fa: F[A])(f: A => B): F[B]        = F.map(fa)(f)
   private[dynamodb] def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B] = F.flatMap(fa)(f)

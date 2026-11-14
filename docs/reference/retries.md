@@ -289,8 +289,8 @@ Applies to the effect-level loop; the SDK classifies its own retries.
 | `NonRetryableException` | a request invalid however often it's sent | No | — |
 | Any other 4xx | `ResourceNotFoundException`, `ConditionalCheckFailedException`, `ValidationException` | No | — |
 
-Checked in `aws/src/test/scala/zio/dynamodb/`: `RealAwsInterpreterRetrySpec` (classification),
-`RealAwsInterpreterRetryLoopSpec` (through the retry loop) and `RealAwsInterpreterRetryQuotaSpec`
+Checked in `aws/src/test/scala/zio/dynamodb/`: `AwsInterpreterRetrySpec` (classification),
+`AwsInterpreterRetryLoopSpec` (through the retry loop) and `AwsInterpreterRetryQuotaSpec`
 (the quota at its 500-token default, under and over capacity).
 
 ### Worked examples

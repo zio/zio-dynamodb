@@ -26,7 +26,7 @@ object ZioRetryPolicies {
   /**
    * Wraps a `zio.Schedule` as an [[EffectfulRetryPolicy]]. Drives `Schedule#step` directly,
    * not `Schedule#driver`/`Driver.next` — the latter bakes its own `ZIO.sleep` into `next`,
-   * which would double-sleep alongside `AwsInterpreter`'s own `sleep(d)` call. State lives in a
+   * which would double-sleep alongside `AbstractInterpreter`'s own `sleep(d)` call. State lives in a
    * `Ref`, created fresh once per `newAttempt()` call, so concurrent executions sharing one
    * policy instance never share state.
    */

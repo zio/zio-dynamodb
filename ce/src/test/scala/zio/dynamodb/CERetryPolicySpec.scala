@@ -37,13 +37,13 @@ import scala.concurrent.duration.FiniteDuration
 // EffectfulRetryPolicy/defaultRetryPolicy, adapted to this module's IO + munit conventions.
 class CERetryPolicySpec extends CatsEffectSuite {
 
-  // Minimal AwsInterpreter[IO], mirroring zio/RetrySpec.scala's makeInterp stub.
+  // Minimal AbstractInterpreter[IO], mirroring zio/RetrySpec.scala's makeInterp stub.
   private def makeInterp(
     getItemEffect: IO[Option[Item]],
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[IO]] = None,
     retryQuotaParam: Option[RetryQuota[IO]] = None
-  ): AwsInterpreter[IO] =
-    new AwsInterpreter[IO] {
+  ): AbstractInterpreter[IO] =
+    new AbstractInterpreter[IO] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = defaultRetryPolicyParam
       override protected def retryQuota: Option[RetryQuota[IO]]                   = retryQuotaParam
 

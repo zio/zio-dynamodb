@@ -850,12 +850,12 @@ private[dynamodb] object AwsCodecs {
 // -- Shared AWS interpreter ----------------------------------------------
 
 /**
- * Fills in `AwsInterpreter`'s per-operation `runXxx` methods, translating the ADT to and from
+ * Fills in `AbstractInterpreter`'s per-operation `runXxx` methods, translating the ADT to and from
  * AWS SDK request / response types and using `client` to make the actual call. Concrete interpreters (`ZioInterpreter`, `CEInterpreter`, `FutureInterpreter`) extend
  * this and only need to supply an [[AwsDynamoDB]]`[F]` client plus their effect type's
  * `pure`/`flatMap`/`product`/... primitives — everything AWS-request-shaped is shared here.
  */
-abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInterpreter[F] {
+abstract class AwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AbstractInterpreter[F] {
 
   /**
    * Classifies retryability from the AWS SDK's own exception types instead of

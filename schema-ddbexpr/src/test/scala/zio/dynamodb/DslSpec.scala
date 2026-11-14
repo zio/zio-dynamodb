@@ -62,7 +62,7 @@ object DslSpec extends ZIOSpecDefault {
   // Mirrors the docs/index.md "See it in action" snippet exactly (model names included) as a
   // compile-time check of that precise shape — a method's body is type-checked whether or not
   // it's ever called, so this fails the build if the doc's code stops compiling, without
-  // needing a real AwsInterpreter[zio.Task] (schema-ddbexpr doesn't depend on any interpreter
+  // needing a real AbstractInterpreter[zio.Task] (schema-ddbexpr doesn't depend on any interpreter
   // module) to actually run it.
   private sealed trait Genre
   private object Genre {
@@ -80,7 +80,7 @@ object DslSpec extends ZIOSpecDefault {
 
   private val movies = Table[Movie]("movies")
 
-  private def docsIndexExample(interpreter: AwsInterpreter[zio.Task]) =
+  private def docsIndexExample(interpreter: AbstractInterpreter[zio.Task]) =
     for {
       _     <- interpreter.run(put(movies, Movie("m1", Genre.Drama)))
       movie <- interpreter.run(get(movies)(Movie.id.partitionKey === "m1"))

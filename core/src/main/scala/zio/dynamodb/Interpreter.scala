@@ -45,7 +45,7 @@ trait Interpreter[F[_]] {
  * SDK calls. Everything else — walking the query, applying [[RetryPolicy]] via
  * [[withRetry]], validating conditions — is written once here and shared by every backend.
  */
-abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
+abstract class AbstractInterpreter[F[_]] extends Interpreter[F] {
 
   // Effect primitives — supplied by each concrete interpreter.
   // flatMap and pure are widened to private[dynamodb] so BatchUtils
@@ -66,7 +66,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /**
    * The predicate `runAny` uses when a query's `RetryPolicy` doesn't specify one of its own.
    *  `core` has no AWS SDK dependency, so this defaults to [[RetryPolicy.isRetryable]]'s
-   *  message-substring check; `RealAwsInterpreter` (in `aws`) overrides it with a check
+   *  message-substring check; `AwsInterpreter` (in `aws`) overrides it with a check
    *  against the SDK's own exception types instead.
    */
   protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
@@ -74,7 +74,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /**
    * [[RetryQuota]] token cost for an error `isRetryable` already matched. `core` has no AWS SDK
    *  dependency, so this defaults to [[RetryPolicy.retryCost]]'s message-substring check;
-   *  `RealAwsInterpreter` (in `aws`) overrides it the same way `isRetryable` is overridden.
+   *  `AwsInterpreter` (in `aws`) overrides it the same way `isRetryable` is overridden.
    */
   protected def retryCost: Throwable => Int = RetryPolicy.retryCost
 
@@ -343,7 +343,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     }
 
   // Per-operation methods — each concrete interpreter or stub implements these.
-  // In the aws submodule, RealAwsInterpreter provides default impls via AwsCodecs + AwsDynamoDB.
+  // In the aws submodule, AwsInterpreter provides default impls via AwsCodecs + AwsDynamoDB.
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]]
   protected def runPutItem(q: DynamoDBQuery.PutItem): F[Option[Item]]
   protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): F[Option[Item]]
