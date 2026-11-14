@@ -90,4 +90,143 @@ object DynosaurSchema {
       ).mapN(Person.apply)
     }
 
+  // BigRecord, written by hand: Dynosaur has no derivation. Its 26 fields exceed mapN's 22, so the record is
+  // built from two 13-field groups.
+  implicit lazy val prioritySchema: Schema[Priority] = Schema.string.imap[Priority] {
+    case "Low"      => Priority.Low
+    case "Medium"   => Priority.Medium
+    case "High"     => Priority.High
+    case "Critical" => Priority.Critical
+    case other      => throw new Exception(s"Unknown Priority: $other")
+  }(_.toString)
+
+  implicit lazy val fulfilmentSchema: Schema[Fulfilment] = Schema.oneOf[Fulfilment] { alt =>
+    val warehouse: Schema[Fulfilment.Warehouse] =
+      Schema
+        .record[Fulfilment.Warehouse](field => field("code", _.code).map(Fulfilment.Warehouse.apply))
+        .tag("Warehouse")
+    val dropShip: Schema[Fulfilment.DropShip]   = Schema
+      .record[Fulfilment.DropShip] { field =>
+        (field("vendor", _.vendor), field("leadDays", _.leadDays)).mapN(Fulfilment.DropShip.apply)
+      }
+      .tag("DropShip")
+    val pickup: Schema[Fulfilment.Pickup.type]  =
+      Schema.string.imap[Fulfilment.Pickup.type](_ => Fulfilment.Pickup)(_ => "Pickup").tag("Pickup")
+    alt(warehouse) |+| alt(dropShip) |+| alt(pickup)
+  }
+
+  implicit lazy val contactSchema: Schema[Contact] = Schema.oneOf[Contact] { alt =>
+    val email: Schema[Contact.Email] =
+      Schema.record[Contact.Email](field => field("address", _.address).map(Contact.Email.apply)).tag("Email")
+    val phone: Schema[Contact.Phone] = Schema
+      .record[Contact.Phone] { field =>
+        (field("number", _.number), field.opt("ext", _.ext)).mapN(Contact.Phone.apply)
+      }
+      .tag("Phone")
+    alt(email) |+| alt(phone)
+  }
+
+  implicit lazy val addressSchema: Schema[Address] = Schema.record { field =>
+    (
+      field("street", _.street),
+      field("city", _.city),
+      field("state", _.state),
+      field("zip", _.zip),
+      field("country", _.country)
+    ).mapN(Address.apply)
+  }
+
+  implicit lazy val geoPointSchema: Schema[GeoPoint] = Schema.record { field =>
+    (field("lat", _.lat), field("lng", _.lng)).mapN(GeoPoint.apply)
+  }
+
+  implicit lazy val auditInfoSchema: Schema[AuditInfo] = Schema.record { field =>
+    (
+      field("createdBy", _.createdBy),
+      field("createdAt", _.createdAt),
+      field("updatedBy", _.updatedBy),
+      field("updatedAt", _.updatedAt),
+      field("version", _.version)
+    ).mapN(AuditInfo.apply)
+  }
+
+  implicit lazy val moneySchema: Schema[Money] = Schema.record { field =>
+    (field("currency", _.currency), field("amountMinor", _.amountMinor)).mapN(Money.apply)
+  }
+
+  implicit lazy val dimensionsSchema: Schema[Dimensions] = Schema.record { field =>
+    (
+      field("widthMm", _.widthMm),
+      field("heightMm", _.heightMm),
+      field("depthMm", _.depthMm),
+      field("weightG", _.weightG)
+    ).mapN(Dimensions.apply)
+  }
+
+  implicit lazy val bigRecordSchema: Schema[BigRecord] = Schema.record { field =>
+    val first  = (
+      field("id", _.id),
+      field("sku", _.sku),
+      field("name", _.name),
+      field("description", _.description),
+      field("category", _.category),
+      field("subCategory", _.subCategory),
+      field("brand", _.brand),
+      field("priority", _.priority),
+      field("fulfilment", _.fulfilment),
+      field("primaryContact", _.primaryContact),
+      field.opt("secondaryContact", _.secondaryContact),
+      field("billingAddress", _.billingAddress),
+      field.opt("shippingAddress", _.shippingAddress)
+    ).tupled
+    val second = (
+      field("location", _.location),
+      field("audit", _.audit),
+      field("price", _.price),
+      field("cost", _.cost),
+      field("dimensions", _.dimensions),
+      field("tags", _.tags),
+      field("ratings", _.ratings),
+      field("attributes", _.attributes),
+      field("quantityOnHand", _.quantityOnHand),
+      field("reorderPoint", _.reorderPoint),
+      field("discontinued", _.discontinued),
+      field("averageRating", _.averageRating),
+      field.opt("notes", _.notes)
+    ).tupled
+    (first, second).mapN {
+      case (
+            (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13),
+            (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13)
+          ) =>
+        BigRecord(
+          a1,
+          a2,
+          a3,
+          a4,
+          a5,
+          a6,
+          a7,
+          a8,
+          a9,
+          a10,
+          a11,
+          a12,
+          a13,
+          b1,
+          b2,
+          b3,
+          b4,
+          b5,
+          b6,
+          b7,
+          b8,
+          b9,
+          b10,
+          b11,
+          b12,
+          b13
+        )
+    }
+  }
 }
