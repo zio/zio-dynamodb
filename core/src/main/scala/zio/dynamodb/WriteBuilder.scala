@@ -64,7 +64,7 @@ object ItemReturnValues {
 final class ItemWriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
-) extends WriteBuilder[In, Out](write0, finish0) {
+) extends WriteBuilder[In, Out, Op](write0, finish0) {
   def where(ce: ConditionExpression[In]): ConditionalItemWriteBuilder[In, Out, Op] =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
 

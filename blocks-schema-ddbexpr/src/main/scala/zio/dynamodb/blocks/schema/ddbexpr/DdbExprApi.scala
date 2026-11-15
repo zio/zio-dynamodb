@@ -136,7 +136,7 @@ final class TableWriteBuilder[From, Out, Op <: WriteOp] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
   write0: DynamoDBQuery[From, Option[Item]],
   finish0: Option[Item] => Out
-) extends WriteBuilder[From, Out](
+) extends WriteBuilder[From, Out, Op](
       write0,
       finish0
     ) {

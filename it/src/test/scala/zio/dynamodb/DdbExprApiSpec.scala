@@ -93,6 +93,36 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private val batchWriteTests: Spec[DynamoDBEnv, Throwable] =
+    suite("batchWriteItem with High-Level writes")(
+      test("High-Level puts and deletes in a batch round-trip against a real table") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Task](tableName)
+          for {
+            written <- interpreter.run(
+                         DynamoDBQuery.batchWriteItem(List(Task("t1", Priority.High), Task("t2", Priority.Low)))(t =>
+                           DdbExprApi.put(table, t)
+                         )
+                       )
+            t1      <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "t1"))
+            t2      <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "t2"))
+            deleted <- interpreter.run(
+                         DynamoDBQuery.batchWriteItem(List("t1"))(id =>
+                           DdbExprApi.deleteFrom(table)(Task.id.partitionKey === id)
+                         )
+                       )
+            gone    <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "t1"))
+          } yield assertTrue(
+            written.isInstanceOf[Batch.WriteResult.Complete],
+            t1.contains(Right(Task("t1", Priority.High))),
+            t2.contains(Right(Task("t2", Priority.Low))),
+            deleted.isInstanceOf[Batch.WriteResult.Complete],
+            gone.isEmpty
+          )
+        }
+      }
+    )
+
   private val compoundKeyTests: Spec[DynamoDBEnv, Throwable] =
     suite("compound partition+sort key")(
       test("get returns Right(A) with partitionKey + sortKey equality") {
@@ -1062,6 +1092,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
   def spec =
     suite("DdbExprApi IT")(
       putGetTests,
+      batchWriteTests,
       compoundKeyTests,
       conditionExprTests,
       enumFilterTests,

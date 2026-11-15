@@ -123,7 +123,8 @@ pending-put/delete map) in place of `unprocessedKeys`.
 
 ## Batch and the High-Level API
 
-There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch is Low-Level only.
+There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — the batch call itself is
+Low-Level only, though its writes can be High-Level (below).
 `batchGetItem`/`batchWriteItem`, `RetryPolicy`, and `Batch.GetResult`/`Batch.WriteResult` are
 the building blocks for whatever you need on top. See
 [`ZIOBatchStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
@@ -135,18 +136,32 @@ To type the raw `Item`s that come back from a `Batch.GetResult`, call `Table#dec
 table's configured, cached codec, so the hand-rolled path stays consistent with the rest of
 your High-Level code instead of re-deriving a codec by hand.
 
-To write models in a batch, encode each one with `Table#encode`. It throws when the codec doesn't
-encode to a map, since that can't be a table item.
+To write models in a batch, use the High-Level `put` / `deleteFrom` as the batch's items. Each write
+goes through the table's codec, so renamed fields and key attributes match what `get` reads - a
+hand-written `PrimaryKey("orderId" -> ...)` for a renamed key would delete nothing, and DynamoDB
+reports that as a success. Only plain writes are accepted: `.where`, `.returning` and `update` don't
+compile in a batch, just as with Low-Level `putItem` / `deleteItem` (which still work, and mix with
+High-Level writes). A write that fails to encode fails the batch when it runs. The batch itself stays
+Low-Level: it executes to a `Batch.WriteResult`, and what to do with `Incomplete` is your call.
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb._
 import zio.dynamodb.blocks.schema.ddbexpr.dsl.*
 
-case class Order(customerId: String, orderId: String, total: Double) derives Schema
+case class Order(customerId: String, orderId: String, total: Double)
+object Order extends CompanionOptics[Order] {
+  given schema: Schema[Order]         = Schema.derived
+  val customerId: Lens[Order, String] = $(_.customerId)
+  val orderId: Lens[Order, String]    = $(_.orderId)
+}
 
 val table     = Table[Order]("orders")
 val newOrders = List(Order("cust-42", "ord-1", 129.99), Order("cust-42", "ord-2", 15.0))
 
-val batch = DynamoDBQuery.batchWriteItem(newOrders)(order => DynamoDBQuery.putItem(table.name, table.encode(order)))
+val putAll = DynamoDBQuery.batchWriteItem(newOrders)(order => put(table, order))
+
+val deleteAll = DynamoDBQuery.batchWriteItem(List("ord-1", "ord-2")) { id =>
+  deleteFrom(table)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === id)
+}
 ```
