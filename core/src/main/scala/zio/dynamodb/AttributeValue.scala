@@ -23,16 +23,11 @@ import scala.util.Try
  * The library's internal representation of a single DynamoDB attribute value — the wire
  * format both API levels ultimately encode to and decode from before/after talking to the
  * AWS SDK. An `Item`/`AttrMap` is a `Map[String, AttributeValue]`.
- *
- * Every concrete case (`Binary`, `Bool`, `List`, `Map`, `Number`, `NumberSet`, `Null`,
- * `String`, `StringSet`, `BinarySet`) is `private[dynamodb]` — application code never
- * constructs one directly. Values reach this type via [[ToAttributeValue]] on encode and
- * leave it via [[FromAttributeValue]] on decode; the Low-Level API's `Item(...)`/`$(...)`
- * constructors and the codec derived by `DynamoDBCodecDeriver` are the two paths that
- * actually build these values internally.
  */
 sealed trait AttributeValue extends Serializable { self =>
-  private[dynamodb] final val showType: String =
+
+  /** The case's name, e.g. `"AttributeValue.Number"` - for decode error messages. */
+  final val showType: String =
     self match {
       case _: AttributeValue.Binary    => "AttributeValue.Binary"
       case _: AttributeValue.BinarySet => "AttributeValue.BinarySet"
@@ -47,12 +42,12 @@ sealed trait AttributeValue extends Serializable { self =>
     }
 }
 
-/** Holds every [[AttributeValue]] case; see the trait doc for why they're not constructed directly. */
+/** Holds every [[AttributeValue]] case. */
 object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
-  private[dynamodb] final class Binary(val value: Array[Byte])                    extends AttributeValue {
+  final class Binary(val value: Array[Byte])                    extends AttributeValue {
     override def equals(that: Any): Boolean = that match {
       case b: Binary => java.util.Arrays.equals(value, b.value)
       case _         => false
@@ -60,13 +55,13 @@ object AttributeValue {
     override def hashCode: Int              = java.util.Arrays.hashCode(value)
     override def toString: ScalaString      = s"Binary(${java.util.Arrays.toString(value)})"
   }
-  private[dynamodb] object Binary {
+  object Binary {
     def apply(value: Array[Byte]): Binary       = new Binary(value)
     def apply(value: Iterable[Byte]): Binary    = new Binary(value.toArray)
     def unapply(b: Binary): Option[Array[Byte]] = Some(b.value)
 
     // Produces the ZIO DynamoDB / schema1 List-of-Number representation for migration tooling.
-    def toListOfNumbers(bytes: Array[Byte]): AttributeValue.List = {
+    private[dynamodb] def toListOfNumbers(bytes: Array[Byte]): AttributeValue.List = {
       val avs = new Array[AttributeValue](bytes.length)
       var i   = 0
       while (i < bytes.length) { avs(i) = AttributeValue.Number(BigDecimal.valueOf(bytes(i).toLong)); i += 1 }
@@ -76,7 +71,7 @@ object AttributeValue {
   // Not a case class: value's outer Iterable can be a Set or a Seq depending on how it was
   // built, and those never canEqual regardless of content. Normalizing to a Set before
   // comparing (like Binary does for Array[Byte] above) makes equality depend on the bytes only.
-  private[dynamodb] final class BinarySet(val value: Iterable[Iterable[Byte]])    extends AttributeValue {
+  final class BinarySet(val value: Iterable[Iterable[Byte]])    extends AttributeValue {
     private def normalized: Set[Iterable[Byte]] = value.toSet
 
     override def equals(that: Any): Boolean = that match {
@@ -86,35 +81,35 @@ object AttributeValue {
     override def hashCode: Int              = normalized.hashCode
     override def toString: ScalaString      = s"BinarySet($value)"
   }
-  private[dynamodb] object BinarySet {
+  object BinarySet {
     def apply(value: Iterable[Iterable[Byte]]): BinarySet       = new BinarySet(value)
     def unapply(b: BinarySet): Option[Iterable[Iterable[Byte]]] = Some(b.value)
   }
-  private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue { self =>
-    def +(av: AttributeValue): List = List(self.value ++ Iterable(av))
+  final case class Bool(value: Boolean)                         extends AttributeValue
+  final case class List(value: Iterable[AttributeValue])        extends AttributeValue { self =>
+    private[dynamodb] def +(av: AttributeValue): List = List(self.value ++ Iterable(av))
   }
-  private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
-  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue { self =>
-    def +(s: ScalaString): Either[ScalaString, NumberSet] =
+  final case class Number(value: BigDecimal)                    extends AttributeValue
+  final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue { self =>
+    private[dynamodb] def +(s: ScalaString): Either[ScalaString, NumberSet] =
       Try(BigDecimal(s)).toEither.left.map(_.getMessage).map(n => NumberSet(self.value + n))
   }
-  private[dynamodb] object NumberSet {
+  object NumberSet {
     val empty: NumberSet = NumberSet(Set.empty)
   }
-  private[dynamodb] case object Null                                              extends AttributeValue
-  private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
-  private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue { self =>
-    def +(s: ScalaString): StringSet = StringSet(self.value + s)
+  case object Null                                              extends AttributeValue
+  final case class String(value: ScalaString)                   extends AttributeValue
+  final case class StringSet(value: Set[ScalaString])           extends AttributeValue { self =>
+    private[dynamodb] def +(s: ScalaString): StringSet = StringSet(self.value + s)
   }
-  private[dynamodb] object StringSet {
+  object StringSet {
     val empty: StringSet = StringSet(Set.empty)
   }
-  private[dynamodb] object List {
+  object List {
     val empty: List = List(Iterable.empty)
   }
-  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
-    def +(t: (ScalaString, AttributeValue)): Map = {
+  final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
+    private[dynamodb] def +(t: (ScalaString, AttributeValue)): Map = {
       val (s, av) = t
       Map(self.value + ((String(s), av)))
     }

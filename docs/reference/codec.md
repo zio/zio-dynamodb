@@ -127,6 +127,10 @@ needs a codec derived by `DynamoDBCodecDeriver` at the top level: with a hand-wr
 top-level codec, `put` and unfiltered scans work, but anything with a path - key conditions
 included - fails in the effect.
 
+A hand-written codec can pattern-match and build `AttributeValue`'s cases directly - see
+`examples/highlevelapi/HandWrittenCodecs.scala`, which reads a field the app used to store
+as a `Number` and now stores as a `String`.
+
 ## `Schema1Compat`: migrating from 2.x
 
 Four types encode differently by default in 3.x than they did in 2.x's `zio-schema`-based
