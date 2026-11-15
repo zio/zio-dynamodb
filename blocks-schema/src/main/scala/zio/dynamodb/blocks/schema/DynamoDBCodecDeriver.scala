@@ -1494,9 +1494,9 @@ class DynamoDBCodecDeriver private (
               val buf = new ArrayBuffer[Iterable[Byte]](8)
               while (it.hasNext)
                 codec.encoder(it.next()) match {
-                  case AttributeValue.Binary(bytes) =>
-                    buf.addOne(scala.collection.immutable.ArraySeq.unsafeWrapArray(bytes))
-                  case other                        =>
+                  case b: AttributeValue.Binary =>
+                    buf.addOne(scala.collection.immutable.ArraySeq.unsafeWrapArray(b.array))
+                  case other                    =>
                     // DynamoDB's BinarySet (BS) can only hold raw binary values — there's no
                     // "BinarySet of List[Number]" wire representation. withSchema1ByteSequenceCompatibility
                     // (ReadBothWriteOld) makes the element codec encode to AttributeValue.List instead of
@@ -1539,14 +1539,14 @@ class DynamoDBCodecDeriver private (
 
           def encodeBinary(col: Col[Elem]): AttributeValue =
             col match {
-              case arr: Array[Byte] => AttributeValue.Binary(arr) // zero copy
+              case arr: Array[Byte] => AttributeValue.Binary.unsafeWrap(arr) // zero copy
               case _                =>
                 val len = deconstructor.size(col)
                 val arr = new Array[Byte](len)
                 val it  = deconstructor.deconstruct(col).asInstanceOf[Iterator[Byte]]
                 var i   = 0
                 while (it.hasNext) { arr(i) = it.next(); i += 1 }
-                AttributeValue.Binary(arr)
+                AttributeValue.Binary.unsafeWrap(arr)
             }
 
           def decodeBinary(bytes: Array[Byte]): Either[ItemError.DecodingError, Col[Elem]] =
@@ -1580,17 +1580,17 @@ class DynamoDBCodecDeriver private (
               new DerivedCodec[Col[Elem]] {
                 override def encoder: Encoder[Col[Elem]] = encodeBinary(_)
                 override def decoder: Decoder[Col[Elem]] = {
-                  case AttributeValue.Binary(bytes) => decodeBinary(bytes)
-                  case av                           => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as Binary"))
+                  case b: AttributeValue.Binary => decodeBinary(b.array)
+                  case av                       => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as Binary"))
                 }
               }
             case Schema1Compat.ReadBothWriteNew =>
               new DerivedCodec[Col[Elem]] {
                 override def encoder: Encoder[Col[Elem]] = encodeBinary(_)
                 override def decoder: Decoder[Col[Elem]] = {
-                  case AttributeValue.Binary(bytes) => decodeBinary(bytes)
-                  case AttributeValue.List(items)   => decodeList(items)
-                  case av                           => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as Binary or List"))
+                  case b: AttributeValue.Binary   => decodeBinary(b.array)
+                  case AttributeValue.List(items) => decodeList(items)
+                  case av                         => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as Binary or List"))
                 }
               }
             case Schema1Compat.ReadBothWriteOld =>
@@ -1620,9 +1620,9 @@ class DynamoDBCodecDeriver private (
                   AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
                 }
                 override def decoder: Decoder[Col[Elem]] = {
-                  case AttributeValue.List(items)   => decodeList(items)
-                  case AttributeValue.Binary(bytes) => decodeBinary(bytes)
-                  case av                           => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as List or Binary"))
+                  case AttributeValue.List(items) => decodeList(items)
+                  case b: AttributeValue.Binary   => decodeBinary(b.array)
+                  case av                         => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as List or Binary"))
                 }
               }
           }
@@ -1979,14 +1979,15 @@ class DynamoDBCodecDeriver private (
         new DerivedCodec[Byte] {
           override private[dynamodb] val valueType: Int = DynamoDBCodec.byteType
           override def encoder: Encoder[Byte]           =
-            if (writeLegacy) b => AttributeValue.Binary(Array(b))
+            if (writeLegacy) b => AttributeValue.Binary.unsafeWrap(Array(b))
             else b => AttributeValue.Number(BigDecimal.valueOf(b.toLong))
           override def decoder: Decoder[Byte]           = {
-            case AttributeValue.Number(bd)    => Right(bd.byteValue)
-            case AttributeValue.Binary(bytes) =>
+            case AttributeValue.Number(bd) => Right(bd.byteValue)
+            case b: AttributeValue.Binary  =>
+              val bytes = b.array
               if (bytes.length == 1) Right(bytes(0))
               else Left(DecodingError(s"Expected a single-byte Binary for Byte but found ${bytes.length} bytes"))
-            case av                           =>
+            case av                        =>
               Left(
                 DecodingError(
                   s"Error getting byte value. Expected AttributeValue.Number or Binary but found ${av.showType}"

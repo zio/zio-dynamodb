@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import scala.collection.immutable.{ Map => SMap, Set }
 import scala.util.Try
+import zio.blocks.chunk.Chunk
 
 /**
  * The library's internal representation of a single DynamoDB attribute value — the wire
@@ -47,18 +48,28 @@ object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
-  final class Binary(val value: Array[Byte])                    extends AttributeValue {
+  final class Binary private (private[dynamodb] val array: Array[Byte]) extends AttributeValue {
+
+    /** The bytes, as an immutable view (no copy). */
+    def value: Chunk[Byte] = Chunk.fromArray(array)
+
     override def equals(that: Any): Boolean = that match {
-      case b: Binary => java.util.Arrays.equals(value, b.value)
+      case b: Binary => java.util.Arrays.equals(array, b.array)
       case _         => false
     }
-    override def hashCode: Int              = java.util.Arrays.hashCode(value)
-    override def toString: ScalaString      = s"Binary(${java.util.Arrays.toString(value)})"
+    override def hashCode: Int              = java.util.Arrays.hashCode(array)
+    override def toString: ScalaString      = s"Binary(${java.util.Arrays.toString(array)})"
   }
   object Binary {
-    def apply(value: Array[Byte]): Binary       = new Binary(value)
+
+    /** Copies `value`, so changing the array afterwards doesn't change this value. */
+    def apply(value: Array[Byte]): Binary       = new Binary(value.clone())
     def apply(value: Iterable[Byte]): Binary    = new Binary(value.toArray)
-    def unapply(b: Binary): Option[Array[Byte]] = Some(b.value)
+    def unapply(b: Binary): Option[Chunk[Byte]] = Some(Chunk.fromArray(b.array))
+
+    // Zero-copy: the caller hands over `value` and must not mutate it afterwards. Library
+    // internals only (the derived codec's Array[Byte] path, the AWS SDK conversion).
+    private[dynamodb] def unsafeWrap(value: Array[Byte]): Binary = new Binary(value)
 
     // Produces the ZIO DynamoDB / schema1 List-of-Number representation for migration tooling.
     private[dynamodb] def toListOfNumbers(bytes: Array[Byte]): AttributeValue.List = {

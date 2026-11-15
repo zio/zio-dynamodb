@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object AttributeValueSpec extends ZIOSpecDefault {
@@ -84,6 +85,23 @@ object AttributeValueSpec extends ZIOSpecDefault {
           AttributeValue.Number(BigDecimal(3))
         )
       )
+    },
+    test("apply(Array) copies, so changing the array afterwards doesn't change the value") {
+      val arr    = Array[Byte](1, 2, 3)
+      val binary = AttributeValue.Binary(arr)
+      arr(0) = 9
+      assertTrue(binary == AttributeValue.Binary(Array[Byte](1, 2, 3)))
+    },
+    test("value and the extractor give the bytes as an immutable Chunk") {
+      val binary       = AttributeValue.Binary(Array[Byte](1, 2, 3))
+      val viaExtractor = binary match {
+        case AttributeValue.Binary(bytes) => bytes
+      }
+      assertTrue(binary.value == Chunk[Byte](1, 2, 3), viaExtractor == Chunk[Byte](1, 2, 3))
+    },
+    test("unsafeWrap shares the array - the library's internal zero-copy path") {
+      val arr = Array[Byte](1, 2, 3)
+      assertTrue(AttributeValue.Binary.unsafeWrap(arr).array eq arr)
     }
   )
 

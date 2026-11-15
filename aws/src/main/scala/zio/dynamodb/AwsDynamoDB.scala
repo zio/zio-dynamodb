@@ -131,7 +131,7 @@ private[dynamodb] object AwsCodecs {
       case AttributeValue.Number(v)                  => Some(AwsAttrValue.builder().n(v.toString).build())
       case AttributeValue.Bool(v)                    => Some(AwsAttrValue.builder().bool(v).build())
       case AttributeValue.Null                       => Some(AwsAttrValue.builder().nul(true).build())
-      case AttributeValue.Binary(v)                  => Some(AwsAttrValue.builder().b(SdkBytes.fromByteArray(v)).build())
+      case b: AttributeValue.Binary                  => Some(AwsAttrValue.builder().b(SdkBytes.fromByteArray(b.array)).build())
       case AttributeValue.BinarySet(v) if v.nonEmpty =>
         Some(AwsAttrValue.builder().bs(v.map(bytes => SdkBytes.fromByteArray(bytes.toArray)).toList.asJava).build())
       case AttributeValue.StringSet(v) if v.nonEmpty =>
@@ -159,7 +159,7 @@ private[dynamodb] object AwsCodecs {
     else if (av.n != null) Some(AttributeValue.Number(BigDecimal(av.n)))
     else if (av.bool != null) Some(AttributeValue.Bool(av.bool))
     else if (av.nul != null && av.nul) Some(AttributeValue.Null)
-    else if (av.b != null) Some(AttributeValue.Binary(av.b.asByteArray))
+    else if (av.b != null) Some(AttributeValue.Binary.unsafeWrap(av.b.asByteArray))
     else if (av.hasBs)
       Some(
         AttributeValue.BinarySet(
