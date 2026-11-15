@@ -630,9 +630,13 @@ object DynamoDBQuery {
    * One `BatchWriteItem` with a put or delete per value. It executes to a [[Batch.WriteResult]]
    * and resubmits unprocessed items, as [[batchGetItem]] does for keys. Sent as one request, so
    * AWS's limit of 25 writes per call applies.
+   *
+   * `body` can return a Low-Level `putItem` / `deleteItem` or a High-Level `put` / `deleteFrom` -
+   * only plain ones: a condition, `.returning` or an update doesn't compile here. The batch itself
+   * (its result and what to do with unprocessed items) stays Low-Level.
    */
   def batchWriteItem[A](values: Iterable[A])(
-    body: A => ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]
+    body: A => WriteBuilder[_, Unit, _ <: WriteOp.Batchable]
   ): DynamoDBQuery[Any, Batch.WriteResult] =
     values.foldLeft(BatchWriteItem()) { (batch, a) =>
       batch + body(a)
@@ -899,15 +903,19 @@ object DynamoDBQuery {
       if (itemError.isDefined || error.isEmpty) self else copy(itemError = error)
 
     // Only a plain put / delete builder is accepted (no condition, no ReturnValues - a batch supports
-    // neither), and those always hold a PutItem / DeleteItem node, so the cast to Write is safe.
-    def +(writeItem: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]): BatchWriteItem =
-      add(writeItem.write.asInstanceOf[Write[Any, Option[Item]]])
+    // neither), Low-Level or High-Level. Those hold a PutItem / DeleteItem node - or, for a
+    // High-Level one, a Fail when the value didn't encode or the key didn't resolve, which is kept
+    // as the batch's item error and fails it when run. `In` is a phantom here, hence the cast.
+    def +(writeItem: WriteBuilder[_, Unit, _ <: WriteOp.Batchable]): BatchWriteItem =
+      add(writeItem.write.asInstanceOf[DynamoDBQuery[Any, Option[Item]]])
 
-    def addAll(entries: ItemWriteBuilder[Any, Unit, _ <: WriteOp.Batchable]*): BatchWriteItem =
+    def addAll(entries: WriteBuilder[_, Unit, _ <: WriteOp.Batchable]*): BatchWriteItem =
       entries.foldLeft(self)(_ + _)
 
-    private def add(writeItem: Write[Any, Option[Item]]): BatchWriteItem =
+    private def add(writeItem: DynamoDBQuery[Any, Option[Item]]): BatchWriteItem =
       writeItem match {
+        case f: Fail                                         =>
+          self.withItemError(Some(f.error()))
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>
           val write = Put(putItem.item)
           self
@@ -930,6 +938,14 @@ object DynamoDBQuery {
             .withItemError(
               BatchWriteItem.unsupportedItemSetting(deleteItem.retryPolicy, deleteItem.capacity, deleteItem.itemMetrics)
             )
+        case other                                           =>
+          self.withItemError(
+            Some(
+              DynamoDBError.QueryBuilderError.UnbatchableQuery(
+                s"batchWriteItem's callback must return a put or delete, got ${other.getClass.getSimpleName}"
+              )
+            )
+          )
       }
 
   }
@@ -1124,7 +1140,7 @@ sealed abstract class WriteNode[In, Out] private[dynamodb] (
  * `capacity` / `metrics` / `withRetryPolicy` to keep the builder, so they compose with `.where` /
  * `.returning` in any order.
  */
-abstract class WriteBuilder[In, Out] private[dynamodb] (
+abstract class WriteBuilder[In, Out, Op <: WriteOp] private[dynamodb] (
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteNode[In, Out](write0, finish0) {
