@@ -172,7 +172,7 @@ lazy val ceInterpreter = (project in file("ce"))
     libraryDependencies ++= Seq(
       "org.typelevel"         %% "cats-effect"       % catsEffectVersion,
       "org.typelevel"         %% "munit-cats-effect" % "2.0.0"       % Test,
-      "org.testcontainers"     % "testcontainers"    % "1.21.3"      % Test,
+      "org.testcontainers"     % "testcontainers"    % "2.0.5"       % Test,
       "software.amazon.awssdk" % "netty-nio-client"  % awsSdkVersion % Test,
       "org.slf4j"              % "slf4j-nop"         % "2.0.16"      % Test
     ),
@@ -189,7 +189,7 @@ lazy val it = (project in file("it"))
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"         % zioVersion,
       "dev.zio"               %% "zio-test-sbt"     % zioVersion,
-      "org.testcontainers"     % "testcontainers"   % "1.21.3",
+      "org.testcontainers"     % "testcontainers"   % "2.0.5",
       "software.amazon.awssdk" % "netty-nio-client" % awsSdkVersion,
       "org.slf4j"              % "slf4j-nop"        % "2.0.16"
     ),
