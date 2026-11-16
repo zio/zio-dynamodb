@@ -1389,6 +1389,24 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
         isSubtype[AttributeValue.Binary](hasField("value", _.value.toList, equalTo(List[Byte](1, 2, 3, 4))))
       )
     },
+    test("Array[Byte] encode and decode are zero-copy by design - they share the array") {
+      val codec   = Schema.derived[Array[Byte]].deriving(DynamoDBCodecDeriver).derive
+      val bytes   = Array[Byte](1, 2, 3, 4)
+      val encoded = codec.encoder(bytes)
+      val shared  = encoded match {
+        case b: AttributeValue.Binary => b.value eq bytes
+        case _                        => false
+      }
+      assertTrue(shared, codec.decoder(encoded).exists(_ eq bytes))
+    },
+    test("so mutating a model's array after encode, or a decoded array, changes the Binary - documented, don't do it") {
+      val codec   = Schema.derived[Array[Byte]].deriving(DynamoDBCodecDeriver).derive
+      val bytes   = Array[Byte](1, 2, 3, 4)
+      val encoded = codec.encoder(bytes)
+      bytes(0) = 9                             // mutate the model's array after encoding
+      codec.decoder(encoded).foreach(_(1) = 8) // mutate the decoded array
+      assertTrue(encoded == AttributeValue.Binary(Array[Byte](9, 8, 3, 4)))
+    },
     test("Array[Byte] decodes from AttributeValue.Binary") {
       val codec  = Schema.derived[Array[Byte]].deriving(DynamoDBCodecDeriver).derive
       val result = codec.decoder(AttributeValue.Binary(List[Byte](1, 2, 3, 4)))

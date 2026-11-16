@@ -131,6 +131,13 @@ A hand-written codec can pattern-match and build `AttributeValue`'s cases direct
 `examples/highlevelapi/HandWrittenCodecs.scala`, which reads a field the app used to store
 as a `Number` and now stores as a `String`.
 
+## `Array[Byte]` fields are zero-copy
+
+An `Array[Byte]` field is encoded to `AttributeValue.Binary` and decoded back without copying:
+the stored value shares the array with your model, in both directions. That keeps large binary
+payloads (e.g. serialised protobuf) cheap, but means you shouldn't mutate the array after
+encoding a model or after decoding one. Use a `Chunk[Byte]` field if you want immutable bytes.
+
 ## `Schema1Compat`: migrating from 2.x
 
 Four types encode differently by default in 3.x than they did in 2.x's `zio-schema`-based

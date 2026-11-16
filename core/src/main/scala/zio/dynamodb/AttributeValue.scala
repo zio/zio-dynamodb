@@ -47,6 +47,12 @@ object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
+  /**
+   * A binary value. Zero-copy by design: `value` is the stored array itself, `Binary(array)` wraps
+   * the array without copying, and a derived codec shares the array with a model's `Array[Byte]`
+   * field on both encode and decode. Don't mutate an array once it's in a `Binary` (or in a
+   * model you've encoded or decoded) - use `Chunk[Byte]` fields for immutable bytes.
+   */
   final class Binary(val value: Array[Byte])                    extends AttributeValue {
     override def equals(that: Any): Boolean = that match {
       case b: Binary => java.util.Arrays.equals(value, b.value)
