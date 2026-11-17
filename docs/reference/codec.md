@@ -133,9 +133,9 @@ as a `Number` and now stores as a `String`.
 
 ## `Array[Byte]` fields are zero-copy
 
-An `Array[Byte]` field is encoded to `AttributeValue.Binary` and decoded back without copying:
-the stored value shares the array with your model, in both directions. That keeps large binary
-payloads (e.g. serialised protobuf) cheap, but means you shouldn't mutate the array after
+By default, an `Array[Byte]` field is encoded to `AttributeValue.Binary` and decoded back without
+copying: the stored value shares the array with your model, in both directions. That keeps large
+binary payloads (e.g. serialised protobuf) cheap, but means you shouldn't mutate the array after
 encoding a model or after decoding one. Use a `Chunk[Byte]` field if you want immutable bytes.
 
 The sharing applies whenever the bytes are stored as a `Binary`. Under
