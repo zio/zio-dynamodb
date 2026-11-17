@@ -48,10 +48,12 @@ object AttributeValue {
   import scala.collection.immutable.{ Map => ScalaMap }
 
   /**
-   * A binary value. Zero-copy by design: `value` is the stored array itself, `Binary(array)` wraps
-   * the array without copying, and a derived codec shares the array with a model's `Array[Byte]`
-   * field on both encode and decode. Don't mutate an array once it's in a `Binary` (or in a
-   * model you've encoded or decoded) - use `Chunk[Byte]` fields for immutable bytes.
+   * A binary value. Zero-copy by design: `value` is the stored array itself, and `Binary(array)`
+   * wraps the array without copying. A derived codec shares the array with a model's `Array[Byte]`
+   * field whenever the bytes are stored as a `Binary`: always on decode, and on encode unless
+   * `withSchema1ByteSequenceCompatibility(ReadBothWriteOld)` writes 2.x's per-byte list instead.
+   * Don't mutate an array once it's in a `Binary` (or in a model you've encoded or decoded) - use
+   * `Chunk[Byte]` fields for immutable bytes.
    */
   final class Binary(val value: Array[Byte])                    extends AttributeValue {
     override def equals(that: Any): Boolean = that match {

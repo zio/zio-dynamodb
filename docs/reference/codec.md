@@ -138,6 +138,11 @@ the stored value shares the array with your model, in both directions. That keep
 payloads (e.g. serialised protobuf) cheap, but means you shouldn't mutate the array after
 encoding a model or after decoding one. Use a `Chunk[Byte]` field if you want immutable bytes.
 
+The sharing applies whenever the bytes are stored as a `Binary`. Under
+`withSchema1ByteSequenceCompatibility(ReadBothWriteOld)` (below) the field is written in 2.x's
+per-byte `List` format, so encoding copies; decoding a `Binary` still shares, and decoding a
+legacy `List` builds a new array.
+
 ## `Schema1Compat`: migrating from 2.x
 
 Four types encode differently by default in 3.x than they did in 2.x's `zio-schema`-based
