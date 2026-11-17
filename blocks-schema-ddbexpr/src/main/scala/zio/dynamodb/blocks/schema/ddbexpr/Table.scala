@@ -44,8 +44,11 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  * scans work, but anything with a path - key conditions included - fails in the effect. [[decode]] / [[encode]] expose the codec for the Low-Level `Item`-shaped operations the
  * High-Level API doesn't wrap (`batchGetItem`, `transactGetItems`, ...).
  *
- * Construct a `Table` once and reuse it: `Table[A](name)` derives its codec on first use and holds it,
- * so a `Table` rebuilt per request re-derives it each time.
+ * Both constructors defer the codec to first use and then hold it: `Table[A](name)` derives it then, and
+ * `Table(name, codec)` takes `codec` by name, so an inline `.derive` runs then too (and a codec `val`
+ * declared later in the same object is read after it's initialised). A derivation error therefore
+ * surfaces on first use, not at construction. Construct a `Table` once and reuse it: one rebuilt per
+ * request re-derives its codec each time.
  */
 final class Table[From] private (val name: String, mkCodec: () => DynamoDBCodec[From]) {
 
@@ -91,7 +94,10 @@ object Table {
   def apply[From](name: String)(implicit schema: Schema[From]): Table[From] =
     new Table(name, () => schema.deriving(DynamoDBCodecDeriver).derive)
 
-  /** A table with the given codec - typically derived with ZIO Blocks' derivation builder (see [[Table]]). */
-  def apply[From](name: String, codec: DynamoDBCodec[From]): Table[From] =
+  /**
+   * A table with the given codec - typically derived with ZIO Blocks' derivation builder (see [[Table]]).
+   * `codec` is by name: it's evaluated once, on first use.
+   */
+  def apply[From](name: String, codec: => DynamoDBCodec[From]): Table[From] =
     new Table(name, () => codec)
 }

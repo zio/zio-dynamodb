@@ -117,6 +117,9 @@ val orders = Table(
 )
 ```
 
+`Table` takes the codec by name, so `.derive` runs on the table's first use, once - the same as
+`Table[Order]("orders")`. Build each `Table` once and reuse it.
+
 `.instance(optic, codec)` swaps in a hand-written codec for one field the same way. Every
 expression on the table (`.where`, `.filter`, key conditions, updates) resolves its attribute
 paths and encodes its literals with this codec, so they always match the stored item: with an
