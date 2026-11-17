@@ -37,6 +37,22 @@ object TableSpec extends ZIOSpecDefault {
     Table("people", Person.schema.deriving(DynamoDBCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)).derive)
 
   def spec = suite("Table")(
+    suite("Table(name, codec) takes the codec by name")(
+      test("the codec isn't evaluated at construction") {
+        var evaluated = 0
+        Table("people", { evaluated += 1; Person.schema.deriving(DynamoDBCodecDeriver).derive })
+        assertTrue(evaluated == 0)
+      },
+      test("the codec is evaluated once, on first use, however often the Table is used") {
+        var evaluated = 0
+        val people    = Table("people", { evaluated += 1; Person.schema.deriving(DynamoDBCodecDeriver).derive })
+        val item      = people.encode(ada)
+        val decoded   = people.decode(item)
+        get(people)(Person.firstName.partitionKey === "Ada")
+        put(people, ada)
+        assert(decoded)(isRight(equalTo(ada))) && assertTrue(evaluated == 1)
+      }
+    ),
     suite("decode / encode")(
       test("encode then decode round-trips through the configured codec") {
         val people = Table[Person]("people")
