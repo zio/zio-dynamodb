@@ -43,7 +43,7 @@ jobs:
         java-version: '17'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Check all code compiles
@@ -70,7 +70,7 @@ jobs:
         java-version: '17'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Check if the site workflow is up to date
@@ -103,7 +103,7 @@ jobs:
         java-version: ${{ matrix.java }}
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Test
@@ -140,7 +140,7 @@ jobs:
         java-version: '17'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Generate Readme
@@ -214,7 +214,7 @@ jobs:
         java-version: '17'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Release
@@ -243,7 +243,7 @@ jobs:
         java-version: '17'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v9.0.1
     - name: Setup NodeJs
