@@ -3,37 +3,56 @@ id: query-some
 title: "querySome"
 ---
 
+`DynamoDBQuery.querySome` reads one page of at most `limit` items with one partition key and returns them with the key to continue from:
+
 ```scala
-  def scanSome[A: Schema](
-    tableName: String,
-    limit: Int
-  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] = ???  
+object DynamoDBQuery {
+  def querySome[A: Schema](tableName: String, limit: Int): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)]
+}
 ```
 
-The `scanSome` operation is used page `limit` number of items in a table, and returns them in a tuple of `Chunk[A]` and `LastEvaluatedKey`. The `LastEvaluatedKey` can be used to continue scanning the table from where the last page left off using the `startKey` combinator. 
+Like [queryAll](query-all.md), it needs a key condition set with `DynamoDBQuery#whereKey`. Like [scanSome](scan-some.md), it returns a `LastEvaluatedKey` that is `Some(key)` when more items may follow and `None` at the end, and `DynamoDBQuery#startKey` continues from it.
 
-This paging behavior is useful when you have a large number of items in a table and you want to process them in smaller chunks to avoid memory issues - eg a REST API for a paging front end.
+The examples use the equipment model from [Scan and Query Operations](index.md):
 
-```scala
-for {
-  _                          <- put(tableName, Equipment("1", 2020, "Widget1", 1.0)).execute
-  _                          <- put(tableName, Equipment("1", 2021, "Widget1", 2.0)).execute
-  _                          <- put(tableName, Equipment("1", 2022, "Widget1", 2.1)).execute
-  t                          <- querySome[Equipment](tableName, limit = 2).execute
-  (page1, lastEvaluatedKey1) =  t
-  t2                         <- querySome[Equipment](tableName, limit = 1).startKey(lastEvaluatedKey1).execute
-  (page2, lastEvaluatedKey2) =  t2
-} yield ()
+```scala mdoc:silent
+import zio._
+import zio.dynamodb._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Equipment(id: String, year: Int, name: String, price: Double)
+object Equipment {
+  implicit val schema: Schema.CaseClass4[String, Int, String, Double, Equipment] = DeriveSchema.gen[Equipment]
+
+  val (id, year, name, price) = ProjectionExpression.accessors[Equipment]
+}
 ```
 
-## Combinators
+To read partition `"1"` two items at a time:
+
+```scala mdoc:compile-only
+val firstTwoPages: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[Equipment]] = {
+  val query = DynamoDBQuery.querySome[Equipment]("equipment", limit = 2).whereKey(Equipment.id.partitionKey === "1")
+
+  for {
+    page1 <- query.execute
+    page2 <- query.startKey(page1._2).execute
+  } yield page1._1 ++ page2._1
+}
+```
+
+## Options
+
+These options apply to `querySome`:
 
 ```scala
-<SCAN_SOME_QUERY>
+<QUERY_SOME_QUERY>
+  .whereKey(<KeyConditionExpr>)    // required
+  .startKey(<LastEvaluatedKey>)    // continue from a previous page
+  .filter(<ConditionExpression>)   // applied after the key condition and the limit
+  .sortOrder(<ascending>)          // true (default) or false
+  .indexName(<IndexName>)          // query a secondary index
   .consistency(<ConsistencyMode>)
-  .whereKey(<KeyConditionExpr>)  // eg Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020
-  .startKey(<LastEvaluatedKey>)
-  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan
-  .sortOrder(ascending)          // ascending is a boolean flag
-  .indexName(<IndexName>)        // use a secondary index    
+  .selectAllAttributes | .selectAllProjectedAttributes | .selectSpecificAttributes | .selectCount
+  .capacity(<ReturnConsumedCapacity>)
 ```
