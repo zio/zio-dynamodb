@@ -4,108 +4,106 @@ title: "Creating Models"
 sidebar_label: "Creating Models"
 ---
 
-The High Level API provides automatic serialization and deserialization of Scala case classes to and from DynamoDB types.
-This is done by requiring that an implicit ZIO Schema instance is in scope for the case class. This schema instance is 
-generated semi-automatically by using the ZIO Schema `DeriveSchema.gen[A]` - placing this in the companion object of 
-the case class ensures that this implicit is automatically in scope.
+The High Level API encodes our Scala types to DynamoDB items and decodes them back automatically. It needs an implicit ZIO `Schema` for each type, which we derive with `DeriveSchema.gen` and place in the companion object so that it is always in implicit scope:
 
-```scala
-final case class Person(email: String, hobbies: Map[String, List[String]], registrationDate: Instant)
+```scala mdoc:silent
+import java.time.Instant
+
+import zio.dynamodb._
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Person(email: String, hobbies: Map[String, List[String]], registrationDate: Instant)
 object Person {
   implicit val schema: Schema.CaseClass3[String, Map[String, List[String]], Instant, Person] =
     DeriveSchema.gen[Person]
+
+  val (email, hobbies, registrationDate) = ProjectionExpression.accessors[Person]
 }
 ```
 
-This semi-automatically derived schema is used to automatically generate codecs for the case class (in the `Codecs` object)
-to perform the serialization and deserialization to and from DynamoDB types.
+ZIO DynamoDB derives a codec from the schema. Where possible it maps a Scala type to the matching native DynamoDB type, so a Scala `Map` becomes a DynamoDB map and a `Set[String]` a DynamoDB string set. The [ZIO DynamoDB JSON](../../zio-dynamodb-json.md) module shows the encoding in the JSON format of the AWS Console:
 
-All standard Scala types are supported by the codecs, as well as nested case classes and collections. Note that where 
-possible Scala types are mapped to corresponding DynamoDB types, for example Scala `Map`'s and `Set`'s are mapped to 
-native DynamoDB types.
+```scala mdoc
+val person = Person("email", Map("sports" -> List("cricket", "football")), Instant.parse("2024-12-05T06:44:49Z"))
 
-Scala Scalar Types | Native DynamoDB Type | Notes
-------------|----------------------|--------------
-`Unit`              | `NULL`                    
-`String`            | `S`                    
-Numeric Types       | `N`                    
-`Collection[byte]`  | `B`                    | Any Scala collection type of byte is serialized to a DynamoDB binary type 
-`Boolean`           | `BOOL`                 
-`java.time.*`       | `S`                    | There is no native date/time support. Instant is serialized to a string in ISO-8601 format
-`java.util.UUID`    | `S`                    | There is no native `UUID` support
-`java.util.Currency`| `S`                   | There is no native `Currency` support
-
-Note in the below table that types `A`, `K` and `V` can be collections or case classes as well as scalar types.
-
-Scala Collection Types | Native DynamoDB Type | Notes
-------------|----------------------|--------------
-`Option[A]`           |                      | `Some`/`None` are represented by the presence and the absence of the field in the DynamoDB item respectively.
-`List[A]`             | `L`                    |
-`Set[String]`         | `SS`                   |  Note that native Set types (`SS`, `NS`, `BS`) do not allow empty values - they are represented by the absence of the field in the DynamoDB item. However ZIO DynamoDB will automatically convert these missing values to empty Scala Sets.   
-`Set` of numeric type | `NS`                   |
-`Set` of binary type  | `BS`                   |
-`Set[A]` of other type| `L`                    | If type is not a string or a numeric then a list is used
-`Map[String, A]`      | `M`                    | if key type is a string then a native Map is used
-`Map[K, V]`           | `L`                    | otherwise a list of tuple of key value pair is used
-
-**Scala Either Type encoding**
-
-The default encoding for the Scala `Either` type is an AttributeValue Map with a single key of `Left` or `Right` and the value being the encoded value eg for `Either[String, Int]`, a Left value would be:
-```json
-  "someField" : {
-    "Left" : {
-      "S" : "Error"
-    }
-  }, 
-```
-If you wanted a flatter "union" type encoding this can be achieved by specifying a transformation from a `Schema.Fallback` in implicit scope eg adding the following to the companion object of the case class:
-```scala
-implicit def fallbackEither[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): Schema[Either[A, B]] =
-      Schema.Fallback(schemaA, schemaB).transform(_.toEither, Fallback.fromEither)
-```      
-Please see the integration suite [TypeSafeApiCrudSpec.scala](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala) for an example.
-
-**Visualising DynamoDB Encodings**
-
-Note during model development you can use the optional `zio-dynamodb-json` module to view the DynamoDB types generated by the codecs.
-eg for the above example:
-
-```scala
-import zio.dynamodb.json._
-val person = Person("email", Map("sports" -> List("cricket", "football")), Instant.now)
 println(person.toJsonStringPretty[Person])
 ```
-...would print the following which is representation of the native DynamoDB types and data in a standard JSON format used in AWS console views:
-```json
-{
-  "registrationDate" : {
-    "S" : "2024-12-05T05:47:46.300286Z"
-  },
-  "hobbies" : {
-    "sports" : {
-      "L" : [
-        {
-          "S" : "cricket"
-        },
-        {
-          "S" : "football"
-        }
-      ]
-    }
-  },
-  "email" : {
-    "S" : "email"
-  }
+
+## Scalar Types
+
+Scalar Scala types map to these DynamoDB types:
+
+| Scala type                                             | DynamoDB type | Notes                                                                            |
+| ------------------------------------------------------ | ------------- | -------------------------------------------------------------------------------- |
+| `Unit`                                                 | `NULL`        |                                                                                  |
+| `String`                                               | `S`           |                                                                                  |
+| Numeric types (`Int`, `Long`, `BigDecimal`, ...)       | `N`           |                                                                                  |
+| `Boolean`                                              | `BOOL`        |                                                                                  |
+| A collection of `Byte` (`Chunk[Byte]`, `List[Byte]`, ...) | `B`        | Binary.                                                                          |
+| `java.time.*`                                          | `S`           | DynamoDB has no date type; values are stored as ISO-8601 strings.               |
+| `java.util.UUID`                                       | `S`           | DynamoDB has no UUID type.                                                       |
+| `java.util.Currency`                                   | `S`           | DynamoDB has no currency type.                                                   |
+
+## Collection Types
+
+In the table below, `A`, `K` and `V` can be scalar types, collections or case classes:
+
+| Scala type               | DynamoDB type | Notes                                                                                     |
+| ------------------------ | ------------- | ----------------------------------------------------------------------------------------- |
+| `Option[A]`              |               | `Some` is stored as the value; `None` as the absence of the attribute.                   |
+| `List[A]`, `Chunk[A]`    | `L`           |                                                                                           |
+| `Set[String]`            | `SS`          |                                                                                           |
+| `Set` of a numeric type  | `NS`          |                                                                                           |
+| `Set` of binary          | `BS`          |                                                                                           |
+| `Set[A]` of another type | `L`           | DynamoDB sets only hold strings, numbers and binary values.                               |
+| `Map[String, A]`         | `M`           |                                                                                           |
+| `Map[K, V]`              | `L`           | Other key types are stored as a list of key-value pairs.                                  |
+
+DynamoDB sets cannot be empty, so an empty `Set` is stored as the absence of the attribute. When decoding, a missing attribute whose field is an `Option`, a `List`, a `Chunk`, a `Map` or a `Set` becomes `None` or the empty collection; a missing attribute whose field has any other type is a `DecodingError`. This lets us add collection fields to a model without migrating existing items:
+
+```scala mdoc
+case class Profile(email: String, tags: Set[String], scores: List[Int], links: Map[String, String])
+object Profile {
+  implicit val schema: Schema.CaseClass4[String, Set[String], List[Int], Map[String, String], Profile] =
+    DeriveSchema.gen[Profile]
 }
+
+parse[Profile]("""{ "email": { "S": "a@b.com" } }""")
 ```
 
-For more information about using the `zio-dynamodb-json` module please see the [ZIO DynamoDB Json](reference/zio-dynamodb-json.md) reference page.
+## Either
 
-For more information about customising data mappings please see the [Codec Customization](guides/codec-customization.md) guide.
+By default a Scala `Either` is stored as a map with a single key, `Left` or `Right`, holding the encoded value:
 
+```scala mdoc
+case class Result(value: Either[String, Int])
+object Result {
+  implicit val schema: Schema.CaseClass1[Either[String, Int], Result] = DeriveSchema.gen[Result]
+}
 
+println(Result(Left("error")).toJsonString[Result])
+```
 
+For a flatter, "union"-style encoding that stores just the value, put a schema for `Either` based on `Schema.Fallback` in implicit scope, for example in the model's companion object. Decoding tries the left schema first, then the right one:
 
+```scala mdoc
+case class FlatResult(value: Either[String, Int])
+object FlatResult {
+  implicit def fallbackEither[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): Schema[Either[A, B]] =
+    Schema.Fallback(schemaA, schemaB).transform(_.toEither, zio.schema.Fallback.fromEither)
 
+  implicit val schema: Schema.CaseClass1[Either[String, Int], FlatResult] = DeriveSchema.gen[FlatResult]
+}
 
+println(FlatResult(Left("error")).toJsonString[FlatResult])
+println(FlatResult(Right(42)).toJsonString[FlatResult])
+```
 
+The [TypeSafeApiCrudSpec](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala) integration test has a complete example.
+
+## Sealed Traits and Annotations
+
+Sealed traits are stored with a discriminator that identifies the subtype. The default encoding, and the ZIO Schema annotations (`@discriminatorName`, `@caseName`, `@fieldName`, `@noDiscriminator`, `@simpleEnum`) that change it, are covered in [How to Customize How Sum Types Are Stored](../../../how-to/customize-sum-type-encoding.md). ZIO Schema's limits on models, and how to work around them, are in [How to Model Data Within ZIO Schema's Limits](../../../how-to/model-data-within-schema-limits.md).
+
+[Field Traversal](field-traversal.md) shows how to address nested fields of a model in expressions.
