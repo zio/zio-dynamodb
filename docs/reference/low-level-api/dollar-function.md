@@ -1,58 +1,50 @@
 ---
 id: dollar-function
-title: "$ and parse functions"
+title: "$ and parse Functions"
 ---
 
-The `$` and `parse` functions are the primary way to create a `ProjectionExpression` in the Low Level API.
+`ProjectionExpression.$` and `ProjectionExpression.parse` create a `ProjectionExpression` from a string in the [AWS DynamoDB document path syntax](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ProjectionExpressions.html). They are the main way to build projection expressions in the Low Level API.
 
-They take a string representation of the attribute path that uses the 
-[standard AWS DynamoDB path expression syntax](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ProjectionExpressions.html)
-and return a `ProjectionExpression`.
+## Parsing a Path
 
-eg
+`ProjectionExpression.parse` returns a `Left` with an error message when the path is invalid, or a `Right` with the projection expression:
 
-```scala
-final case class Person(email: String, hobbies: Map[String, List[String]])
+```scala mdoc
+import zio.dynamodb.ProjectionExpression
 
-val errorOrProjectionExpression: Either[String, ProjectionExpression] = ProjectionExpression.parse("hobbies.sport[0]")
-val projectionExpression: ProjectionExpression = ProjectionExpression.$("hobbies.sport[0]")
+ProjectionExpression.parse("hobbies.sport[0]")
+ProjectionExpression.parse("hobbies.sp$ort")
 ```
 
-The `parse` function takes a string representation of the path expression (that uses standard AWS DynamoDB path expression syntax).
-It returns an `Either` which is a `Left[String]` when the string projection expression is invalid, or a `Right[ProjectionExpression]`
-when the string projection expression valid and successfully parsed.
+`ProjectionExpression.$` is the unsafe version: it returns the projection expression directly and throws an `IllegalStateException` when the path is invalid. A projection expression's `toString` renders it back as a path:
 
-The `$` function is the unsafe version of the `parse` function - if the string projection expression is invalid it throws an `IllegalStateException`. 
+```scala mdoc
+import zio.dynamodb.ProjectionExpression.$
 
-The below table shows the supported path expression syntax:
-
-Expression Syntax | Description
----|---
-`"foo"` | top level element  
-`"foos[0]"` | simple top level list element - indexes are zero based  
-`"foo.bar"` | addressing a map element inside a top level element  
-`"foo_bar"` | underscores are valid
-`"foo-bar"` | hyphens are valid
-&#96`foo.bar`&#96 | special characters such as "dot" need to be escaped with backticks. Here we have an attribute name that contains a special character. 
-
-After the expression is parsed into a `ProjectionExpression`, at execution time the AWS API [Expression Attributes Names](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html) and 
-[Expression Attributes Values](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeValues.html)
-maps are used to escape all path elements safely when required. 
-
-## Low level representation of `ProjectionExpression`
-
-For those who are interested the below code snippet shows the slightly simplified version of the `ProjectionExpression` implementation:
-
-```scala
-sealed trait ProjectionExpression
-object ProjectionExpression {
-  final case object Root extends ProjectionExpression
-  final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
-  final case class MapElement(parent: ProjectionExpression, key: String) extends ProjectionExpression
-}
-
-val projectionExpression: ProjectionExpression = ProjectionExpression.$("hobbies.sport[0]")
-println(projectionExpression) // ListElement(MapElement(MapElement(Root, "hobbies"), "sport"), 0)
+$("hobbies.sport[0]").toString
 ```
 
-Note that top level elements are represented as `MapElement(Root, <ELEMENT_NAME>)`.
+Both functions return an untyped projection expression (its value type is `ProjectionExpression.Unknown`), so any value can be compared with it or assigned to it.
+
+## Path Syntax
+
+The parser supports this subset of the DynamoDB path syntax:
+
+| Expression syntax | Description                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
+| `"foo"`           | A top-level attribute.                                                      |
+| `"foos[0]"`       | An element of a top-level list; indexes start at zero.                      |
+| `"foo.bar"`       | An element of a map inside a top-level attribute.                           |
+| `"foo_bar"`       | Underscores are valid in names.                                             |
+| `"foo-bar"`       | Hyphens are valid in names.                                                 |
+| ``"`foo.bar`"``   | Other special characters, such as a dot, need backticks around the name.   |
+
+When a query runs, every path element is replaced by an [expression attribute name](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html) and every value by an [expression attribute value](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeValues.html), so names that clash with DynamoDB reserved words need no escaping.
+
+## Extending a Path
+
+An untyped projection expression can be extended with `apply`: a `String` argument selects a map element and an `Int` argument selects a list element:
+
+```scala mdoc
+$("hobbies")("sport")(0).toString
+```
