@@ -1,5 +1,5 @@
 ---
-id: codec-customization
+id: customize-sum-type-encoding
 title: "Codec Customization"
 ---
 

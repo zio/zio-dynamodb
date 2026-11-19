@@ -1,5 +1,5 @@
 ---
-id: future-interop
+id: use-from-future-code
 title: "Future Interop"
 ---
 

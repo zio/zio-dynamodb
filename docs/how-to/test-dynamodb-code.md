@@ -1,5 +1,5 @@
 ---
-id: testing
+id: test-dynamodb-code
 title: "Testing ZIO DynamoDB Applications"
 ---
 

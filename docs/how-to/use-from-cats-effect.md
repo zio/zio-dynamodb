@@ -1,5 +1,5 @@
 ---
-id: ce-interop
+id: use-from-cats-effect
 title: "Cats Effect Interop"
 ---
 

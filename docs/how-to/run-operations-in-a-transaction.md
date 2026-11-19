@@ -1,5 +1,5 @@
 ---
-id: transactions
+id: run-operations-in-a-transaction
 title: "DynamoDB Transactions"
 ---
 

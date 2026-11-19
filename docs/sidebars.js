@@ -1,107 +1,94 @@
 const sidebars = {
   sidebar: [
+    "index",
+    "getting-started",
     {
       type: "category",
-      label: "ZIO DynamoDB",
+      label: "Concepts",
       collapsed: false,
-      link: { type: "doc", id: "index" },
       items: [
-        // Concepts
+        "concepts/architecture",
+        "concepts/high-level-api",
+        "concepts/low-level-api",
+      ],
+    },
+    {
+      type: "category",
+      label: "Reference",
+      collapsed: false,
+      items: [
+        "reference/cheat-sheet",
+        "reference/dynamodb-query",
         {
           type: "category",
+          label: "High Level API",
           collapsed: false,
-          label: "Concepts",
-          items: [
-            "concepts/architecture",
-            "concepts/high-level-api",
-            "concepts/low-level-api",
-          ],
-
-        },
-        // Guides
-        {
-          type: "category",
-          collapsed: false,
-          label: "Guides",
-          items: [
-            "guides/getting-started",
-            "guides/cheat-sheet",
-            "guides/data-modelling",
-            "guides/codec-customization",
-            "guides/transactions",
-            "guides/testing",
-            "guides/ce-interop",
-            "guides/future-interop",
-          ]
-        },
-        // Reference
-        {
-          type: "category",
-          collapsed: false,
-          label: "Reference",
+          link: { type: "doc", id: "reference/high-level-api/index" },
           items: [
             {
               type: "category",
-              label: "High Level API",
-              collapsed: true,
-              link: { type: "doc", id: "reference/hi-level-api/index" },
-              items: [
-                {
-                  type: "category",
-                  label: "Creating Models",
-                  collapsed: true,
-                  link: { type: "doc", id: "reference/hi-level-api/creating-models/index" },
-                  items: [
-                    "reference/hi-level-api/creating-models/field-traversal",
-                  ]
-                },
-                {
-                  type: "category",
-                  label: "CRUD Operations",
-                  collapsed: true,
-                  link: { type: "doc", id: "reference/hi-level-api/crud-operations/index" },
-                  items: [
-                    "reference/hi-level-api/crud-operations/put",
-                    "reference/hi-level-api/crud-operations/get",
-                    "reference/hi-level-api/crud-operations/update",
-                    "reference/hi-level-api/crud-operations/delete",
-                  ]
-                },
-                {
-                  type: "category",
-                  label: "Scan and Query Operations",
-                  collapsed: true,
-                  link: { type: "doc", id: "reference/hi-level-api/scan-and-query-operations/index" },
-                  items: [
-                    "reference/hi-level-api/scan-and-query-operations/scan-all",
-                    "reference/hi-level-api/scan-and-query-operations/scan-some",
-                    "reference/hi-level-api/scan-and-query-operations/query-all",
-                    "reference/hi-level-api/scan-and-query-operations/query-some",
-                  ]
-                },
-                "reference/hi-level-api/primary-keys",
-              ]
-            },
-            {
-              type: "category",
-              label: "Low Level API",
+              label: "Creating Models",
               collapsed: false,
-              link: { type: "doc", id: "reference/low-level-api/index" },
-              items: [
-                "reference/low-level-api/attribute-value",
-                "reference/low-level-api/dollar-function",
-              ]
+              link: { type: "doc", id: "reference/high-level-api/creating-models/index" },
+              items: ["reference/high-level-api/creating-models/field-traversal"],
             },
-            "reference/dynamodb-query",
-            "reference/projection-expression",
-            "reference/error-handling",
-            "reference/auto-batching-and-parallelisation",
-            "reference/zio-dynamodb-json",
-          ]
-        }
-      ]
-    }
-  ]
+            {
+              type: "category",
+              label: "CRUD Operations",
+              collapsed: false,
+              link: { type: "doc", id: "reference/high-level-api/crud-operations/index" },
+              items: [
+                "reference/high-level-api/crud-operations/put",
+                "reference/high-level-api/crud-operations/get",
+                "reference/high-level-api/crud-operations/update",
+                "reference/high-level-api/crud-operations/delete",
+              ],
+            },
+            {
+              type: "category",
+              label: "Scan and Query Operations",
+              collapsed: false,
+              link: { type: "doc", id: "reference/high-level-api/scan-and-query-operations/index" },
+              items: [
+                "reference/high-level-api/scan-and-query-operations/scan-all",
+                "reference/high-level-api/scan-and-query-operations/scan-some",
+                "reference/high-level-api/scan-and-query-operations/query-all",
+                "reference/high-level-api/scan-and-query-operations/query-some",
+              ],
+            },
+            "reference/high-level-api/primary-keys",
+          ],
+        },
+        {
+          type: "category",
+          label: "Low Level API",
+          collapsed: false,
+          link: { type: "doc", id: "reference/low-level-api/index" },
+          items: [
+            "reference/low-level-api/attribute-value",
+            "reference/low-level-api/dollar-function",
+          ],
+        },
+        "reference/projection-expression",
+        "reference/error-handling",
+        "reference/auto-batching-and-parallelisation",
+        "reference/zio-dynamodb-json",
+      ],
+    },
+    {
+      type: "category",
+      label: "How-to Guides",
+      collapsed: true,
+      items: [
+        "how-to/customize-sum-type-encoding",
+        "how-to/model-data-within-schema-limits",
+        "how-to/run-operations-in-a-transaction",
+        "how-to/test-dynamodb-code",
+        "how-to/use-from-cats-effect",
+        "how-to/use-from-future-code",
+      ],
+    },
+  ],
 };
 
 module.exports = sidebars;
