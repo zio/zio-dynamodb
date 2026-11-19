@@ -139,14 +139,28 @@ The fake keys every table on its partition key only. A `DynamoDBQuery.put` store
 
 ## Using It With ZIO Test
 
-A test body is an ordinary effect that needs a `DynamoDBExecutor`. To check that a saved person loads back unchanged:
+In a ZIO Test spec, `Spec#provide` gives each test its own in-memory database, so every test starts with empty tables. To check that a saved person loads back unchanged, and that a missing one is reported as missing:
 
 ```scala mdoc:compile-only
-val savesAndLoads: ZIO[DynamoDBExecutor, DynamoDBError, Boolean] =
-  for {
-    _     <- DynamoDBQuery.put("people", Person("1", "Ann")).execute
-    found <- DynamoDBQuery.get("people")(Person.id.partitionKey === "1").execute.absolve
-  } yield found == Person("1", "Ann")
+import zio.dynamodb.syntax._
+import zio.test._
+
+object PeopleSpec extends ZIOSpecDefault {
+  def spec =
+    suite("people table")(
+      test("saves and loads a person") {
+        for {
+          _     <- DynamoDBQuery.put("people", Person("1", "Ann")).execute
+          found <- DynamoDBQuery.get("people")(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(found == Person("1", "Ann"))
+      },
+      test("reports a missing person") {
+        for {
+          found <- DynamoDBQuery.get("people")(Person.id.partitionKey === "2").execute.maybeFound
+        } yield assertTrue(found.isEmpty)
+      }
+    ).provide(DynamoDBExecutor.test("people" -> "id"))
+}
 ```
 
-In a ZIO Test spec, the same `for` comprehension ends in `assertTrue(found == Person("1", "Ann"))` inside `test("saves and loads a person") { ... }`, and the suite gets the in-memory database with `suite("PeopleRepository")(...).provide(DynamoDBExecutor.test("people" -> "id"))`. `Spec#provide` builds a fresh layer for each test, so every test starts with empty tables. To share one in-memory database across the tests of a suite, use `Spec#provideShared` instead.
+To share one in-memory database across the tests of a suite, use `Spec#provideShared` instead.
