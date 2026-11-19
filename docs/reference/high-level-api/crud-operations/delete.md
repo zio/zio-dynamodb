@@ -35,7 +35,7 @@ val delete: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
 
 ## Options
 
-These options apply to `deleteFrom`:
+These options apply to `DynamoDBQuery.deleteFrom`:
 
 ```scala
 <DELETE_QUERY>

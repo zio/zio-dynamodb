@@ -15,7 +15,7 @@ sealed trait DynamoDBQuery[-In, +Out] {
 }
 ```
 
-The effect needs a `DynamoDBExecutor` in its environment (see [DynamoDBExecutor](dynamodb-executor.md)) and fails with a [`DynamoDBError`](error-handling.md). When we run a query, `execute`:
+The effect needs a `DynamoDBExecutor` in its environment (see [DynamoDBExecutor](dynamodb-executor.md)) and fails with a [`DynamoDBError`](error-handling.md). When we run a query, `DynamoDBQuery#execute`:
 
 - Splits a composite query (built with `zip` or `batch`) into its parts, then batches the parts that DynamoDB can batch and runs the others in parallel; see [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md) for the rules.
 - Hands each request to the `DynamoDBExecutor`, which converts it to a ZIO AWS request, sends it, and converts the response back to an `Item`.

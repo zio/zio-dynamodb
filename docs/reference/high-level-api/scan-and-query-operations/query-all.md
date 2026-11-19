@@ -42,7 +42,7 @@ val recent: ZIO[DynamoDBExecutor, Throwable, Chunk[Equipment]] =
 
 ## Options
 
-These options apply to `queryAll`:
+These options apply to `DynamoDBQuery.queryAll`:
 
 ```scala
 <QUERY_ALL_QUERY>

@@ -88,7 +88,7 @@ The program shows the three ideas we use everywhere in ZIO DynamoDB:
 - `DynamoDBQuery.put`, `DynamoDBQuery.get` and `DynamoDBQuery.createTable` only describe requests. `DynamoDBQuery#execute` turns each one into a ZIO effect that needs a `DynamoDBExecutor`.
 - `DynamoDBExecutor.live` builds the executor from a ZIO AWS `DynamoDb` client. Pointing that client at real AWS instead of DynamoDB Local only changes the `dynamoDbLocal` layer; see [How to Connect to DynamoDB Local or Customise the AWS Client](how-to/connect-to-dynamodb-local.md).
 
-`get` returns an `Either` that is `Left` when the item is missing or cannot be decoded; `maybeFound` (from `zio.dynamodb.syntax._`) turns a missing item into `None`.
+`DynamoDBQuery.get` returns an `Either` that is `Left` when the item is missing or cannot be decoded; `maybeFound` (from `zio.dynamodb.syntax._`) turns a missing item into `None`.
 
 When we are done, we stop DynamoDB Local:
 

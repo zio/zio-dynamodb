@@ -13,6 +13,8 @@ The High Level API mirrors DynamoDB's [Scan](https://docs.aws.amazon.com/amazond
 | `queryAll`  | `Stream[Throwable, A]` of matching items    | Processing every item of a partition as a stream.                   |
 | `querySome` | One page: `(Chunk[A], LastEvaluatedKey)`    | Paging through a partition.                                         |
 
+Their signatures are:
+
 ```scala
 object DynamoDBQuery {
   def scanAll[A: Schema](tableName: String): DynamoDBQuery[A, Stream[Throwable, A]]

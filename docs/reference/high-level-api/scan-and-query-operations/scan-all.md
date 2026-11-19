@@ -62,7 +62,7 @@ val all: ZIO[DynamoDBExecutor, Throwable, Long] =
 
 ## Options
 
-These options apply to `scanAll`:
+These options apply to `DynamoDBQuery.scanAll`:
 
 ```scala
 <SCAN_ALL_QUERY>

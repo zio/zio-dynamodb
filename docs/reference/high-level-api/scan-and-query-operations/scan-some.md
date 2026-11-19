@@ -42,7 +42,7 @@ With a filter, DynamoDB applies `limit` before filtering, so a page can hold few
 
 ## Options
 
-These options apply to `scanSome`:
+These options apply to `DynamoDBQuery.scanSome`:
 
 ```scala
 <SCAN_SOME_QUERY>

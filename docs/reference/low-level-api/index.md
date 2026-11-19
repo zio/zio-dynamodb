@@ -23,7 +23,7 @@ object DynamoDBQuery {
 }
 ```
 
-`getItem` returns `None` when no item has the key. `scanSomeItem` and `querySomeItem` return one page of at most `limit` items and the key to continue from; `scanAllItem` and `queryAllItem` return a stream of every item. With no projections, every attribute is returned.
+`DynamoDBQuery.getItem` returns `None` when no item has the key. `DynamoDBQuery.scanSomeItem` and `DynamoDBQuery.querySomeItem` return one page of at most `limit` items and the key to continue from; `DynamoDBQuery.scanAllItem` and `DynamoDBQuery.queryAllItem` return a stream of every item. With no projections, every attribute is returned.
 
 The program below uses each kind of operation, with expressions built from `$`:
 

@@ -42,7 +42,7 @@ Comparing `Person.id` with a number, or combining a `Person` condition with a co
 
 ## DynamoDBQuery CRUD Methods
 
-The `DynamoDBQuery` companion object has type-safe query constructors such as `put`, `get`, `update`, `deleteFrom`, `scanAll` and `queryAll`, and they take the expressions above as arguments. Together they give us type-safe CRUD queries:
+The `DynamoDBQuery` companion object has type-safe query constructors such as `DynamoDBQuery.put`, `DynamoDBQuery.get`, `DynamoDBQuery.update`, `DynamoDBQuery.deleteFrom`, `DynamoDBQuery.scanAll` and `DynamoDBQuery.queryAll`, and they take the expressions above as arguments. Together they give us type-safe CRUD queries:
 
 ```scala mdoc:compile-only
 import zio._

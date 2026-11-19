@@ -43,7 +43,7 @@ val firstTwoPages: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[Equipment]] = {
 
 ## Options
 
-These options apply to `querySome`:
+These options apply to `DynamoDBQuery.querySome`:
 
 ```scala
 <QUERY_SOME_QUERY>

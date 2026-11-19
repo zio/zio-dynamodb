@@ -72,7 +72,7 @@ val actions: UpdateExpression.Action[Person] =
 
 ## Options
 
-These options apply to `update`:
+These options apply to `DynamoDBQuery.update`:
 
 ```scala
 <UPDATE_QUERY>

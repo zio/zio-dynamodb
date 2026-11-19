@@ -4,7 +4,7 @@ title: "High Level API"
 sidebar_label: "High Level API"
 ---
 
-The High Level API constructors live in the `DynamoDBQuery` companion object. They read and write values of our own types, so they need an implicit ZIO `Schema` for the type, usually derived with `DeriveSchema.gen` in the companion object (see [Creating Models](creating-models/index.md)). ZIO DynamoDB derives the codecs between the type and DynamoDB items from that schema.
+The High Level API constructors live in the `DynamoDBQuery` companion object. They read and write values of our own types, so they need an implicit ZIO `Schema` for the type, usually derived with `DeriveSchema.gen` in the companion object (see [Creating Models](creating-models/index.md)). ZIO DynamoDB derives the codecs between the type and DynamoDB items from that schema. The constructors are:
 
 ```scala
 object DynamoDBQuery {

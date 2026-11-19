@@ -26,14 +26,14 @@ object Person {
 }
 ```
 
-`get` returns an `Either[ItemError, From]`: a `Left(ItemError.ValueNotFound)` when no item has the key, a `Left(ItemError.DecodingError)` when the item does not match the schema, and a `Right` with the value otherwise:
+`DynamoDBQuery.get` returns an `Either[ItemError, From]`: a `Left(ItemError.ValueNotFound)` when no item has the key, a `Left(ItemError.DecodingError)` when the item does not match the schema, and a `Right` with the value otherwise:
 
 ```scala mdoc:compile-only
 val errorOrPerson: ZIO[DynamoDBExecutor, DynamoDBError, Either[DynamoDBError.ItemError, Person]] =
   DynamoDBQuery.get("person")(Person.id.partitionKey === "1").execute
 ```
 
-`get` only reads the attributes that the schema's fields name, so attributes the model does not know about are not transferred.
+`DynamoDBQuery.get` only reads the attributes that the schema's fields name, so attributes the model does not know about are not transferred.
 
 ## Working With get Return Values
 
@@ -55,7 +55,7 @@ val maybePerson: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
 
 ## Options
 
-These options apply to `get`:
+These options apply to `DynamoDBQuery.get`:
 
 ```scala
 <GET_QUERY>

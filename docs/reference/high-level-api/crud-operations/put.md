@@ -28,7 +28,7 @@ object Person {
 
 ## Inserting Only New Items
 
-A `put` replaces an existing item silently. To insert only when no item has the key yet, add a condition with `DynamoDBQuery#where`; when the condition is false the query fails with `DynamoDBError.AWSError` wrapping a `ConditionalCheckFailedException` (see [How to Handle a Failed Conditional Write](../../../how-to/handle-failed-conditional-writes.md)):
+`DynamoDBQuery.put` replaces an existing item silently. To insert only when no item has the key yet, add a condition with `DynamoDBQuery#where`; when the condition is false the query fails with `DynamoDBError.AWSError` wrapping a `ConditionalCheckFailedException` (see [How to Handle a Failed Conditional Write](../../../how-to/handle-failed-conditional-writes.md)):
 
 ```scala mdoc:compile-only
 val insert: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
@@ -40,7 +40,7 @@ val insert: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
 
 ## Options
 
-These options apply to `put`:
+These options apply to `DynamoDBQuery.put`:
 
 ```scala
 <PUT_QUERY>
