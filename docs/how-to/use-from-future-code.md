@@ -17,7 +17,7 @@ In this guide, we use ZIO DynamoDB from an application built on Scala `Future`s,
 
 `DynamoDBQuery#execute` returns a ZIO effect that needs a `DynamoDBExecutor` and an AWS client, both built from ZIO layers. A `Future`-based application has no ZIO runtime to build those layers or run the effect, and it would have to manage the AWS client's lifecycle itself.
 
-The `zio-dynamodb-future` module wraps all of this in one object, `DynamoDBExecutorF`, which owns a ZIO runtime with the executor inside it, and adds an `executeToF` method that runs a query on that runtime and returns a `Future`.
+The `zio-dynamodb-future` module wraps all of this in one object, `DynamoDBExecutorF`, which owns a ZIO runtime with the executor inside it, and adds a `DynamoDBQuery#executeToF` method that runs a query on that runtime and returns a `Future`.
 
 ## Prerequisites
 
@@ -81,7 +81,7 @@ def localExecutor(): DynamoDBExecutorF =
 
 ## Running Queries as Futures
 
-With a `DynamoDBExecutorF` in implicit scope, `executeToF` runs a query and returns a `zio.CancelableFuture`, a `Future` that can also cancel the running query. A failed query fails the `Future` with the `DynamoDBError`.
+With a `DynamoDBExecutorF` in implicit scope, `DynamoDBQuery#executeToF` runs a query and returns a `zio.CancelableFuture`, a `Future` that can also cancel the running query. A failed query fails the `Future` with the `DynamoDBError`.
 
 To create a table, write and read a person, and drop the table:
 
@@ -100,7 +100,7 @@ def program(implicit executor: DynamoDBExecutorF, ec: ExecutionContext): Future[
   } yield ()
 ```
 
-Queries that return a ZIO stream, such as `scanAll`, still return the stream inside the `Future`; use `scanSome` and `querySome` to read pages instead (see [How to Page Through Scan and Query Results](page-through-results.md)).
+Queries that return a ZIO stream, such as `DynamoDBQuery.scanAll`, still return the stream inside the `Future`; use `DynamoDBQuery.scanSome` and `DynamoDBQuery.querySome` to read pages instead (see [How to Page Through Scan and Query Results](page-through-results.md)).
 
 ## Shutting Down
 
