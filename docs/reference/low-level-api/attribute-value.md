@@ -1,80 +1,93 @@
 ---
 id: attribute-value
-title: "AttributeValue"
+title: "AttributeValue and AttrMap"
+sidebar_label: "AttributeValue and AttrMap"
 ---
 
-The sealed trait `AttributeValue` has a one to one correspondence with the concept of an [attribute value in the AWS DDB API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_AttributeValue.html). It has implementations for all the types that are supported by DynamoDB
+`AttributeValue` and `AttrMap` are the data types of the Low Level API: an `AttributeValue` is one DynamoDB value, and an `AttrMap` is a DynamoDB item, a map from attribute names to values.
 
-Internally there are the type classes `ToAttributeValue` and `FromAttribute` to convert between Scala types and `AttributeValue` and vice versa
-whenever these conversions are required. Some example constructors are show below:
+## AttributeValue
 
-```scala
-val s = AttributeValue.String("hello")
-val bool = AttributeValue.Boolean(true)
+The sealed trait `AttributeValue` corresponds one to one to an [attribute value in the AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_AttributeValue.html), with a case for each DynamoDB type (`S`, `N`, `B`, `BOOL`, `NULL`, `L`, `M`, `SS`, `NS`, `BS`). The cases themselves are internal; we create values from Scala values instead.
+
+The type classes `ToAttributeValue` and `FromAttributeValue` convert Scala values to and from `AttributeValue`. They have instances for strings, numbers, booleans, binary data (`Iterable[Byte]`), `Option`, collections, maps with string keys and `AttrMap` itself. `AttributeValue.apply` uses `ToAttributeValue`:
+
+```scala mdoc
+import zio.dynamodb._
+
+AttributeValue("hello")
+AttributeValue(42)
+AttributeValue(Set("a", "b"))
 ```
 
-However, even when working with the Low Level API you would not use these constructors directly, instead you would use the `AttrMap` class (or more likely one of it's type aliases) which is a convenience container for working with `AttributeValue` instances (see next section).
+`AttributeValue.encode` and `AttributeValue#decode` convert a value of any type that has a ZIO Schema, using the same codecs as the High Level API:
 
-# AttrMap
-An `AttrMap` is a convenience container for working an [DDB Item](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html) and _cuts down on boilerplate code when working with the Low Level API_. Conceptually it is a map of field name to AttributeValue `Map[String, AttributeValue]`.
-However rather than requiring you to create an `AttributeValue` instance manually for each field, you can work with literal Scala types and type classes will handle the conversion to `AttributeValue` for you. There are also the the `PrimaryKey` and `Item` type aliases for `AttrMap` for readability as these structures follow the same pattern.
+```scala mdoc
+import zio.schema.{ DeriveSchema, Schema }
 
-Some examples are shown below:
+case class Address(city: String, postcode: String)
+object Address {
+  implicit val schema: Schema.CaseClass2[String, String, Address] = DeriveSchema.gen[Address]
+}
 
-```scala
-val attrMap = AttrMap("id" -> "1", "age" -> 30) 
-val item = Item("id" -> "1", "age" -> 30) // uses Item type alias
-val pk = PrimaryKey("id" -> "1", "count" -> 30) // uses PrimaryKey type alias 
-// AttrMaps can also be nested 
-val item = Item("id" -> "1", "age" -> 30, "address" -> Item("city" -> "London", "postcode" -> "SW1A 1AA")) 
+val encoded = AttributeValue.encode(Address("London", "SW1A 1AA"))
+encoded.decode[Address]
 ```
 
-The example below demonstrate the reduction in boilerplate when compared to working with `AttributeValue` directly:
+You rarely build `AttributeValue`s yourself: `AttrMap` converts the values for us.
 
-```scala
-val attrMap1 = AttrMap("id" -> "1", "age" -> 30) 
-val attrMap2 = Map("id" -> AttributeValue.String("1"), "age" -> AttributeValue.Number(30))
+## AttrMap
+
+An `AttrMap` represents a [DynamoDB item](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html), conceptually a `Map[String, AttributeValue]`. Rather than creating an `AttributeValue` per field, we pass plain Scala values and `ToAttributeValue` converts them. The type aliases `Item` and `PrimaryKey` name the two roles an `AttrMap` plays:
+
+```scala mdoc:silent
+val attrMap = AttrMap("id" -> "1", "age" -> 30)
+val item    = Item("id" -> "1", "age" -> 30, "address" -> Item("city" -> "London", "postcode" -> "SW1A 1AA"))
+val pk      = PrimaryKey("id" -> "1")
 ```
 
-There are also some convenience methods on the `AttrMap` class for accessing fields:
+`AttrMap.empty` is the empty item, and `AttrMap#+` adds one attribute.
+
+### Reading Fields
+
+`AttrMap` has methods that read a field and convert it with `FromAttributeValue`:
 
 ```scala
+final case class AttrMap(map: Map[String, AttributeValue]) {
+  def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A]
+  def getOptional[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]]
 
-  // Field accessors
-
-  def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A] = ???
-
-  def getOptional[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]] = ???
-
-  def getItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, A] = ???
-
-  // methods for accessing fields that are Item's themselves
-
-  def getOptionalItem[A](
-    field: String
-  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[A]] = ???
-
-  def getIterableItem[A](
-    field: String
-  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Iterable[A]] = ???
-
-  def getOptionalIterableItem[A](
-    field: String
-  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[Iterable[A]]] = ???
+  // fields that are items themselves
+  def getItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, A]
+  def getOptionalItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[A]]
+  def getIterableItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, Iterable[A]]
+  def getOptionalIterableItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[Iterable[A]]]
+}
 ```
 
-An example of using AttrMap access methods is shown below:
+`get` returns a `DecodingError` when the field is missing or has the wrong type. `getOptional` returns `None` in both cases, so it cannot tell a missing field from a malformed one.
 
-```scala
-val attrMap                                = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
-val either: Either[ItemError, Option[Foo]] = for {
-  maybeFoo <- attrMap.getOptionalItem("f1") { m =>
-           for {
-             s <- m.get[String]("f2")
-             o <- m.getOptional[String]("f3")
-           } yield Foo(s, o)
-         }
-  } yield maybeFoo
+To decode a nested item with an optional field:
+
+```scala mdoc
+case class Foo(s: String, o: Option[String])
+
+val nested = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
+
+nested.getOptionalItem("f1") { m =>
+  for {
+    s <- m.get[String]("f2")
+    o <- m.getOptional[String]("f3")
+  } yield Foo(s, o)
+}
 ```
 
+### Decoding a Whole Item
 
+`AttrMap#as` reads two to 22 fields and passes them to a function, which is a compact way to decode an item into a case class by hand:
+
+```scala mdoc
+case class Person(id: String, age: Int)
+
+attrMap.as[String, Int, Person]("id", "age")(Person.apply)
+```
