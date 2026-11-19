@@ -5,7 +5,7 @@ title: "Field Traversal"
 
 DynamoDB lets expressions reach into nested structures with [document paths](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.Attributes.html#Expressions.Attributes.NestedElements). The High Level API does the same in a type-safe way: it starts from the projection expressions that `ProjectionExpression.accessors` generates (through ZIO Schema's reified optics) and extends them with traversal combinators.
 
-The examples use a model with a map of lists, `hobbies`, and a nested case class, `address`. Case classes can also be elements of collections:
+The examples use a model with a map of lists, `hobbies`, and a nested case class, `address`:
 
 ```scala mdoc:silent
 import zio._
