@@ -3,76 +3,73 @@ id: projection-expression
 title: "ProjectionExpression"
 ---
 
-The `ProjectionExpression` API is common to both the Type Safe High Level API (with the exception the primary keys API) 
-and the Low Level API - however the way one is constructed is different.
+A `ProjectionExpression[-From, +To]` is a path to an attribute inside an item of type `From`, whose value has type `To`. It names attributes in [projection expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ProjectionExpressions.html), and it is the starting point for condition, update and key expressions. The High Level and the Low Level API share it, but build it differently.
 
-**High Level API construction**
+## Construction
 
-```scala
-final case class Person(id: String, group: String name: String)
+The High Level API generates typed projection expressions from a model's schema with `ProjectionExpression.accessors`:
+
+```scala mdoc:silent
+import zio.dynamodb._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Person(id: String, group: String, name: String)
 object Person {
   implicit val schema: Schema.CaseClass3[String, String, String, Person] = DeriveSchema.gen[Person]
-  
-  // id and name are ProjectionExpressions
+
+  // id, group and name are ProjectionExpression[Person, String]
   val (id, group, name) = ProjectionExpression.accessors[Person]
 }
 ```
 
-**Low Level API construction**
+The Low Level API parses a path string with `ProjectionExpression.$`, which returns a `ProjectionExpression[Any, ProjectionExpression.Unknown]`:
 
-```scala
-// id and name are ProjectionExpressions
-val id = ProjectionExpression.$("id")
-val name = ProjectionExpression.$("name")
-```
-For more details see [$ and Parse functions](low-level-api/dollar-function) section
+```scala mdoc:silent
+import zio.dynamodb.ProjectionExpression.$
 
-**Type Safety**
-
-The other notable difference is that High Level API is totally type safe and many subtle errors are caught at compile time:
-
-```scala
-Person.id === 1 // will not compile
-Person.id === "1" && Person.name === 2 // will not compile
-Person.id === "1" && Employee.name === "2" // will not compile
-
-ProjectionExpression.$("name") === 1 // will compile!
+val id   = $("id")
+val name = $("name")
 ```
 
-### `ProjectionExpression` API Summary
+See [$ and parse Functions](low-level-api/dollar-function.md) for the path syntax, and [Field Traversal](high-level-api/creating-models/field-traversal.md) for navigating into nested fields, maps and lists with `>>>`, `valueAt` and `elementAt`.
 
-Once we have a `ProjectionExpression` we can use it as a springboard to create further expressions such as 
-`ConditionExpression`, `UpdateExpression` and `PrimaryKeyExpression`:
+## Type Safety
 
- Category                                                    | Method               | Description
--------------------------------------------------------------|----------------------|---
- Primary Keys (High Level API only)                          | `partitionKey`       | `Person.id.partitionKey === "1"`
- <br/><br/>            | `sortKey`            | `Person.id.partitionKey === "1" && Person.group.sortKey === "2"`
-`ConditionExpression` / `FilterExpression` | `===`                | Equality
- <br/><br/>            | `<>`                 | Inequality
- <br/><br/>            | `>`                  | Greater than
- <br/><br/>            | `>=`                 | Greater than or equal
- <br/><br/>            | `<`                  | Less than
- <br/><br/>            | `<=`                 | Less than or equal
- <br/><br/>            | `exists`             | returns true if the attribute exists
- <br/><br/>            | `notExists`          | returns true if the attribute does not exists
- <br/><br/>            | `size`               | returns size of attribute. Applies to all types except Number and Boolean
- <br/><br/>            | `isXXXX`             | There is a function per type eg `isBinary` - returns true if the attribute is of the specified type
- <br/><br/>            | `between(from, to)`  | returns true if the attribute is between the supplied values, inclusive
- <br/><br/>            | `beginsWith`         | Only applies to string attributes
- <br/><br/>            | `inSet`              | returns true if the attribute is in the supplied set
- <br/><br/>            | `in(a, b, c ...)`    | returns true if the attribute matches one of the supplied values
-<br/><br/>            | `contains`           | returns true if the attribute contains the supplied value - applies to a String, Set, List
-<br/><br/>            | `containsSet`        | returns true if the attribute contains the supplied set - applies to a String, Set, List. Creates a composite condition expression consisting of multiple `contains` expressions joined by an `and`
-`UpdateExpression`| `+`                  | combines update actions eg `Person.name.set(42) + Person.age.set(42)`  
-<br/><br/>            | `set`                | Set an attribute `Person.name.set("John")`                                                                         
-<br/><br/>            | `setIfNotExists`     | Set attribute if it does not exists `Person.name.setIfNotExists("John")`                                           
-<br/><br/>            | `appendList`         | Add supplied list to the end of this list attribute                                                                
-<br/><br/>            | `prepend`            | Prepend an element to a list attribute                                                                             
-<br/><br/>            | `prependList`        | Prepend a list to list attribute                                                                                   
-<br/><br/>            | `deleteFromSet`      | delete all elements that match the supplied set                                                                    
-<br/><br/>            | `add(a: To)`         | adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute 
-<br/><br/>            | `addSet`             | Adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set             
-<br/><br/>            | `remove(index: Int)` | remove an element at the specified index                                                                           
-<br/><br/>            | `remove`             | Removes this path expression from an item                                                                          
+Typed projection expressions catch many mistakes at compile time. Each of these lines fails to compile:
 
+```scala
+Person.id === 1                             // id is a String
+Person.id === "1" && Person.name === 2      // name is a String
+Person.id === "1" && Employee.name === "2"  // conditions on two different models
+```
+
+An untyped projection expression accepts any value, so the same mistake compiles and only fails at runtime:
+
+```scala mdoc:silent
+val compilesButWrong = $("name") === 1
+```
+
+## API Summary
+
+These methods build the other expression types from a projection expression. Each group has its own reference page:
+
+| Category                                | Methods                                                                                                                         | Reference                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Primary keys                            | `partitionKey`, `sortKey`                                                                                                       | [Primary Keys](high-level-api/primary-keys.md)                                |
+| Condition and filter expressions        | `===`, `<>`, `<`, `<=`, `>`, `>=`, `between`, `in`, `inSet`, `beginsWith`, `contains`, `containsSet`, `exists`, `notExists`, `size`, `isBinary` and the other type checks | [Condition and Filter Expressions](condition-expressions.md)                  |
+| Update actions                          | `set`, `setIfNotExists`, `append`, `appendList`, `prepend`, `prependList`, `add`, `addSet`, `deleteFromSet`, `remove`           | [update](high-level-api/crud-operations/update.md#update-actions)            |
+| Traversal                               | `>>>`, `valueAt`, `elementAt`, `some`                                                                                           | [Field Traversal](high-level-api/creating-models/field-traversal.md)          |
+
+Every comparison also accepts another projection expression of the same type, which compares two attributes of the same item:
+
+```scala mdoc:silent
+val sameGroupAndName: ConditionExpression[Person] = Person.group === Person.name
+```
+
+## Converting Between Typed and Untyped Expressions
+
+You rarely need these; they are escape hatches for mixing the two APIs. `ProjectionExpression#unsafeTo[To2]` gives an untyped expression a value type, `ProjectionExpression#unsafeFrom[From2]` gives any expression a different item type, and `ProjectionExpression.$$[From, To](path)` parses a path straight into a typed expression. None of them is checked, so a wrong type fails at runtime:
+
+```scala mdoc:silent
+val typedName: ProjectionExpression[Person, String] = $("name").unsafeTo[String].unsafeFrom[Person]
+```
