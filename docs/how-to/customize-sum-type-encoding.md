@@ -1,124 +1,195 @@
 ---
 id: customize-sum-type-encoding
-title: "Codec Customization"
+title: "How to Customize How Sum Types Are Stored"
+sidebar_label: "Customize Sum Type Encoding"
+description: "Control how sealed traits and their cases are stored in DynamoDB with the ZIO Schema annotations discriminatorName, caseName, fieldName and noDiscriminator."
+keywords:
+  - "Codec Customization"
+  - "Sum Types"
+  - "Sealed Trait Encoding"
+  - "discriminatorName"
+  - "noDiscriminator"
 ---
 
-## Sealed trait members that are case classes
+In this guide, we choose how ZIO DynamoDB stores a sealed trait and its cases. By the end, you will know the default encoding, how to switch to a flat encoding with a discriminator field, how to rename cases and fields, and how to read data written without any discriminator.
+
+We look at the default encoding first, then change it step by step with annotations, and finish with recommendations for new tables.
+
+## The Problem
+
+The High Level API derives a codec for every model from its ZIO Schema, and for a sealed trait it needs some way to record which case an item holds. The default choice nests the case inside an extra map keyed by the case's class name. That works, but the data may need a different shape: an existing table may already store a type field next to the other attributes, a name may need to differ from the Scala class name, or a top-level sealed trait needs its partition key at the top of the item, where the default nesting cannot put it.
+
+Writing such codecs by hand would mean converting every case to and from `AttributeValue` ourselves. Instead, we annotate the model and let the derived codec follow the annotations.
+
+## Prerequisites
+
+The annotations are ZIO Schema's, from `zio.schema.annotation._`; ZIO DynamoDB's codecs read them. To see the stored form, we use the optional `zio-dynamodb-json` module, whose `toJsonString` renders a value with its DynamoDB types (see [ZIO DynamoDB JSON Module](../reference/zio-dynamodb-json.md)):
 
 ```scala
-sealed trait TrafficLight
-final case class Green(rgb: Int) extends TrafficLight 
-final case class Red(rgb: Int) extends TrafficLight
-final case class Box(trafficLightColour: TrafficLight)
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb"      % "@VERSION@",
+  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
+)
 ```
 
-The default encoding for `Box(Green(42))` is:
+Every example on this page defines a `TrafficLight` sealed trait and stores it in the `colour` field of a `Box`.
 
-`Map(trafficLightColour -> Map(String(Green) -> Map(String(rgb) -> Number(42))))`
+## The Default Encoding
 
-Here an intermediate map is used to identify the member of `TrafficLight` using the member class name ie `Map(String(Green) -> Map(...))`
+Without annotations, a case class case is stored as a map with a single entry: the key is the case's name and the value is the encoded case class. A `Box(Green(42))` is stored like this:
 
-## Sealed trait members that are case objects
+```scala mdoc:silent:reset
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
 
-```scala
 sealed trait TrafficLight
-case object GREEN extends TrafficLight 
-case object RED extends TrafficLight
-final case class Box(trafficLightColour: TrafficLight)
+case class Green(rgb: Int) extends TrafficLight
+case class Red(rgb: Int)   extends TrafficLight
+
+case class Box(colour: TrafficLight)
+object Box {
+  implicit val schema: Schema[Box] = DeriveSchema.gen[Box]
+}
 ```
 
-The default encoding for `Box(GREEN)` is:
+Rendering a `Box(Green(42))` shows the stored form:
 
-`Map(trafficLightColour -> Map(String(GREEN) -> Null))`
+```scala mdoc
+println(Box(Green(42)).toJsonString)
+```
 
-Here an intermediate map is used to identify the member of `TrafficLight` ie `Map(String(GREEN) -> Null)`
-Note that the `Null` is used as in this case we do not care about the value.
+The extra `"Green"` map identifies the case. When every case of the sealed trait is a case object, ZIO Schema's derivation marks the trait as a simple enum, and each case is stored as a plain string instead:
 
-# Customising encodings via annotations
-Encodings can be customised through the use of the following annotations `@discriminatorName` and `@fieldName`.
-These annotations are useful when working with a legacy DynamoDB database.
+```scala mdoc:silent:reset
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
 
-The `@discriminatorName` encodings does not introduce another map for the purposes of identification but rather adds another 
-discriminator field to the attribute Map.
+sealed trait TrafficLight
+case object GREEN extends TrafficLight
+case object RED   extends TrafficLight
 
-Concrete examples of using the `@discriminatorName` and `@field` annotations can be seen below.
+case class Box(colour: TrafficLight)
+object Box {
+  implicit val schema: Schema[Box] = DeriveSchema.gen[Box]
+}
+```
 
-## Sealed trait members that are case classes
+A `Box(GREEN)` is then stored with a string field:
 
-```scala
+```scala mdoc
+println(Box(GREEN).toJsonString)
+```
+
+## Renaming a Case With caseName
+
+The `@caseName` annotation on a case replaces its class name in the stored data. It works with every encoding on this page except `@noDiscriminator` (described below):
+
+```scala mdoc:silent:reset
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.annotation._
+
+sealed trait TrafficLight
+case object GREEN extends TrafficLight
+@caseName("red_traffic_light")
+case object RED   extends TrafficLight
+
+case class Box(colour: TrafficLight)
+object Box {
+  implicit val schema: Schema[Box] = DeriveSchema.gen[Box]
+}
+```
+
+The renamed case is stored under its new name:
+
+```scala mdoc
+println(Box(RED).toJsonString)
+```
+
+## Storing a Discriminator Field With discriminatorName
+
+The `@discriminatorName` annotation on the sealed trait removes the extra map. The case's fields are stored directly, plus one more field, named by the annotation, whose value is the case's name. `@caseName` changes that value, and `@fieldName` on a case class parameter changes a field's stored name:
+
+```scala mdoc:silent:reset
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.annotation._
+
 @discriminatorName("light_type")
 sealed trait TrafficLight
-final case class Green(rgb: Int) extends TrafficLight
+case class Green(rgb: Int) extends TrafficLight
 @caseName("red_traffic_light")
-final case class Red(rgb: Int) extends TrafficLight
-final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
-final case class Box(trafficLightColour: TrafficLight)
+case class Red(rgb: Int) extends TrafficLight
+case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
+
+case class Box(colour: TrafficLight)
+object Box {
+  implicit val schema: Schema[Box] = DeriveSchema.gen[Box]
+}
 ```
 
-encoding for an instance of `Box(Green(42))` would be:
+The three cases are stored as:
 
-`Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green)))`
-
-We can specify the field name used to identify the case class through the `@discriminatorName` annotation. The discriminator
-encoding removes the intermediate map and inserts a new field with a name specified by discriminator annotation and a
-value that identifies the member which defaults to the class name.
-
-This can be further customised using the `@caseName` annotation - encoding for an instance of `Box(Red(42))` would be:
-
-`Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light)))`
-
-The encoding for case class field names can also be customised via `@fieldName` - encoding for an instance of `Box(Amber(42))` would be:
-
-`Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber)))`
-
-
-## Sealed trait members that are all case objects
-
-```scala
-sealed trait TrafficLight
-case object GREEN extends TrafficLight 
-@caseName("red_traffic_light")
-case object RED extends TrafficLight
-final case class Box(trafficLightColour: TrafficLight)
+```scala mdoc
+println(Box(Green(42)).toJsonString)
+println(Box(Red(42)).toJsonString)
+println(Box(Amber(42)).toJsonString)
 ```
 
-We can get a more compact and intuitive encoding of trait members that are case objects by using the `@simpleEnum`
-annotation which encodes to just a value that is the member name. This annotation doesn't need to be added explicitly 
-since this is done by the ZIO Schema macro automatically.
-Encoding for an instance of `Box(GREEN)` would be:
+This flat form is also the only one that works for a sealed trait stored as a whole item, because the partition key must be a top-level attribute. When we write such an item, we pass the trait as the type parameter, `DynamoDBQuery.put[Invoice](...)`, so the discriminator is written; see [put](../reference/high-level-api/crud-operations/put.md).
 
-`Map(trafficLightColour -> String(GREEN))`
+## Reading Data Without a Discriminator
 
-This can be further customised by using the `@caseName` annotation again - encoding for `Box(RED)` would be
+Some mapping libraries store sum types with no discriminator at all. To read such data, we annotate the trait with `@noDiscriminator`. A case object is then stored as its name, and a case class as its fields only, so `@caseName` on a case class has no effect:
 
-`Map(trafficLightColour -> String(red_traffic_light))`
+```scala mdoc:silent:reset
+import zio.dynamodb.json._
+import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.annotation._
 
-## No disriminator codecs using @noDiscriminator annotation
-
-```scala
 @noDiscriminator
 sealed trait TrafficLight
 @caseName("blue")
-final case object Blue extends TrafficLight
-final case object Purple extends TrafficLight 
-final case class Green(rgb: Int, i: Int) extends TrafficLight
-@caseName("red_traffic_light") // this annotation is ignored in the context of @noDiscriminator
-final case class Red(rgb: Int, j: Int) extends TrafficLight
-final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
-final case class Box(trafficLightColour: TrafficLight)
+case object Blue extends TrafficLight
+case object Purple extends TrafficLight
+case class Green(rgb: Int, i: Int) extends TrafficLight
+case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
+
+case class Box(colour: TrafficLight)
+object Box {
+  implicit val schema: Schema[Box] = DeriveSchema.gen[Box]
+}
 ```
 
-This primarily useful when working with legacy DynamoDB databases where a discriminator field is not present (some DynamoDB mapping libraries allow users to create codecs with no discriminators or tags to disambiguate each sum type case). 
+The case object is stored as its name, and the case class as its fields alone:
 
-WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. When decoding if there are ambiguities amongst the codecs for the sum type instances this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
+```scala mdoc
+println(Box(Blue).toJsonString)
+println(Box(Amber(42)).toJsonString)
+```
 
-Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
+To decode a map, the codec tries every case class whose number of fields matches the number of attributes in the map, and exactly one must succeed. Here only `Amber` has one field, so the stored `Amber` decodes back:
 
-Mapping for `Box(Amber(42))` would be `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42))`
+```scala mdoc
+parse[Box]("""{"colour":{"red_green_blue":{"N":"42"}}}""")
+```
 
-## Recommendations
-For greenfield development it is recommended to use:
-- the default encoding which uses an intermediate map (see the above default encoding) - (note this mapping does not work with top level sum types as it requires an intermediate map and partition keys must be scalar values) *or*
-- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations)) if you would like a more compact encoding - note this *must* be used for top level sum types
-- for deeply nested hierarchies avoid a top level sum type altogether and have a concrete top level class that uses only product and sum types - see [High Level API Data Modelling and Limitations](data-modelling#deep-oo-style-hierarchies-are-not-supported---modelling-data-using-product-and-sum-types)
+If no case succeeds, or more than one does, decoding fails with a `DynamoDBError.ItemError.DecodingError`. Two cases with the same number of fields and compatible field types are therefore ambiguous.
 
+:::warning
+`@noDiscriminator` is slower, because decoding tries several cases, and it relies on every case looking different once stored. Use it only to read data you cannot change.
+:::
+
+## Choosing an Encoding for New Tables
+
+For a new table:
+
+- Use the default encoding for sum types nested inside a case class.
+- Use `@discriminatorName` when you prefer the flat form, and always for a sealed trait stored as a whole item.
+- For deep hierarchies, avoid a top-level sealed trait altogether: store a concrete case class whose fields are product and sum types, as [How to Model Data Within ZIO Schema's Limits](model-data-within-schema-limits.md) shows.
+
+## Going Further
+
+- [Creating Models](../reference/high-level-api/creating-models/index.md) lists how every Scala type maps to a DynamoDB type.
+- [Field Traversal](../reference/high-level-api/creating-models/field-traversal.md) shows how to reach the fields of a sum type case in expressions.
+- [ZIO DynamoDB JSON Module](../reference/zio-dynamodb-json.md) covers `toJsonString` and `parse`, which make the encodings easy to check in unit tests.
