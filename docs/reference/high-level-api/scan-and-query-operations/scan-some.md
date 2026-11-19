@@ -3,34 +3,53 @@ id: scan-some
 title: "scanSome"
 ---
 
-```scala
-  def scanSome[A: Schema](
-    tableName: String,
-    limit: Int
-  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] = ???  
-```
-
-The `scanSome` operation is used page `limit` number of items in a table, and returns them in a tuple of `Chunk[A]` and `LastEvaluatedKey`. The `LastEvaluatedKey` can be used to continue scanning the table from where the last page left off using the `startKey` combinator. 
-
-This paging behavior is useful when you have a large number of items in a table and you want to process them in smaller chunks to avoid memory issues - eg a REST API for a paging front end.
+`DynamoDBQuery.scanSome` reads one page of at most `limit` items from a table and returns them with the key to continue from:
 
 ```scala
-for {
-  _                          <- put(tableName, Equipment("1", 2020, "Widget1", 1.0)).execute
-  _                          <- put(tableName, Equipment("1", 2021, "Widget1", 2.0)).execute
-  _                          <- put(tableName, Equipment("1", 2022, "Widget1", 2.1)).execute
-  t                          <- scanSome[Equipment](tableName, limit = 2).execute
-  (page1, lastEvaluatedKey1) = t 
-  t2                         <- scanSome[Equipment](tableName, limit = 1).startKey(lastEvaluatedKey1).execute
-} yield ()
+object DynamoDBQuery {
+  def scanSome[A: Schema](tableName: String, limit: Int): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)]
+}
 ```
 
-## Combinators
+`LastEvaluatedKey` is an `Option[PrimaryKey]`: `Some(key)` when more items may follow, `None` when the scan reached the end of the table. Passing the key to `DynamoDBQuery#startKey` reads the next page. Paging keeps memory bounded, for example behind a REST endpoint that serves one page per request.
+
+The examples use the equipment model from [Scan and Query Operations](index.md):
+
+```scala mdoc:silent
+import zio._
+import zio.dynamodb._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Equipment(id: String, year: Int, name: String, price: Double)
+object Equipment {
+  implicit val schema: Schema.CaseClass4[String, Int, String, Double, Equipment] = DeriveSchema.gen[Equipment]
+
+  val (id, year, name, price) = ProjectionExpression.accessors[Equipment]
+}
+```
+
+To read two pages of two items:
+
+```scala mdoc:compile-only
+val twoPages: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[Equipment]] =
+  for {
+    page1 <- DynamoDBQuery.scanSome[Equipment]("equipment", limit = 2).execute
+    page2 <- DynamoDBQuery.scanSome[Equipment]("equipment", limit = 2).startKey(page1._2).execute
+  } yield page1._1 ++ page2._1
+```
+
+With a filter, DynamoDB applies `limit` before filtering, so a page can hold fewer than `limit` items, or none, even when more items follow; keep reading until the key is `None`. [How to Page Through Scan and Query Results](../../../how-to/page-through-results.md) shows a complete loop.
+
+## Options
+
+These options apply to `scanSome`:
 
 ```scala
 <SCAN_SOME_QUERY>
+  .startKey(<LastEvaluatedKey>)    // continue from a previous page
+  .filter(<ConditionExpression>)   // e.g. Equipment.price > 1.0
+  .indexName(<IndexName>)          // scan a secondary index
   .consistency(<ConsistencyMode>)
-  .startKey(<LastEvaluatedKey>)
-  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan 
-  .indexName(<IndexName>)        // use a secondary index    
+  .selectAllAttributes | .selectAllProjectedAttributes | .selectSpecificAttributes | .selectCount
+  .capacity(<ReturnConsumedCapacity>)
 ```
