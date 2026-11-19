@@ -19,6 +19,8 @@ const sidebars = {
       items: [
         "reference/cheat-sheet",
         "reference/dynamodb-query",
+        "reference/dynamodb-executor",
+        "reference/table-management",
         {
           type: "category",
           label: "High Level API",
@@ -70,11 +72,15 @@ const sidebars = {
           ],
         },
         "reference/projection-expression",
+        "reference/condition-expressions",
         "reference/error-handling",
         "reference/auto-batching-and-parallelisation",
+        "reference/streaming-batch-helpers",
+        "reference/test-executor",
         "reference/zio-dynamodb-json",
       ],
     },
+    "tutorials/build-an-order-store",
     {
       type: "category",
       label: "How-to Guides",
@@ -86,8 +92,13 @@ const sidebars = {
         "how-to/test-dynamodb-code",
         "how-to/use-from-cats-effect",
         "how-to/use-from-future-code",
+        "how-to/page-through-results",
+        "how-to/bulk-load-with-streams",
+        "how-to/connect-to-dynamodb-local",
+        "how-to/handle-failed-conditional-writes",
       ],
     },
+    "resources",
   ],
 };
 
