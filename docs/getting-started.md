@@ -46,7 +46,7 @@ import zio.schema.{ DeriveSchema, Schema }
 
 object Main extends ZIOAppDefault {
 
-  final case class Person(id: Int, firstName: String)
+  case class Person(id: Int, firstName: String)
   object Person {
     implicit val schema: Schema.CaseClass2[Int, String, Person] = DeriveSchema.gen[Person]
 
