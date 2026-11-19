@@ -3,26 +3,55 @@ id: delete
 title: "deleteFrom"
 ---
 
-```scala
-  def deleteFrom[From: Schema](
-    tableName: String
-  )(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[Any, Option[From]] = ???
-```  
-
-The `deleteFrom` operation is used to remove an item from a table. The `primaryKeyExpr` param can be created using the `ProjectionExpression`'s in the companion object for model class: 
+`DynamoDBQuery.deleteFrom` deletes the item with the given primary key:
 
 ```scala
-for {
-  _ <- DynamoDBQuery.deleteFrom("person")(Person.id.primaryKey === "1").execute
-} yield ()
+object DynamoDBQuery {
+  def deleteFrom[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]): DynamoDBQuery[Any, Option[From]]
+}
 ```
 
-### `deleteFrom` query operations
+We build the primary key expression from the model's projection expressions:
+
+```scala mdoc:silent
+import zio._
+import zio.dynamodb._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Person(id: String, name: String, age: Int)
+object Person {
+  implicit val schema: Schema.CaseClass3[String, String, Int, Person] = DeriveSchema.gen[Person]
+
+  val (id, name, age) = ProjectionExpression.accessors[Person]
+}
+```
+
+Deleting an item that does not exist succeeds:
+
+```scala mdoc:compile-only
+val delete: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
+  DynamoDBQuery.deleteFrom("person")(Person.id.partitionKey === "1").execute
+```
+
+## Options
+
+These options apply to `deleteFrom`:
 
 ```scala
 <DELETE_QUERY>
-  .returns(<ReturnValues>) // ReturnValues.AllOld | ReturnValues.None <default>
+  .returns(<ReturnValues>)       // ReturnValues.AllOld | ReturnValues.None (default)
   .where(<ConditionExpression>)
+  .metrics(<ReturnItemCollectionMetrics>)
+  .capacity(<ReturnConsumedCapacity>)
+```
+
+With `returns(ReturnValues.AllOld)`, the result holds the deleted item; with a condition, the delete fails instead of deleting an item that does not match:
+
+```scala mdoc:compile-only
+val deleteMinor: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
+  DynamoDBQuery
+    .deleteFrom("person")(Person.id.partitionKey === "1")
+    .where(Person.age < 18)
+    .returns(ReturnValues.AllOld)
+    .execute
 ```
