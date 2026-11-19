@@ -55,10 +55,7 @@ object Person {
 
 ## Creating the Executor as a Resource
 
-The module's executor class is `DynamoDBExceutorF[F]` (the class name is spelt that way in the library). Its companion object has two constructors, both returning a `Resource[F, DynamoDBExceutorF[F]]` that builds the AWS client on acquire and closes it on release:
-
-- `DynamoDBExceutorF.of[F]` uses the AWS SDK defaults, which suits real AWS.
-- `DynamoDBExceutorF.ofCustomised[F](f)` lets `f` adjust the AWS SDK's `DynamoDbAsyncClientBuilder`, for example to point it at DynamoDB Local.
+The module's executor class is `DynamoDBExceutorF[F]` (the class name is spelt that way in the library). Its companion object has two constructors, both returning a `Resource[F, DynamoDBExceutorF[F]]` that builds the AWS client on acquire and closes it on release. `DynamoDBExceutorF.of[F]` uses the AWS SDK defaults, which suits real AWS, and `DynamoDBExceutorF.ofCustomised[F](f)` lets `f` adjust the AWS SDK's `DynamoDbAsyncClientBuilder`, for example to point it at DynamoDB Local.
 
 Only AWS SDK types appear in the customisation function, not ZIO AWS ones. To build an executor for DynamoDB Local:
 

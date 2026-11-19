@@ -131,10 +131,10 @@ val program: ZIO[DynamoDBExecutor, DynamoDBError, (Either[DynamoDBError.ItemErro
 
 A transaction holds either writes or reads, never both:
 
-| Transaction type                | Accepted queries                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Write (`TransactWriteItems`)    | `put`/`putItem`, `update`/`updateItem`, `deleteFrom`/`deleteItem`, `DynamoDBQuery.conditionCheck`, and `batch` of them |
-| Read (`TransactGetItems`)       | `get`/`getItem`, and `batch` of them                                                                     |
+| Transaction type             | Accepted queries                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Write (`TransactWriteItems`) | `put`/`putItem`, `update`/`updateItem`, `deleteFrom`/`deleteItem`, `DynamoDBQuery.conditionCheck`, and `batch` of them |
+| Read (`TransactGetItems`)    | `get`/`getItem`, and `batch` of them                                                                                   |
 
 Scans, queries and table operations cannot be part of a transaction. DynamoDB also limits a transaction to 100 actions on distinct items.
 

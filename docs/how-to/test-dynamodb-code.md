@@ -57,10 +57,7 @@ object PeopleRepository {
 
 ## Integration Testing Against DynamoDB Local
 
-The most faithful tests run the real queries against a local DynamoDB. Two local options exist; use whichever suits your environment:
-
-- [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html), a stand-alone database from AWS, also available as the `amazon/dynamodb-local` Docker image. The ZIO DynamoDB build runs its own integration tests against this image.
-- [LocalStack](https://docs.localstack.cloud/), a Docker image that emulates many AWS services, DynamoDB among them.
+The most faithful tests run the real queries against a local DynamoDB. Two local options exist; use whichever suits your environment. [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) is a stand-alone database from AWS, also available as the `amazon/dynamodb-local` Docker image. The ZIO DynamoDB build runs its own integration tests against this image. [LocalStack](https://docs.localstack.cloud/) is a Docker image that emulates many AWS services, DynamoDB among them.
 
 [How to Connect to DynamoDB Local or Customise the AWS Client](connect-to-dynamodb-local.md) shows how to start DynamoDB Local and build a `DynamoDBExecutor` layer that points at it. For tests, we add a scoped layer that creates the table before the tests and drops it afterwards, so every run starts clean:
 

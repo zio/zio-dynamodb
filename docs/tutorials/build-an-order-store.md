@@ -345,10 +345,7 @@ val dropTables: ZIO[DynamoDBExecutor, DynamoDBError, Unit] =
   (DynamoDBQuery.deleteTable("orders") zip DynamoDBQuery.deleteTable("products")).execute.unit
 ```
 
-The code above:
-
-- `Order.customerId.partitionKey === "alice" && Order.orderId.sortKey === "2026-11-01-001"` names exactly one order; with a composite key, `DynamoDBQuery.deleteFrom` and `DynamoDBQuery.get` always need both parts.
-- `dropTables` deletes both tables in parallel. DynamoDB Local runs in memory, so stopping the container drops them too, but deleting them keeps each run of the program independent.
+The code above names exactly one order with `Order.customerId.partitionKey === "alice" && Order.orderId.sortKey === "2026-11-01-001"`; with a composite key, `DynamoDBQuery.deleteFrom` and `DynamoDBQuery.get` always need both parts. `dropTables` deletes both tables in parallel. DynamoDB Local runs in memory, so stopping the container drops them too, but deleting them keeps each run of the program independent.
 
 ## 10. Run the Same Code Against an In-Memory Executor
 

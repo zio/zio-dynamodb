@@ -23,7 +23,7 @@ Writing such codecs by hand would mean converting every case to and from `Attrib
 
 ## Prerequisites
 
-The annotations are ZIO Schema's, from `zio.schema.annotation._`; ZIO DynamoDB's codecs read them. To see the stored form, we use the optional `zio-dynamodb-json` module, whose `toJsonString` renders a value with its DynamoDB types (see [ZIO DynamoDB JSON Module](../reference/zio-dynamodb-json.md)):
+The annotations are ZIO Schema's, from `zio.schema.annotation._`; ZIO DynamoDB's codecs read them. To see the stored form, we use the optional `zio-dynamodb-json` module, whose `toJsonString` renders a value with its DynamoDB types (see [ZIO DynamoDB JSON Module](../reference/zio-dynamodb-json.md)). Add it next to the core module:
 
 ```scala
 libraryDependencies ++= Seq(
@@ -82,7 +82,7 @@ println(Box(GREEN).toJsonString)
 
 ## Renaming a Case With caseName
 
-The `@caseName` annotation on a case replaces its class name in the stored data. It works with every encoding on this page except `@noDiscriminator` (described below):
+The `@caseName` annotation on a case replaces its class name in the stored data. It works with every encoding on this page; the one exception is a case class under `@noDiscriminator` (described below), which is stored as its fields only:
 
 ```scala mdoc:silent:reset
 import zio.dynamodb.json._

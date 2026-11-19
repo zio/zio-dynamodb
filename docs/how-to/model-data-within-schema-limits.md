@@ -17,10 +17,7 @@ We look at the two limits the High Level API inherits from ZIO Schema, then refa
 
 ## The Problem
 
-The High Level API relies on ZIO Schema twice: to derive the codecs, and to generate projection expressions with `ProjectionExpression.accessors`. Two kinds of model defeat the second step:
-
-- **Case classes with more than 22 fields.** ZIO Schema derives a typed `Schema.CaseClassN` only up to 22 fields. Above that, it derives a generic record schema. ZIO DynamoDB still stores and reads such a class, but `ProjectionExpression.accessors` no longer returns one typed projection expression per field, so we cannot write conditions, keys or updates for its fields.
-- **Deep inheritance hierarchies.** ZIO Schema derives a sealed trait as a flat enum of its concrete case classes. An intermediate sealed trait, and abstract members declared on the traits, get no projection expression of their own.
+The High Level API relies on ZIO Schema twice: to derive the codecs, and to generate projection expressions with `ProjectionExpression.accessors`. Two kinds of model defeat the second step. The first is a case class with more than 22 fields: ZIO Schema derives a typed `Schema.CaseClassN` only up to 22 fields. Above that, it derives a generic record schema. ZIO DynamoDB still stores and reads such a class, but `ProjectionExpression.accessors` no longer returns one typed projection expression per field, so we cannot write conditions, keys or updates for its fields. The second is a deep inheritance hierarchy: ZIO Schema derives a sealed trait as a flat enum of its concrete case classes. An intermediate sealed trait, and abstract members declared on the traits, get no projection expression of their own.
 
 For example, an object-oriented invoice model puts `id` on the root trait and `amount` on an intermediate trait:
 
@@ -86,10 +83,7 @@ Nested case classes are stored as DynamoDB maps, so the path `address.city` exis
 
 ## Replacing Inheritance With Product and Sum Types
 
-To fix the invoice model, we move fields up into case classes instead of declaring them on traits. Each fix is an "extract product" refactoring:
-
-1. The fields every invoice has (`id`) move into a top-level `Invoice` case class, which holds the varying part in a `body` field.
-2. The fields every billed invoice has (`amount`) move into a `Billed` case class, which holds the billing period in its own sum type.
+To fix the invoice model, we move fields up into case classes instead of declaring them on traits. Each fix is an "extract product" refactoring. The fields every invoice has (`id`) move into a top-level `Invoice` case class, which holds the varying part in a `body` field. The fields every billed invoice has (`amount`) move into a `Billed` case class, which holds the billing period in its own sum type.
 
 The resulting model uses no inheritance beyond one level of sealed trait:
 
