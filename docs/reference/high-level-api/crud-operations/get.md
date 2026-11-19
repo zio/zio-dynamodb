@@ -3,47 +3,81 @@ id: get
 title: "get"
 ---
 
+`DynamoDBQuery.get` reads the item with the given primary key and decodes it:
+
 ```scala
-  def get[From: Schema](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[ItemError, From]] = ???
+object DynamoDBQuery {
+  def get[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]): DynamoDBQuery[From, Either[ItemError, From]]
+}
 ```
 
-The `get` operation is used to retrieve an item from a table. The `KeyConditionExpr.PrimaryKeyExpr` can be created using the `ProjectionExpression`'s in the companion object for model class. It returns an `Either[ItemError, From]` where `ItemError` is a sealed trait that that has `ValueNotFound` and `DecodingError` instances. 
+We build the primary key expression from the model's projection expressions (see [Primary Keys](../primary-keys.md)). The examples use this model:
 
-```scala
-for {
-  errorOrPerson <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute
-} yield errorOrPerson
+```scala mdoc:silent
+import zio._
+import zio.dynamodb._
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Person(id: String, name: String, age: Int)
+object Person {
+  implicit val schema: Schema.CaseClass3[String, String, Int, Person] = DeriveSchema.gen[Person]
+
+  val (id, name, age) = ProjectionExpression.accessors[Person]
+}
 ```
 
-### Working with `get` return values
+`get` returns an `Either[ItemError, From]`: a `Left(ItemError.ValueNotFound)` when no item has the key, a `Left(ItemError.DecodingError)` when the item does not match the schema, and a `Right` with the value otherwise:
 
-Sometimes working with a `Either[ItemError, From]` can be a little unwieldy so there are two approaches we can take.
+```scala mdoc:compile-only
+val errorOrPerson: ZIO[DynamoDBExecutor, DynamoDBError, Either[DynamoDBError.ItemError, Person]] =
+  DynamoDBQuery.get("person")(Person.id.partitionKey === "1").execute
+```
 
-The first approach is to use the ZIO `absolve` method to push all ItemErrors into the ZIO error channel
+`get` only reads the attributes that the schema's fields name, so attributes the model does not know about are not transferred.
 
-```scala
+## Working With get Return Values
+
+An `Either` inside the result is often unwieldy, so there are two ways to flatten it. `ZIO#absolve` moves both kinds of `ItemError` into the ZIO error channel:
+
+```scala mdoc:compile-only
+val person: ZIO[DynamoDBExecutor, DynamoDBError, Person] =
+  DynamoDBQuery.get("person")(Person.id.partitionKey === "1").execute.absolve
+```
+
+When a missing item is a normal outcome, the `maybeFound` extension method from `zio.dynamodb.syntax._` returns `None` for `ValueNotFound` and moves only `DecodingError` into the error channel:
+
+```scala mdoc:compile-only
 import zio.dynamodb.syntax._
-for {
-  person <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute.absolve
-} yield person
+
+val maybePerson: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
+  DynamoDBQuery.get("person")(Person.id.partitionKey === "1").execute.maybeFound
 ```
 
-However sometimes we wish to treat `NotFound` as a success case and for this the `maybeFound` extension method can be imported to push the `DecodingError` into the ZIO error channel and handle `NotFound` as a successful operation by using an `Option` type. 
+## Options
 
-```scala
-import zio.dynamodb.syntax._
-for {
-  maybePerson <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute.maybeFound
-} yield maybePerson
-```
-
-### `get` query operations
+These options apply to `get`:
 
 ```scala
 <GET_QUERY>
-  .consistency(<ConsistencyMode>)
-  .where(<ConditionExpression>)
+  .consistency(<ConsistencyMode>)   // ConsistencyMode.Strong | ConsistencyMode.Weak (default)
+  .capacity(<ReturnConsumedCapacity>)
 ```
 
+A strongly consistent read reflects every write that succeeded before it:
+
+```scala mdoc:compile-only
+val latest: ZIO[DynamoDBExecutor, DynamoDBError, Either[DynamoDBError.ItemError, Person]] =
+  DynamoDBQuery.get("person")(Person.id.partitionKey === "1").consistency(ConsistencyMode.Strong).execute
+```
+
+## Reading a Subtype of a Top-Level Sum Type
+
+When a table stores the subtypes of a sealed trait (see [Storing a Top-Level Sum Type](put.md#storing-a-top-level-sum-type)), the experimental `DynamoDBQuery.getWithNarrow[From, To]` reads an item as the sealed trait `From` and narrows it to the subtype `To`. If the stored item is another subtype, the result is a `Left(DecodingError)`:
+
+```scala
+object DynamoDBQuery {
+  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]): DynamoDBQuery[From, Either[ItemError, To]]
+}
+```
+
+For example, with the `Invoice` model from the put page, `getWithNarrow[Invoice, Invoice.Unpaid]("invoice")(Invoice.Unpaid.id.partitionKey === "1")` returns a `Right(Unpaid("1"))` for an unpaid invoice and a `Left` for a paid one.
