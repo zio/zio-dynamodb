@@ -1,7 +1,7 @@
 ---
 id: index
 title: "Introduction to ZIO DynamoDB"
-sidebar_title: "ZIO DynamoDB"
+sidebar_label: "Introduction"
 ---
 
 Simple, type-safe, and efficient access to DynamoDB
@@ -18,109 +18,57 @@ Simple, type-safe, and efficient access to DynamoDB
 
 ## Introduction
 
-ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate free access to AWS's DynamoDB service. It provides a type-safe API for many query types and the number of type-safe APIs is expanding. ZIO DynamoDB will automatically batch queries and execute un-batchable queries in parallel.
+ZIO DynamoDB is a library for type-safe, efficient and boilerplate-free access to AWS DynamoDB. We describe a read or write as a `DynamoDBQuery` value, combine queries, and run them with `DynamoDBQuery#execute`, which returns a ZIO effect. When several queries are combined, ZIO DynamoDB batches the ones DynamoDB can batch and runs the rest in parallel.
 
-Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library for type-safe DynamoDB access, and the awesome [ZIO Schema](https://zio.dev/zio-schema) library for schema derived codecs (see here for documentation on how to [customise these through annotations](guides/codec-customization.md)).
+The library offers two APIs:
 
-For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](guides/cheat-sheet.md).
+- The **High Level API** works with our own case classes and sealed traits. It derives the DynamoDB codecs from a [ZIO Schema](https://zio.dev/zio-schema) and builds type-checked expressions from the model's fields, so a typo in a field name or a comparison with the wrong type does not compile.
+- The **Low Level API** works with DynamoDB items (`Item`, an attribute map) and string paths such as `$("address.city")`, mirroring the AWS API one to one.
+
+Under the hood, ZIO DynamoDB calls DynamoDB through [ZIO AWS](https://zio.dev/zio-aws), which wraps the AWS SDK for Java v2.
 
 ## Installation
 
-To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
+ZIO DynamoDB is published for Scala 2.13 and Scala 3 and runs on the JVM, Java 17 or newer. To use it, add the core module to `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
+  // Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
   "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 )
 ```
 
-### Cats Effect Interop
+The core module brings in ZIO, ZIO Streams, ZIO Schema and the ZIO AWS DynamoDB client, so no other dependency is needed to talk to DynamoDB. Continue with [Getting Started](getting-started.md) to write and run a first program.
 
-To use the Cats Effect 3 interop module, we need to also add the following line to our `build.sbt` file:
+## Modules
 
-```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
-)
-```
+The other modules are optional. Each one depends on the core module.
 
-For CE interop examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
+### Effect Interop
 
-### Future Interop
-
-For projects that do not use effect libraries (e.g. Play applications) we can use the Future interop module.
-We need to add the following line to our `build.sbt` file:
+These modules run ZIO DynamoDB queries from code that does not use ZIO:
 
 ```scala
 libraryDependencies ++= Seq(
+  // Cats Effect 3 interop: run queries as F[_] effects and scans as FS2 streams (JVM)
+  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@",
+
+  // Future interop: run queries as Scala Futures, e.g. from a Play application (JVM)
   "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
 )
 ```
 
-For Future interop examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/FutureInteropExample.scala).
+See [How to Use ZIO DynamoDB From Cats Effect](how-to/use-from-cats-effect.md) and [How to Use ZIO DynamoDB From Future-Based Code](how-to/use-from-future-code.md).
 
-### Read/write DynamoDB JSON
-AWS tools like the CLI and Console read/write a special JSON representation of dynamoDB items. The new experimental optional `zio-dynamodb-json` module provides a way to read/write this form of JSON when working with both the High Level and Low Level API. To use this module, we need to also add the following line to our `build.sbt` file:
+### DynamoDB JSON
+
+This experimental module reads and writes the JSON form of DynamoDB items that the AWS CLI and Console use, which helps when debugging data mappings:
 
 ```scala
 libraryDependencies ++= Seq(
+  // DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
   "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 )
 ```
 
-## Example
-
-For examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/tree/series/2.x/examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module:
-
-```scala
-import zio.aws.core.config
-import zio.aws.{ dynamodb, netty }
-import zio.dynamodb.DynamoDBQuery.{ get, put }
-import zio.dynamodb.{ DynamoDBExecutor }
-import zio.schema.{ DeriveSchema, Schema }
-import zio.ZIOAppDefault
-import zio.dynamodb.ProjectionExpression
-
-object Main extends ZIOAppDefault {
-
-  final case class Person(id: Int, firstName: String)
-  object Person {
-    implicit lazy val schema: Schema.CaseClass2[Int, String, Person] = DeriveSchema.gen[Person]
-
-    val (id, firstName) = ProjectionExpression.accessors[Person]
-  }
-  val examplePerson = Person(1, "avi")
-
-  private val program = for {
-    _      <- put("personTable", examplePerson).execute
-    person <- get("personTable")(Person.id.partitionKey === 1).execute
-    _      <- zio.Console.printLine(s"hello $person")
-  } yield ()
-
-  override def run =
-    program.provide(
-      netty.NettyHttpClient.default,
-      config.AwsConfig.default, // uses real AWS dynamodb
-      dynamodb.DynamoDb.live,
-      DynamoDBExecutor.live
-    )
-}
-```
-
-For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala)
-and [DynamoDBLocalMain](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/DynamoDBLocalMain.scala) .
-Note before you run these you must first run the DynamoDBLocal docker container using the provided docker-compose file:
-
-```
-docker compose -f docker/docker-compose.yml up -d
-```
-
-Don't forget to shut down the container after you have finished
-
-```
-docker compose -f docker/docker-compose.yml down
-```
-
-## Resources
-- [Introducing ZIO DynamoDB by Avinder Bahra & Adam Johnson](https://www.youtube.com/watch?v=f68-69eA8Vc&t=33s) - DynamoDB powers many cloud-scale applications, with its robust horizontal scalability and uptime. Yet, interacting with the Java SDK is error-prone and tedious. In this presentation, Avinder Bahra presents ZIO DynamoDB, a new library by Avi and Adam Johnson designed to make interacting with DynamoDB easy, type-safe, testable, and productive.
-- [Introducing The ZIO DynamoDB Type-Safe API by Avinder Bahra](https://www.youtube.com/watch?v=Qte4WUfHQ3g&t=10s) - Adam Johnson and Avinder released ZIO DynamoDB, a new Scala library that significantly reduces boilerplate when compared to working directly with AWS client libraries. However, there was still work to be done to improve type safety. In this talk, Avinder introduces a new type-safe API that can prevent many errors at compile time while remaining user-friendly.
+See [ZIO DynamoDB JSON Module](reference/zio-dynamodb-json.md).
