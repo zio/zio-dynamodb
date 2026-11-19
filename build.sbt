@@ -459,7 +459,7 @@ lazy val docs = project
     publish / skip := true,
     mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbFuture, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
