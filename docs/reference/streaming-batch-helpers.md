@@ -109,6 +109,6 @@ All helpers return a stream whose error type is `Throwable`. A failed batch fail
 
 ## Cats Effect Variants
 
-The `zio-dynamodb-ce` module has the same three helpers for FS2 streams, `batchWriteFromStreamF`, `batchReadFromStreamF` and `batchReadItemFromStreamF`, in `zio.dynamodb.interop.ce.syntax`. They take an `fs2.Stream[F, A]` and an implicit `DynamoDBExceutorF[F]` and return an `fs2.Stream[F, ...]`. See [How to Use ZIO DynamoDB From Cats Effect](../how-to/use-from-cats-effect.md).
+The `zio-dynamodb-ce` module has the same three helpers for FS2 streams, `batchWriteFromStreamF`, `batchReadFromStreamF` and `batchReadItemFromStreamF`, in `zio.dynamodb.interop.ce.syntax`. They take an `fs2.Stream[F, A]` and implicit `DynamoDBExceutorF[F]`, `Async[F]` and `Dispatcher[F]` instances, and return an `fs2.Stream[F, ...]`. See [How to Use ZIO DynamoDB From Cats Effect](../how-to/use-from-cats-effect.md).
 
 For a worked bulk load, see [How to Bulk-Load and Bulk-Read Items With a Stream](../how-to/bulk-load-with-streams.md).

@@ -39,7 +39,7 @@ DynamoDB's [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/AP
 - It is a `GetItem` (`get` in the High Level API) whose projections include the primary key, so that the response can be matched to the request. All attributes are returned by default, so this matters only when we set projections ourselves.
 - There is more than one part of its kind: a single get or a single write is sent as an ordinary request.
 
-For queries combined with `DynamoDBQuery#zip`, a part that does not qualify runs in parallel with the batches. For queries built with `DynamoDBQuery.batch`, when more than one part does not qualify, `DynamoDBQuery#execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError`, whose `reasons` explain each rule that was broken.
+For queries combined with `DynamoDBQuery#zip`, a part that does not qualify runs in parallel with the batches. For queries built with `DynamoDBQuery.batch`, when more than one part does not qualify, `DynamoDBQuery#execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError`, whose `reasons` list how each part was classified, including the rules that were broken.
 
 ## Batching With batch
 
