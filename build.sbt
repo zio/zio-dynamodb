@@ -455,11 +455,11 @@ lazy val docs = project
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
+    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion, "dev.zio" %% "zio-test" % zioVersion),
     publish / skip := true,
     mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbFuture, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges

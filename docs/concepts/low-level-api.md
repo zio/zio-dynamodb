@@ -3,25 +3,30 @@ id: low-level-api
 title: "Low Level API"
 ---
 
-The low level API provides low level query creation and execution while still offering a large reduction in boilerplate. It's is based one to one on DynamoDB abstractions and the surface area consists of:
-- `AttrMap` which is a convenience container with automatic conversion between Scala values and `AttributeValue`'s. It also has type aliases of `PrimaryKey` and `Item` (see reference section for more details)
-- `$` function for creating untyped `ProjectionExpression`s eg `$("person.address.houseNumber")`
-- query methods in the `DynamoDBQuery` companion object that all contain the word `Item` such as `getItem`, `putItem`, `updateItem`, `deleteItem`, `queryAllItem`. 
-- Expressions - most of these query methods take expressions as arguments. Once we have a `ProjectionExpression` via the dollar function we can use it as a springboard to create further expressions such as `ConditionExpression`, `UpdateExpression` and `PrimaryKeyExpression`:
-  - `ConditionExpression`'s - `$("name") === "John"`
-  - `UpdateExpression`'s - `$("name").set("Smith")`
+The Low Level API maps one to one onto DynamoDB's own abstractions while still removing most of the boilerplate of the AWS SDK. Its surface area is:
 
-Examples of low level queries are shown below:
-```scala
-for {
-  _ <- DynamoDBQuery.putItem("person-table", Item("id" -> "1", "name" -> "John", "age" -> 42)).execute
-  maybeFound <- DynamoDBQuery.getItem("person-table")(PrimaryKey("id" -> "1")).execute
-  _ <- DynamoDBQuery.updateItem("person-table")(PrimaryKey("id" -> "1"))($("name").set("Smith") + $("age").set(21)).execute
-  _ <- DynamoDBQuery.deleteItem("person-table")(PrimaryKey("id" -> "1")).execute
-} yield ()
+- `AttrMap`, a container for DynamoDB attributes that converts Scala values to `AttributeValue`s automatically. Its type aliases `Item` and `PrimaryKey` name the two ways it is used (see [AttributeValue and AttrMap](../reference/low-level-api/attribute-value.md)).
+- The `$` function, which creates an untyped `ProjectionExpression` from a path string such as `$("person.address.houseNumber")` (see [$ and parse Functions](../reference/low-level-api/dollar-function.md)).
+- The query constructors in the `DynamoDBQuery` companion object whose names contain `Item`: `DynamoDBQuery.getItem`, `DynamoDBQuery.putItem`, `DynamoDBQuery.updateItem`, `DynamoDBQuery.deleteItem`, `DynamoDBQuery.scanAllItem`, `DynamoDBQuery.scanSomeItem`, `DynamoDBQuery.queryAllItem` and `DynamoDBQuery.querySomeItem`.
+- Expressions built from a `ProjectionExpression`: condition expressions such as `$("name") === "John"`, update expressions such as `$("name").set("Smith")`, and key expressions such as `$("id").partitionKey === "1"`.
+
+The program below writes, reads, updates and deletes an item with the Low Level API:
+
+```scala mdoc:compile-only
+import zio._
+import zio.dynamodb._
+import zio.dynamodb.ProjectionExpression.$
+
+val program: ZIO[DynamoDBExecutor, DynamoDBError, Unit] =
+  for {
+    _          <- DynamoDBQuery.putItem("person-table", Item("id" -> "1", "name" -> "John", "age" -> 42)).execute
+    maybeFound <- DynamoDBQuery.getItem("person-table", PrimaryKey("id" -> "1")).execute
+    _          <- ZIO.debug(s"found: $maybeFound")
+    _          <- DynamoDBQuery.updateItem("person-table", PrimaryKey("id" -> "1"))(
+                    $("name").set("Smith") + $("age").set(21)
+                  ).execute
+    _          <- DynamoDBQuery.deleteItem("person-table", PrimaryKey("id" -> "1")).execute
+  } yield ()
 ```
 
-However there are some caveats to using the Low Level API:
-- It is not type safe - subtle runtime errors can occur - for example if there are typos in the field names, or if incompatible types are used in expressions.
-- Serialization and deserialization of case classes is the responsibility of the user - this is usually a major burden.
-
+The Low Level API has two drawbacks compared with the [High Level API](high-level-api.md). It is not type-safe: a typo in a field name, or a comparison with a value of the wrong type, compiles and fails at runtime. We also encode and decode our case classes ourselves, which is usually the biggest part of the work.
