@@ -3,10 +3,7 @@ id: high-level-api
 title: "High Level API"
 ---
 
-The High Level API lets us read and write our own Scala types instead of raw DynamoDB items. It relies on two mechanisms:
-
-1. A ZIO Schema derived for each case class or sealed trait, from which ZIO DynamoDB derives the codecs.
-2. `ProjectionExpression`s generated from that schema, which name the model's fields in a type-safe way.
+The High Level API lets us read and write our own Scala types instead of raw DynamoDB items. It relies on two mechanisms: a ZIO Schema derived for each case class or sealed trait, from which ZIO DynamoDB derives the codecs, and `ProjectionExpression`s generated from that schema, which name the model's fields in a type-safe way.
 
 ## ZIO Schema Derivation
 

@@ -30,20 +30,20 @@ Both functions return an untyped projection expression (its value type is `Proje
 
 The parser supports this subset of the DynamoDB path syntax:
 
-| Expression syntax | Description                                                                 |
-| ----------------- | --------------------------------------------------------------------------- |
-| `"foo"`           | A top-level attribute.                                                      |
-| `"foos[0]"`       | An element of a top-level list; indexes start at zero.                      |
-| `"foo.bar"`       | An element of a map inside a top-level attribute.                           |
-| `"foo_bar"`       | Underscores are valid in names.                                             |
-| `"foo-bar"`       | Hyphens are valid in names.                                                 |
-| ``"`foo.bar`"``   | Other special characters, such as a dot, need backticks around the name.   |
+| Expression syntax | Description                                                              |
+| ----------------- | ------------------------------------------------------------------------ |
+| `"foo"`           | A top-level attribute.                                                   |
+| `"foos[0]"`       | An element of a top-level list; indexes start at zero.                   |
+| `"foo.bar"`       | An element of a map inside a top-level attribute.                        |
+| `"foo_bar"`       | Underscores are valid in names.                                          |
+| `"foo-bar"`       | Hyphens are valid in names.                                              |
+| ``"`foo.bar`"``   | Other special characters, such as a dot, need backticks around the name. |
 
 When a query runs, every path element is replaced by an [expression attribute name](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html) and every value by an [expression attribute value](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeValues.html), so names that clash with DynamoDB reserved words need no escaping.
 
 ## Extending a Path
 
-An untyped projection expression can be extended with `apply`: a `String` argument selects a map element and an `Int` argument selects a list element:
+An untyped projection expression can be extended with `ProjectionExpression#apply`: a `String` argument selects a map element and an `Int` argument selects a list element:
 
 ```scala mdoc
 $("hobbies")("sport")(0).toString

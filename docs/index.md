@@ -20,10 +20,7 @@ Simple, type-safe, and efficient access to DynamoDB
 
 ZIO DynamoDB is a library for type-safe, efficient and boilerplate-free access to AWS DynamoDB. We describe a read or write as a `DynamoDBQuery` value, combine queries, and run them with `DynamoDBQuery#execute`, which returns a ZIO effect. When several queries are combined, ZIO DynamoDB batches the ones DynamoDB can batch and runs the rest in parallel.
 
-The library offers two APIs:
-
-- The **High Level API** works with our own case classes and sealed traits. It derives the DynamoDB codecs from a [ZIO Schema](https://zio.dev/zio-schema) and builds type-checked expressions from the model's fields, so a typo in a field name or a comparison with the wrong type does not compile.
-- The **Low Level API** works with DynamoDB items (`Item`, an attribute map) and string paths such as `$("address.city")`, mirroring the AWS API one to one.
+The library offers two APIs. The **High Level API** works with our own case classes and sealed traits. It derives the DynamoDB codecs from a [ZIO Schema](https://zio.dev/zio-schema) and builds type-checked expressions from the model's fields, so a typo in a field name or a comparison with the wrong type does not compile. The **Low Level API** works with DynamoDB items (`Item`, an attribute map) and string paths such as `$("address.city")`, mirroring the AWS API one to one.
 
 Under the hood, ZIO DynamoDB calls DynamoDB through [ZIO AWS](https://zio.dev/zio-aws), which wraps the AWS SDK for Java v2.
 

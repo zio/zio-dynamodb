@@ -67,7 +67,7 @@ Unsafe.unsafe { implicit unsafe =>
 
 A table must exist in the fake before any query touches it; a query on an unknown table fails with `DynamoDBError.ItemError.ValueNotFound("table ... does not exist")`. There are two ways to create tables.
 
-`DynamoDBExecutor.test(tableAndPKNames*)` creates empty tables up front. Each pair is a table name and the name of its partition key attribute:
+`DynamoDBExecutor.test(tableAndPKNames: _*)` creates empty tables up front. Each pair is a table name and the name of its partition key attribute:
 
 ```scala mdoc:compile-only
 val layer: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] =
@@ -119,17 +119,17 @@ Unsafe.unsafe { implicit unsafe =>
 
 The fake implements a subset of DynamoDB. The table below lists each operation and how closely the fake follows DynamoDB:
 
-| Operation                                    | Behaviour in the fake                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------- |
-| `DynamoDBQuery.get`, `DynamoDBQuery.getItem`                             | Looks the item up by its exact primary key. Projections are ignored.          |
-| `DynamoDBQuery.put`, `DynamoDBQuery.putItem`                             | Stores the item under its partition key value. Conditions and return values are ignored; the result is always `None`. |
-| `DynamoDBQuery.deleteFrom`, `DynamoDBQuery.deleteItem`                   | Removes the item. Conditions and return values are ignored; the result is always `None`. |
-| Batched gets and writes (`zip`, `batch`, streaming helpers) | Run item by item, with no unprocessed items.                 |
-| `DynamoDBQuery.scanAll`, `DynamoDBQuery.scanSome`                        | Return all items, ordered by partition key, paged by `limit` and `startKey`. Filters, projections, indexes and `parallel` are ignored. |
-| `DynamoDBQuery.queryAll`, `DynamoDBQuery.querySome`                      | Behave like a scan: the key condition and filter are ignored and every item of the table comes back. |
-| `DynamoDBQuery.update`, `DynamoDBQuery.updateItem`                       | Not supported.                                                                |
-| `DynamoDBQuery.createTable`, `DynamoDBQuery.deleteTable`, `DynamoDBQuery.describeTable` | Not supported; use `TestDynamoDBExecutor#addTable`.                                               |
-| `DynamoDBQuery.conditionCheck`, `transaction`              | Not supported.                                                                |
+| Operation                                                                               | Behaviour in the fake                                                                                                                  |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `DynamoDBQuery.get`, `DynamoDBQuery.getItem`                                            | Looks the item up by its exact primary key. Projections are ignored.                                                                   |
+| `DynamoDBQuery.put`, `DynamoDBQuery.putItem`                                            | Stores the item under its partition key value. Conditions and return values are ignored; the result is always `None`.                  |
+| `DynamoDBQuery.deleteFrom`, `DynamoDBQuery.deleteItem`                                  | Removes the item. Conditions and return values are ignored; the result is always `None`.                                               |
+| Batched gets and writes (`zip`, `batch`, streaming helpers)                             | Run item by item, with no unprocessed items.                                                                                           |
+| `DynamoDBQuery.scanAll`, `DynamoDBQuery.scanSome`                                       | Return all items, ordered by partition key, paged by `limit` and `startKey`. Filters, projections, indexes and `parallel` are ignored. |
+| `DynamoDBQuery.queryAll`, `DynamoDBQuery.querySome`                                     | Behave like a scan: the key condition and filter are ignored and every item of the table comes back.                                   |
+| `DynamoDBQuery.update`, `DynamoDBQuery.updateItem`                                      | Not supported.                                                                                                                         |
+| `DynamoDBQuery.createTable`, `DynamoDBQuery.deleteTable`, `DynamoDBQuery.describeTable` | Not supported; use `TestDynamoDBExecutor#addTable`.                                                                                    |
+| `DynamoDBQuery.conditionCheck`, `transaction`                                           | Not supported.                                                                                                                         |
 
 An unsupported operation makes the fiber die with an exception whose message is `Constructor ... not implemented yet`; it is a defect, not a `DynamoDBError`.
 

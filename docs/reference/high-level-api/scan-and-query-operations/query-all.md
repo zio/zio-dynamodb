@@ -56,4 +56,4 @@ These options apply to `DynamoDBQuery.queryAll`:
   .capacity(<ReturnConsumedCapacity>)
 ```
 
-To query a secondary index, pass its name to `indexName` and use the index's key attributes in `whereKey`. Creating indexes is covered in [Table Management](../../table-management.md).
+To query a secondary index, pass its name to `DynamoDBQuery#indexName` and use the index's key attributes in `DynamoDBQuery#whereKey`. Creating indexes is covered in [Table Management](../../table-management.md).

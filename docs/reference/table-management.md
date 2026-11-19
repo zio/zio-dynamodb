@@ -10,7 +10,7 @@ keywords:
   - "BillingMode"
 ---
 
-Table management queries **create, inspect and drop DynamoDB tables** from Scala. They are ordinary `DynamoDBQuery` values built by `DynamoDBQuery.createTable`, `DynamoDBQuery.describeTable` and `DynamoDBQuery.deleteTable`, so we run them with `DynamoDBQuery#execute` like any other query. Applications usually create tables with infrastructure tools; these queries are most useful in tests, examples and local development against [DynamoDB Local](../how-to/connect-to-dynamodb-local.md).
+Table management queries **create, inspect and drop DynamoDB tables** from Scala. They are ordinary [`DynamoDBQuery`](dynamodb-query.md) values built by `DynamoDBQuery.createTable`, `DynamoDBQuery.describeTable` and `DynamoDBQuery.deleteTable`, so we run them with `DynamoDBQuery#execute` like any other query. Applications usually create tables with infrastructure tools; these queries are most useful in tests, examples and local development against [DynamoDB Local](../how-to/connect-to-dynamodb-local.md).
 
 The constructors live on the `DynamoDBQuery` companion object:
 
@@ -95,7 +95,7 @@ sealed trait BillingMode
 
 object BillingMode {
   case object PayPerRequest extends BillingMode
-  def provisioned(readCapacityUnit: Long, writeCapacityUnit: Long): BillingMode
+  def provisioned(readCapacityUnit: Long, writeCapacityUnit: Long): BillingMode // the concrete Provisioned type is internal
 }
 ```
 
@@ -171,8 +171,6 @@ trait DynamoDBQuery[-In, +Out] {
 ```
 
 A global secondary index (`DynamoDBQuery#gsi`) can use any attributes as its keys. On a `BillingMode.provisioned` table, use the overload with capacity units; on a `BillingMode.PayPerRequest` table, use the one without. A local secondary index (`DynamoDBQuery#lsi`) keeps the table's partition key and adds a different sort key; DynamoDB only accepts it as part of table creation.
-
-### Projection Types
 
 The `projection` argument decides which attributes DynamoDB copies into the index:
 

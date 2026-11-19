@@ -82,7 +82,7 @@ These options apply to `DynamoDBQuery.update`:
   .capacity(<ReturnConsumedCapacity>)
 ```
 
-By default the result is `None`. `returns(ReturnValues.AllNew)` returns the item after the update, decoded as the model, and a condition with `where` makes the update fail instead of creating or changing an item that does not match:
+By default the result is `None`. `DynamoDBQuery#returns(ReturnValues.AllNew)` returns the item after the update, decoded as the model, and a condition with `DynamoDBQuery#where` makes the update fail instead of creating or changing an item that does not match:
 
 ```scala mdoc:compile-only
 val birthday: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =

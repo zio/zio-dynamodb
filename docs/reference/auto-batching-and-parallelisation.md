@@ -3,7 +3,7 @@ id: auto-batching-and-parallelisation
 title: "Auto Batching and Parallelisation"
 ---
 
-When we combine `DynamoDBQuery` values with `DynamoDBQuery#zip` (or its variants), `DynamoDBQuery#execute` groups the parts DynamoDB can batch into `BatchGetItem` and `BatchWriteItem` requests, and runs every other part in parallel. When we combine them with `DynamoDBQuery.batch`, the parts are batched too, but nothing runs in parallel: a part that cannot be batched makes the whole query fail.
+When we combine `DynamoDBQuery` values with `DynamoDBQuery#zip` (or its variants), `DynamoDBQuery#execute` groups the parts DynamoDB can batch into `BatchGetItem` and `BatchWriteItem` requests, and runs every other part in parallel. When we combine them with `DynamoDBQuery.batch`, the parts are batched too, but nothing runs in parallel: when more than one part cannot be batched, the query fails.
 
 The examples on this page use this model:
 
@@ -39,14 +39,11 @@ DynamoDB's [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/AP
 - It is a `GetItem` (`get` in the High Level API) whose projections include the primary key, so that the response can be matched to the request. All attributes are returned by default, so this matters only when we set projections ourselves.
 - There is more than one part of its kind: a single get or a single write is sent as an ordinary request.
 
-For queries combined with `DynamoDBQuery#zip`, a part that does not qualify runs in parallel with the batches. For queries built with `DynamoDBQuery.batch`, a part that does not qualify makes `DynamoDBQuery#execute` fail with `DynamoDBError.BatchError.UnbatchableQueryError`, whose `reasons` explain each rule that was broken.
+For queries combined with `DynamoDBQuery#zip`, a part that does not qualify runs in parallel with the batches. For queries built with `DynamoDBQuery.batch`, when more than one part does not qualify, `DynamoDBQuery#execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError`, whose `reasons` explain each rule that was broken.
 
 ## Batching With batch
 
-`DynamoDBQuery.batch(values)(f)` is the recommended way to batch: it zips one query per element and keeps the results in the order of `values`. We still have to keep each batch within DynamoDB's limits:
-
-- `BatchWriteItem` takes at most **25** puts or deletes.
-- `BatchGetItem` takes at most **100** gets.
+`DynamoDBQuery.batch(values)(f)` is the recommended way to batch: it zips one query per element and keeps the results in the order of `values`. We still have to keep each batch within DynamoDB's limits: `BatchWriteItem` takes at most **25** puts or deletes, and `BatchGetItem` takes at most **100** gets.
 
 A larger batch fails with an AWS error. The [streaming batch helpers](streaming-batch-helpers.md) split a stream into batches of the right size for us.
 

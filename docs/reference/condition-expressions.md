@@ -55,11 +55,11 @@ val adults =
 
 The same expression type serves three purposes, each with its own entry point:
 
-| Entry point                          | Applies to                                      | DynamoDB parameter    |
-| ------------------------------------ | ----------------------------------------------- | --------------------- |
-| `DynamoDBQuery#where`                | `DynamoDBQuery.put`, `update`, `deleteFrom` and their `*Item` forms | `ConditionExpression` |
-| `DynamoDBQuery#filter`               | `DynamoDBQuery.scanAll`, `scanSome`, `queryAll`, `querySome` and their `*Item` forms | `FilterExpression` |
-| `DynamoDBQuery.conditionCheck`       | A write transaction                             | `ConditionCheck`      |
+| Entry point                    | Applies to                                                                           | DynamoDB parameter    |
+| ------------------------------ | ------------------------------------------------------------------------------------ | --------------------- |
+| `DynamoDBQuery#where`          | `DynamoDBQuery.put`, `update`, `deleteFrom` and their `*Item` forms                  | `ConditionExpression` |
+| `DynamoDBQuery#filter`         | `DynamoDBQuery.scanAll`, `scanSome`, `queryAll`, `querySome` and their `*Item` forms | `FilterExpression`    |
+| `DynamoDBQuery.conditionCheck` | A write transaction                                                                  | `ConditionCheck`      |
 
 A failed write condition fails the effect with `DynamoDBError.AWSError` wrapping the AWS `ConditionalCheckFailedException`; see [How to Handle a Failed Conditional Write](../how-to/handle-failed-conditional-writes.md). A filter runs after DynamoDB reads the items, so it reduces the data sent back but not the read capacity consumed. In a query, a filter cannot use the table's key attributes; put those in the key condition (`DynamoDBQuery#whereKey`, see [Primary Keys](high-level-api/primary-keys.md)).
 
@@ -121,15 +121,15 @@ val notCalledBob: ConditionExpression[Person] = Person.name <> "Bob"
 
 DynamoDB's condition functions are methods on `ProjectionExpression`:
 
-| Method                          | DynamoDB function           | Holds when                                                   |
-| ------------------------------- | --------------------------- | ------------------------------------------------------------ |
-| `exists`                        | `attribute_exists`          | The item has the attribute                                   |
-| `notExists`                     | `attribute_not_exists`      | The item lacks the attribute                                 |
-| `beginsWith(prefix)`            | `begins_with`               | A string attribute starts with `prefix`                      |
-| `contains(a)`                   | `contains`                  | A string contains the substring, or a set or list contains the element |
-| `containsSet(head, tail)`       | several `contains`          | The attribute contains every element of `tail + head` (joined with `&&`) |
-| `isString`, `isNumber`, `isBool`, `isBinary`, `isList`, `isMap`, `isNull`, `isStringSet`, `isNumberSet`, `isBinarySet` | `attribute_type` | The attribute has that DynamoDB type |
-| `size`                          | `size`                      | Not a condition; returns an operand to compare               |
+| Method                                                                                                                 | DynamoDB function      | Holds when                                                               |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------ |
+| `exists`                                                                                                               | `attribute_exists`     | The item has the attribute                                               |
+| `notExists`                                                                                                            | `attribute_not_exists` | The item lacks the attribute                                             |
+| `beginsWith(prefix)`                                                                                                   | `begins_with`          | A string attribute starts with `prefix`                                  |
+| `contains(a)`                                                                                                          | `contains`             | A string contains the substring, or a set or list contains the element   |
+| `containsSet(head, tail)`                                                                                              | several `contains`     | The attribute contains every element of `tail + head` (joined with `&&`) |
+| `isString`, `isNumber`, `isBool`, `isBinary`, `isList`, `isMap`, `isNull`, `isStringSet`, `isNumberSet`, `isBinarySet` | `attribute_type`       | The attribute has that DynamoDB type                                     |
+| `size`                                                                                                                 | `size`                 | Not a condition; returns an operand to compare                           |
 
 To insert only new items, look for tagged people and test an optional attribute's type:
 
@@ -159,7 +159,7 @@ val target: ConditionExpression[Person] =
 
 ## Low Level API Conditions
 
-With the Low Level API, `ProjectionExpression.$` builds an untyped path (see [The `$` and `parse` Functions](low-level-api/dollar-function.md)). The same methods are available, but they accept any value that has a `ToAttributeValue` instance, so a type mismatch between the attribute and the value is only found by DynamoDB at run time:
+With the Low Level API, `ProjectionExpression.$` builds an untyped path (see [$ and parse Functions](low-level-api/dollar-function.md)). The same methods are available, but they accept any value that has a `ToAttributeValue` instance, so a type mismatch between the attribute and the value is only found by DynamoDB at run time:
 
 ```scala mdoc:compile-only
 import zio.dynamodb.ProjectionExpression.$
@@ -175,12 +175,12 @@ val deleteIfInactive =
 
 The High Level API checks at compile time that an expression makes sense for the attribute and for the query that runs it. Each check is an implicit evidence type in `zio.dynamodb.proofs`; when it is missing, the compiler reports the message below.
 
-| Evidence      | Required by                 | Holds for                                       | Compiler message starts with |
-| ------------- | --------------------------- | ----------------------------------------------- | ---------------------------- |
-| `CanWhere`    | `DynamoDBQuery#where`       | `DynamoDBQuery.put`, `update` and `deleteFrom` whose item type matches the condition's `From` | "DynamoDB only supports conditions expressions on put, update and delete operations" |
-| `CanFilter`   | `DynamoDBQuery#filter`      | Scan and query operations whose item type matches the filter's `From` | "DynamoDB only supports filter on scan and query operations" |
-| `Beginnable`  | `beginsWith`                | `String` and `Option[String]` attributes        | "DynamoDB does not support 'beginsWith' on type" |
-| `Containable` | `contains`, `containsSet`   | `Set[A]` and `List[A]` with an `A` element, `String` and `Option[String]` with a `String` | "DynamoDB does not support [...].contains" |
-| `Sizable`     | `size`                      | `String` and any `Iterable`                     | "DynamoDB does not support the 'size' operation on type" |
+| Evidence      | Required by               | Holds for                                                                                     | Compiler message starts with                                                         |
+| ------------- | ------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `CanWhere`    | `DynamoDBQuery#where`     | `DynamoDBQuery.put`, `update` and `deleteFrom` whose item type matches the condition's `From` | "DynamoDB only supports conditions expressions on put, update and delete operations" |
+| `CanFilter`   | `DynamoDBQuery#filter`    | Scan and query operations whose item type matches the filter's `From`                         | "DynamoDB only supports filter on scan and query operations"                         |
+| `Beginnable`  | `beginsWith`              | `String` and `Option[String]` attributes                                                      | "DynamoDB does not support 'beginsWith' on type"                                     |
+| `Containable` | `contains`, `containsSet` | `Set[A]` and `List[A]` with an `A` element, `String` and `Option[String]` with a `String`     | "DynamoDB does not support [...].contains"                                           |
+| `Sizable`     | `size`                    | `String` and any `Iterable`                                                                   | "DynamoDB does not support the 'size' operation on type"                             |
 
 For example, `DynamoDBQuery.get("people")(Person.id.partitionKey === "1").where(Person.age > 18)` does not compile, because DynamoDB's `GetItem` takes no condition, and `Person.age.beginsWith("1")` does not compile, because `Person.age` is an `Int`. Paths built with `$` have the type `ProjectionExpression.Unknown`, which every evidence type accepts, so these checks do not apply to the Low Level API.

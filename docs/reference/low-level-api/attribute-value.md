@@ -65,7 +65,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) {
 }
 ```
 
-`get` returns a `DecodingError` when the field is missing or has the wrong type. `getOptional` returns `None` in both cases, so it cannot tell a missing field from a malformed one.
+`AttrMap#get` returns a `DecodingError` when the field is missing or has the wrong type. `AttrMap#getOptional` returns `None` in both cases, so it cannot tell a missing field from a malformed one.
 
 To decode a nested item with an optional field:
 

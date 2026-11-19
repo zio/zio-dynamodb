@@ -53,12 +53,12 @@ val compilesButWrong = $("name") === 1
 
 These methods build the other expression types from a projection expression. Each group has its own reference page:
 
-| Category                                | Methods                                                                                                                         | Reference                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Primary keys                            | `partitionKey`, `sortKey`                                                                                                       | [Primary Keys](high-level-api/primary-keys.md)                                |
-| Condition and filter expressions        | `===`, `<>`, `<`, `<=`, `>`, `>=`, `between`, `in`, `inSet`, `beginsWith`, `contains`, `containsSet`, `exists`, `notExists`, `size`, `isBinary` and the other type checks | [Condition and Filter Expressions](condition-expressions.md)                  |
-| Update actions                          | `set`, `setIfNotExists`, `append`, `appendList`, `prepend`, `prependList`, `add`, `addSet`, `deleteFromSet`, `remove`           | [update](high-level-api/crud-operations/update.md#update-actions)            |
-| Traversal                               | `>>>`, `valueAt`, `elementAt`, `some`                                                                                           | [Field Traversal](high-level-api/creating-models/field-traversal.md)          |
+| Category                         | Methods                                                                                                                                                                   | Reference                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Primary keys                     | `partitionKey`, `sortKey`                                                                                                                                                 | [Primary Keys](high-level-api/primary-keys.md)                       |
+| Condition and filter expressions | `===`, `<>`, `<`, `<=`, `>`, `>=`, `between`, `in`, `inSet`, `beginsWith`, `contains`, `containsSet`, `exists`, `notExists`, `size`, `isBinary` and the other type checks | [Condition and Filter Expressions](condition-expressions.md)         |
+| Update actions                   | `set`, `setIfNotExists`, `append`, `appendList`, `prepend`, `prependList`, `add`, `addSet`, `deleteFromSet`, `remove`                                                     | [update](high-level-api/crud-operations/update.md#update-actions)    |
+| Traversal                        | `>>>`, `valueAt`, `elementAt`, `some`                                                                                                                                     | [Field Traversal](high-level-api/creating-models/field-traversal.md) |
 
 Every comparison also accepts another projection expression of the same type, which compares two attributes of the same item:
 

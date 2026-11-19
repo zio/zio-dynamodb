@@ -40,7 +40,7 @@ Scalar Scala types map to these DynamoDB types:
 | `String`                                               | `S`           |                                                                                  |
 | Numeric types (`Int`, `Long`, `BigDecimal`, ...)       | `N`           |                                                                                  |
 | `Boolean`                                              | `BOOL`        |                                                                                  |
-| A collection of `Byte` (`Chunk[Byte]`, `List[Byte]`, ...) | `B`        | Binary.                                                                          |
+| `Chunk[Byte]`, `Byte`                                  | `B`           | Binary. Other collections of `Byte`, such as `List[Byte]`, are stored as a list (`L`) of binary values. |
 | `java.time.*`                                          | `S`           | DynamoDB has no date type; values are stored as ISO-8601 strings.               |
 | `java.util.UUID`                                       | `S`           | DynamoDB has no UUID type.                                                       |
 | `java.util.Currency`                                   | `S`           | DynamoDB has no currency type.                                                   |

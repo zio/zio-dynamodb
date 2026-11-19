@@ -34,8 +34,7 @@ DynamoDBError
 
 `DynamoDBError.ItemError` covers problems with a single item in the High Level API:
 
-- `ItemError.ValueNotFound` is the `Left` that `DynamoDBQuery.get` returns when no item has the given key. To treat a missing item as `None` instead, use the `maybeFound` extension method; see [Working With get Return Values](high-level-api/crud-operations/get.md#working-with-get-return-values).
-- `ItemError.DecodingError` is returned when stored data does not match the model's schema, for example a missing required field or a string where the schema expects a number.
+`ItemError.ValueNotFound` is the `Left` that `DynamoDBQuery.get` returns when no item has the given key. To treat a missing item as `None` instead, use the `maybeFound` extension method; see [Working With get Return Values](high-level-api/crud-operations/get.md#working-with-get-return-values). `ItemError.DecodingError` is returned when stored data does not match the model's schema, for example a missing required field or a string where the schema expects a number.
 
 ## AWS Errors
 

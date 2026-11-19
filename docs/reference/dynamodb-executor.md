@@ -9,7 +9,7 @@ keywords:
   - "DynamoDBExecutor"
 ---
 
-`DynamoDBExecutor` is the **ZIO service that runs queries**. A `DynamoDBQuery` is only a description of work; calling `DynamoDBQuery#execute` returns a `ZIO[DynamoDBExecutor, DynamoDBError, Out]`, and that effect does nothing until we provide a `DynamoDBExecutor` layer. The production layer, `DynamoDBExecutor.live`, translates each query into calls on the [ZIO AWS](https://zio.dev/zio-aws) DynamoDB client; the test layer, `DynamoDBExecutor.test`, keeps tables in memory.
+`DynamoDBExecutor` is the **ZIO service that runs queries**. A [`DynamoDBQuery`](dynamodb-query.md) is only a description of work; calling `DynamoDBQuery#execute` returns a `ZIO[DynamoDBExecutor, DynamoDBError, Out]`, and that effect does nothing until we provide a `DynamoDBExecutor` layer. The production layer, `DynamoDBExecutor.live`, translates each query into calls on the [ZIO AWS](https://zio.dev/zio-aws) DynamoDB client; the test layer, `DynamoDBExecutor.test`, keeps tables in memory.
 
 The service has one method:
 
@@ -135,7 +135,7 @@ The repository ships a Docker Compose file that starts DynamoDB Local on port 80
 
 ## The Test Layer
 
-`DynamoDBExecutor.test` and `DynamoDBExecutor.test(tableAndPKNames*)` provide an in-memory executor for unit tests. The layer also exposes the `TestDynamoDBExecutor` service, which we use to seed tables and inspect what ran. It supports a subset of operations; see [Test Executor](test-executor.md) for what it does and does not do.
+`DynamoDBExecutor.test` and `DynamoDBExecutor.test(tableAndPKNames: _*)` provide an in-memory executor for unit tests. The layer also exposes the `TestDynamoDBExecutor` service, which we use to seed tables and inspect what ran. It supports a subset of operations; see [Test Executor](test-executor.md) for what it does and does not do.
 
 To swap the live layer for the in-memory one in a test, we provide `DynamoDBExecutor.test` instead:
 

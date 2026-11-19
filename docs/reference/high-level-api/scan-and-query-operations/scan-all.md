@@ -49,7 +49,7 @@ val expensive: ZIO[DynamoDBExecutor, Throwable, Chunk[Equipment]] =
     .flatMap(_.runCollect)
 ```
 
-Key conditions (`whereKey`) apply only to queries; on a scan they are ignored, so use [queryAll](query-all.md) to read one partition.
+Key conditions (`DynamoDBQuery#whereKey`) apply only to queries; on a scan they are ignored, so use [queryAll](query-all.md) to read one partition.
 
 ## Parallel Scans
 

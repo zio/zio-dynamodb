@@ -15,10 +15,7 @@ sealed trait DynamoDBQuery[-In, +Out] {
 }
 ```
 
-The effect needs a `DynamoDBExecutor` in its environment (see [DynamoDBExecutor](dynamodb-executor.md)) and fails with a [`DynamoDBError`](error-handling.md). When we run a query, `DynamoDBQuery#execute`:
-
-- Splits a composite query (built with `zip` or `batch`) into its parts, then batches the parts that DynamoDB can batch and runs the others in parallel; see [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md) for the rules.
-- Hands each request to the `DynamoDBExecutor`, which converts it to a ZIO AWS request, sends it, and converts the response back to an `Item`.
+The effect needs a `DynamoDBExecutor` in its environment (see [DynamoDBExecutor](dynamodb-executor.md)) and fails with a [`DynamoDBError`](error-handling.md). When we run a query, `DynamoDBQuery#execute` splits a composite query (built with `DynamoDBQuery#zip` or `DynamoDBQuery.batch`) into its parts, then batches the parts that DynamoDB can batch and runs the others in parallel; see [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md) for the rules. It then hands each request to the `DynamoDBExecutor`, which converts it to a ZIO AWS request, sends it, and converts the response back to an `Item`.
 
 For High Level API queries, the codecs derived from the model's `Schema` convert between the model and the `Item`.
 
@@ -48,7 +45,7 @@ object DynamoDBQuery {
 }
 ```
 
-The results come back in the order of `values`. When the zipped queries cannot be batched, `execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError` instead of running them in parallel. Unprocessed items or keys are retried, and a `BatchError.WriteError` or `BatchError.GetError` lists the ones that still failed. See [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md).
+The results come back in the order of `values`. When more than one of the zipped queries cannot be batched, `DynamoDBQuery#execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError` instead of running them in parallel. Unprocessed items or keys are retried, and a `BatchError.WriteError` or `BatchError.GetError` lists the ones that still failed. See [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md).
 
 ### Pure Values
 
@@ -67,7 +64,7 @@ val writes: DynamoDBQuery[Any, Unit] =
 
 ## Combinators
 
-These combinators compose queries. Queries combined with `zip` and its variants are eligible for automatic batching and parallel execution:
+These combinators compose queries. Queries combined with `DynamoDBQuery#zip` and its variants are eligible for automatic batching and parallel execution:
 
 | Combinator                       | Alias  | Description                                                                         |
 | -------------------------------- | ------ | ----------------------------------------------------------------------------------- |

@@ -4,7 +4,7 @@ title: "Low Level API"
 sidebar_label: "Low Level API"
 ---
 
-The Low Level API constructors live in the `DynamoDBQuery` companion object. Their names contain `Item` because they work directly on DynamoDB [items](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html), represented as an `AttrMap` (see [AttributeValue and AttrMap](attribute-value.md)), and their expressions are built with untyped projection expressions from [`$`](dollar-function.md):
+You rarely need the Low Level API directly; prefer the [High Level API](../high-level-api/index.md) unless you work with items whose shape is not known at compile time. The Low Level API constructors live in the `DynamoDBQuery` companion object. Their names contain `Item` because they work directly on DynamoDB [items](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html), represented as an `AttrMap` (see [AttributeValue and AttrMap](attribute-value.md)), and their expressions are built with untyped projection expressions from [`$`](dollar-function.md):
 
 ```scala
 object DynamoDBQuery {

@@ -45,7 +45,7 @@ These options apply to `DynamoDBQuery.deleteFrom`:
   .capacity(<ReturnConsumedCapacity>)
 ```
 
-With `returns(ReturnValues.AllOld)`, the result holds the deleted item; with a condition, the delete fails instead of deleting an item that does not match:
+With `DynamoDBQuery#returns(ReturnValues.AllOld)`, the result holds the deleted item; with a condition, the delete fails instead of deleting an item that does not match:
 
 ```scala mdoc:compile-only
 val deleteMinor: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =

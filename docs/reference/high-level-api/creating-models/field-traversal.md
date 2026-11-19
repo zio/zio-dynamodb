@@ -46,7 +46,7 @@ val sports: ProjectionExpression[Person, List[String]]    = Person.hobbies.value
 val firstSport: ProjectionExpression[Person, String]      = Person.hobbies.valueAt("sports").elementAt(0)
 ```
 
-A path's `toString` is its DynamoDB document path:
+The `ProjectionExpression#toString` of a path is its DynamoDB document path:
 
 ```scala mdoc
 firstSport.toString

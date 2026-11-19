@@ -50,7 +50,7 @@ These options apply to `DynamoDBQuery.put`:
   .capacity(<ReturnConsumedCapacity>)
 ```
 
-The result is `None` unless `returns(ReturnValues.AllOld)` is set, in which case it holds the item that was replaced, if any:
+The result is `None` unless `DynamoDBQuery#returns(ReturnValues.AllOld)` is set, in which case it holds the item that was replaced, if any:
 
 ```scala mdoc:compile-only
 val replaced: ZIO[DynamoDBExecutor, DynamoDBError, Option[Person]] =
