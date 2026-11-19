@@ -26,7 +26,9 @@ The examples use the core module and, for mapping tests, the optional JSON modul
 ```scala
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-dynamodb"      % "@VERSION@",
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@" % Test
+  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@" % Test,
+  "dev.zio" %% "zio-test"          % "@ZIO_VERSION@" % Test,
+  "dev.zio" %% "zio-test-sbt"      % "@ZIO_VERSION@" % Test
 )
 ```
 
@@ -84,7 +86,18 @@ val savesAndLoads: ZIO[DynamoDBExecutor, DynamoDBError, Boolean] =
   } yield found.contains(Person("1", "Avi", Set("A")))
 ```
 
-In a ZIO Test spec, the `for` comprehension ends in `assertTrue(...)` inside `test("saves and loads a person") { ... }`, and the suite gets its dependencies with `suite("PeopleRepository")(...).provideShared(localExecutor, peopleTable)`, where `localExecutor` is the layer from the DynamoDB Local guide. `Spec#provideShared` creates the table once for the whole suite; `Spec#provide` would create and drop it around every test.
+In a ZIO Test spec, the test asserts on that result, and the suite gets its dependencies with `Spec#provideShared`, which creates the table once for the whole suite; `Spec#provide` would create and drop it around every test. Here `localExecutor` stands for the DynamoDB Local layer from the guide linked above:
+
+```scala mdoc:compile-only
+import zio.test._
+
+def integrationSpec(localExecutor: ZLayer[Any, Throwable, DynamoDBExecutor]): Spec[Any, Any] =
+  suite("PeopleRepository against DynamoDB Local")(
+    test("saves and loads a person") {
+      savesAndLoads.map(ok => assertTrue(ok))
+    }
+  ).provideShared(localExecutor, peopleTable)
+```
 
 ## Unit Testing With the In-Memory Executor
 
@@ -98,7 +111,25 @@ Unsafe.unsafe { implicit unsafe =>
 }
 ```
 
-In a spec, `Spec#provide` with `DynamoDBExecutor.test("people" -> "id")` gives every test a fresh, empty database. [Test Executor](../reference/test-executor.md) documents how to seed tables, inspect stored items and recorded queries, and exactly which operations the fake supports.
+In a spec, `Spec#provide` with `DynamoDBExecutor.test("people" -> "id")` gives every test a fresh, empty database:
+
+```scala mdoc:compile-only
+import zio.test._
+
+object PeopleRepositorySpec extends ZIOSpecDefault {
+  def spec =
+    suite("PeopleRepository in memory")(
+      test("saves and loads a person") {
+        savesAndLoads.map(ok => assertTrue(ok))
+      },
+      test("finds nothing in an empty table") {
+        PeopleRepository.find("missing").map(found => assertTrue(found.isEmpty))
+      }
+    ).provide(DynamoDBExecutor.test("people" -> "id"))
+}
+```
+
+[Test Executor](../reference/test-executor.md) documents how to seed tables, inspect stored items and recorded queries, and exactly which operations the fake supports.
 
 ## Unit Testing Data Mappings
 
