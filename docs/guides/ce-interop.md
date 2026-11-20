@@ -11,9 +11,8 @@ effort.
 Add the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
-)
+// Cats Effect interop for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 ```
 
 The entry points are the `DynamoDBExecutorF.of` and `DynamoDBExecutorF.ofCustomised` constructors which provide a `Resource` managed

@@ -11,9 +11,8 @@ effort.
 Add the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
-)
+// Scala Future interop for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
 ```
 
 The entry point is `DynamoDBExecutorF.make` which allows the user to customise the DynamoDB client and is placed in implicit scope. 
