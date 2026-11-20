@@ -29,9 +29,8 @@ For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](
 To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "@VERSION@"
-)
+// ZIO DynamoDB: the core library (JVM, Scala.js, Scala Native)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 
 ### Cats Effect Interop
@@ -39,9 +38,8 @@ libraryDependencies ++= Seq(
 To use the Cats Effect 3 interop module, we need to also add the following line to our `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
-)
+// Cats Effect interop for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 ```
 
 For CE interop examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
@@ -52,9 +50,8 @@ For projects that do not use effect libraries (e.g. Play applications) we can us
 We need to add the following line to our `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
-)
+// Scala Future interop for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
 ```
 
 For Future interop examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/FutureInteropExample.scala).
@@ -63,9 +60,8 @@ For Future interop examples please see [examples sbt module](https://github.com/
 AWS tools like the CLI and Console read/write a special JSON representation of dynamoDB items. The new experimental optional `zio-dynamodb-json` module provides a way to read/write this form of JSON when working with both the High Level and Low Level API. To use this module, we need to also add the following line to our `build.sbt` file:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
-)
+// JSON support for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 
 ## Example

@@ -24,9 +24,8 @@ Some example use cases include:
 In your `build.sbt` file add the following line:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
-)
+// JSON support for ZIO DynamoDB
+libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 
 Add the following import to your code:

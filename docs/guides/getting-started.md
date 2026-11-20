@@ -6,6 +6,7 @@ title: "Getting Started"
 ## Add the dependency to your build.sbt file
 
 ```scala
+// ZIO DynamoDB: the core library (JVM, Scala.js, Scala Native)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % @VERSION@
 ```
 
