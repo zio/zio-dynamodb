@@ -29,7 +29,8 @@ import zio.blocks.chunk.Chunk
  *                         `scannedCount > count` indicates a filter-heavy query that reads
  *                         more items than it returns.
  *
- * Covariant, so a `Page[Either[ItemError.DecodingError, A]]` is also a `Page[Either[ItemError, A]]`.
+ * Covariant, so a `Page[Either[DynamoDBError.ItemError.DecodingError, A]]` is also a
+ * `Page[Either[DynamoDBError.ItemError, A]]`.
  */
 final case class Page[+A](
   items: Chunk[A],
