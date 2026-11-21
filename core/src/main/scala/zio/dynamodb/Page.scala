@@ -28,8 +28,10 @@ import zio.blocks.chunk.Chunk
  * @param scannedCount     Items evaluated before applying any filter expression.
  *                         `scannedCount > count` indicates a filter-heavy query that reads
  *                         more items than it returns.
+ *
+ * Covariant, so a `Page[Either[ItemError.DecodingError, A]]` is also a `Page[Either[ItemError, A]]`.
  */
-final case class Page[A](
+final case class Page[+A](
   items: Chunk[A],
   lastEvaluatedKey: LastEvaluatedKey,
   count: Int,

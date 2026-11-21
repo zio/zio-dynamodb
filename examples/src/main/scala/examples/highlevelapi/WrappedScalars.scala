@@ -74,9 +74,9 @@ object WrappedScalars {
   val deleteQuery: DynamoDBQuery[Widget, Unit] =
     deleteFrom(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))
 
-  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     query(widgets, limit = 20).whereKey(Widget.sku.partitionKey === Sku("SKU-1")).filter(weightGt)
 
-  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     scan(widgets, limit = 20).filter(skuEq)
 }

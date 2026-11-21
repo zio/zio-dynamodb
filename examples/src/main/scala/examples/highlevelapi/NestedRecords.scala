@@ -76,9 +76,9 @@ object NestedRecords {
   val deleteQuery: DynamoDBQuery[Order, Unit] =
     deleteFrom(orders)(Order.id.partitionKey === "o-1")
 
-  val queryQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError, Order]]] =
+  val queryQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError.DecodingError, Order]]] =
     query(orders, limit = 20).whereKey(Order.id.partitionKey === "o-1").filter(latGt)
 
-  val scanQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError, Order]]] =
+  val scanQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError.DecodingError, Order]]] =
     scan(orders, limit = 20).filter(inBothHemispheres)
 }

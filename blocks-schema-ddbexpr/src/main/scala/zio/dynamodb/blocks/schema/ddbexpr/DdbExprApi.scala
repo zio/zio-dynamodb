@@ -33,10 +33,7 @@ private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], project
 // canonical helper regardless of which facade the call site imported.
 private[ddbexpr] object BuilderSupport {
   def decode[From](table: Table[From], item: Item): Either[DynamoDBError.ItemError.DecodingError, From] =
-    table.decode(item).left.map {
-      case d: DynamoDBError.ItemError.DecodingError => d
-      case other                                    => DynamoDBError.ItemError.DecodingError.failure(other.message)
-    }
+    table.decode(item)
 
   def decodeReturned[From](
     table: Table[From]
@@ -58,7 +55,7 @@ private[ddbexpr] object BuilderSupport {
  */
 final class ScanBuilder[From] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
-  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]
+  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]]
 ) {
   private def attach(ce: ConditionExpression[From]): ScanBuilder[From] =
     new ScanBuilder(table, query.filter(ce))
@@ -67,9 +64,11 @@ final class ScanBuilder[From] private[ddbexpr] (
   def filter(se: SchemaExpr[From, Boolean]): ScanBuilder[From] = filter(DdbExpr.Builtin(se))
   def filter(ce: ConditionExpression[From]): ScanBuilder[From] = attach(ce)
 
-  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
+  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]] = query
 
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[F[_]](implicit
+    interpreter: Interpreter[F]
+  ): F[Page[Either[DynamoDBError.ItemError.DecodingError, From]]] =
     interpreter.run(query)
 }
 
@@ -80,7 +79,7 @@ final class ScanBuilder[From] private[ddbexpr] (
  */
 final class QueryBuilder[From] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
-  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]
+  private[ddbexpr] val query: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]]
 ) {
   private def attach(ce: ConditionExpression[From]): QueryBuilder[From] =
     new QueryBuilder(table, query.filter(ce))
@@ -97,9 +96,11 @@ final class QueryBuilder[From] private[ddbexpr] (
   def filter(se: SchemaExpr[From, Boolean]): QueryBuilder[From] = filter(DdbExpr.Builtin(se))
   def filter(ce: ConditionExpression[From]): QueryBuilder[From] = attach(ce)
 
-  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
+  def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]] = query
 
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[F[_]](implicit
+    interpreter: Interpreter[F]
+  ): F[Page[Either[DynamoDBError.ItemError.DecodingError, From]]] =
     interpreter.run(query)
 }
 
@@ -377,7 +378,7 @@ trait DdbExprApiSyntax {
   private def mapPage[From](
     q: DynamoDBQuery[Any, Page[Item]],
     table: Table[From]
-  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] =
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]] =
     q.map(page =>
       Page(
         items = page.items.map(item => table.decode(item)),
@@ -385,17 +386,17 @@ trait DdbExprApiSyntax {
         count = page.count,
         scannedCount = page.scannedCount
       )
-    ).asInstanceOf[DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]]]
+    ).asInstanceOf[DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]]]
 
   // -- Builder -> DynamoDBQuery implicit conversions ---------------------------
 
   implicit def scanBuilderToQuery[From](
     b: ScanBuilder[From]
-  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]] = b.toQuery
 
   implicit def queryBuilderToQuery[From](
     b: QueryBuilder[From]
-  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
+  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError.DecodingError, From]]] = b.toQuery
 
 }
 

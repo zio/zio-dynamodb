@@ -84,9 +84,9 @@ object KeyConditions {
   val deleteQuery: DynamoDBQuery[Event, Unit] =
     deleteFrom(events)(composite)
 
-  val queryQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
+  val queryQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError.DecodingError, Event]]] =
     query(events, limit = 20).whereKey(rangeBetween)
 
-  val scanQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
+  val scanQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError.DecodingError, Event]]] =
     scan(events, limit = 20).filter(Event.payload.attributeExists)
 }

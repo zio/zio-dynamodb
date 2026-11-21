@@ -71,9 +71,9 @@ object Sets {
   val deleteQuery: DynamoDBQuery[Inventory, Unit] =
     deleteFrom(inventories)(Inventory.id.partitionKey === "i-1")
 
-  val queryQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError, Inventory]]] =
+  val queryQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError.DecodingError, Inventory]]] =
     query(inventories, limit = 20).whereKey(Inventory.id.partitionKey === "i-1").filter(hasTag)
 
-  val scanQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError, Inventory]]] =
+  val scanQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError.DecodingError, Inventory]]] =
     scan(inventories, limit = 20).filter(hasBin)
 }

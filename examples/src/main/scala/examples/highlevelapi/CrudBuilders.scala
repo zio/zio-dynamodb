@@ -62,12 +62,12 @@ object CrudBuilders {
 
   // sortOrder is a method on DynamoDBQuery itself, not on the builder, so the builder converts
   // to a DynamoDBQuery implicitly at that point in the chain.
-  val queryQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError, Task]]] =
+  val queryQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
     query(tasks, limit = 20)
       .whereKey(Task.id.partitionKey === "t1")
       .filter(Task.priority > 0)
       .sortOrder(ascending = false)
 
-  val scanQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError, Task]]] =
+  val scanQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
     scan(tasks, limit = 20).filter(Task.done === false)
 }
