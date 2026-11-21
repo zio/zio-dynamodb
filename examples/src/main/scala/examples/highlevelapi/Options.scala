@@ -99,9 +99,9 @@ object Options {
   val deleteQuery: DynamoDBQuery[Profile, Unit] =
     deleteFrom(profiles)(Profile.name.partitionKey === "alice")
 
-  val queryQuery: DynamoDBQuery[Profile, Page[Either[DynamoDBError.ItemError, Profile]]] =
+  val queryQuery: DynamoDBQuery[Profile, Page[Either[DynamoDBError.ItemError.DecodingError, Profile]]] =
     query(profiles, limit = 20).whereKey(Profile.name.partitionKey === "alice").filter(hasScore)
 
-  val scanQuery: DynamoDBQuery[Profile, Page[Either[DynamoDBError.ItemError, Profile]]] =
+  val scanQuery: DynamoDBQuery[Profile, Page[Either[DynamoDBError.ItemError.DecodingError, Profile]]] =
     scan(profiles, limit = 20).filter(tagExists)
 }

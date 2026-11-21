@@ -501,7 +501,7 @@ class CeEffectStackBench extends BaseBenchmark {
       .where(BigRecordOps.priceMinor > 0L)
 
   /** Construction only: scan + a 2-segment nested-field `.filter`, default config. */
-  @Benchmark def blocksScanBigNestedFilterConstructOnly: DynamoDBQuery[BigRecord, Page[Either[ItemError, BigRecord]]] =
+  @Benchmark def blocksScanBigNestedFilterConstructOnly: DynamoDBQuery[BigRecord, Page[Either[ItemError.DecodingError, BigRecord]]] =
     DdbExprApi.scan(bigDdbTable, 20).filter(BigRecordOps.auditVersion > 0)
 
 }

@@ -97,9 +97,9 @@ object Variants {
   val deleteQuery: DynamoDBQuery[Item, Unit] =
     deleteFrom(items)(Item.id.partitionKey === "i-1")
 
-  val queryQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError, Item]]] =
+  val queryQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError.DecodingError, Item]]] =
     query(items, limit = 20).whereKey(Item.id.partitionKey === "i-1").filter(statusEq)
 
-  val scanQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError, Item]]] =
+  val scanQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError.DecodingError, Item]]] =
     scan(items, limit = 20).filter(isCircle)
 }

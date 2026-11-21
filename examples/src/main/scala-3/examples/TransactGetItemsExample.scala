@@ -55,13 +55,14 @@ object TransactGetItemsExample extends ZIOAppDefault {
 
         // Homogeneous read transaction, deliberately Low-Level — no DdbExprApi wrapper
         // exists for transactGetItems, by design (see the doc reference above).
-        _ <- DynamoDBQuery
-               .transactGetItems(
-                 DynamoDBQuery.GetItem(accounts.name, PrimaryKey("id" -> "a1")),
-                 DynamoDBQuery.GetItem(accounts.name, PrimaryKey("id" -> "a2"))
-               )
-               .map(_.map(_.map(accounts.decode))) // Chunk[Option[Item]] -> Chunk[Option[Either[ItemError, Account]]]
-               .execute
+        _ <-
+          DynamoDBQuery
+            .transactGetItems(
+              DynamoDBQuery.GetItem(accounts.name, PrimaryKey("id" -> "a1")),
+              DynamoDBQuery.GetItem(accounts.name, PrimaryKey("id" -> "a2"))
+            )
+            .map(_.map(_.map(accounts.decode))) // Chunk[Option[Item]] -> Chunk[Option[Either[DecodingError, Account]]]
+            .execute
       } yield ()
     }
 

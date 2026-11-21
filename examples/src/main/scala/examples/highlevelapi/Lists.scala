@@ -101,9 +101,9 @@ object Lists {
   val deleteQuery: DynamoDBQuery[Catalog, Unit] =
     deleteFrom(catalogs)(Catalog.id.partitionKey === "c-1")
 
-  val queryQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError, Catalog]]] =
+  val queryQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError.DecodingError, Catalog]]] =
     query(catalogs, limit = 20).whereKey(Catalog.id.partitionKey === "c-1").filter(nameExists)
 
-  val scanQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError, Catalog]]] =
+  val scanQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError.DecodingError, Catalog]]] =
     scan(catalogs, limit = 20).filter(itemQtyGt)
 }

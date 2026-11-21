@@ -231,7 +231,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 ```
 
 Each item in the returned page decodes independently, so `query`/`scan` return a page of
-`Either[DynamoDBError.ItemError, Order]` rather than failing the whole page if one item's
+`Either[DynamoDBError.ItemError.DecodingError, Order]` rather than failing the whole page if one item's
 decode fails.
 
 ### Reading every page
@@ -250,7 +250,7 @@ import zio.stream.ZStream
 
 def allOrders(customerId: String)(implicit
   interp: Interpreter[Task]
-): ZStream[Any, Throwable, Either[DynamoDBError.ItemError, Order]] =
+): ZStream[Any, Throwable, Either[DynamoDBError.ItemError.DecodingError, Order]] =
   ZStream
     .paginateZIO(Option.empty[PrimaryKey]) { startKey =>
       query(orders, limit = 100)

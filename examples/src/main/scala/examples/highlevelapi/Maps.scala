@@ -95,9 +95,9 @@ object Maps {
   val deleteQuery: DynamoDBQuery[Directory, Unit] =
     deleteFrom(directories)(Directory.id.partitionKey === "d-1")
 
-  val queryQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError, Directory]]] =
+  val queryQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError.DecodingError, Directory]]] =
     query(directories, limit = 20).whereKey(Directory.id.partitionKey === "d-1").filter(attrExists)
 
-  val scanQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError, Directory]]] =
+  val scanQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError.DecodingError, Directory]]] =
     scan(directories, limit = 20).filter(countGt)
 }

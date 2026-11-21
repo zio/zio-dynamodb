@@ -72,7 +72,7 @@ final class Table[From] private (val name: String, mkCodec: () => DynamoDBCodec[
    * Decodes an [[Item]] — as returned by the Low-Level API (`DynamoDBQuery.getItem`,
    * `batchGetItem`, `transactGetItems`, …) — into `From` with this table's codec.
    */
-  def decode(item: Item): Either[DynamoDBError.ItemError, From] =
+  def decode(item: Item): Either[DynamoDBError.ItemError.DecodingError, From] =
     entry.codec.fromItem(item)
 
   /**

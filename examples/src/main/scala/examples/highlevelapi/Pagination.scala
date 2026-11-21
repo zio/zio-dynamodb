@@ -43,7 +43,7 @@ object Pagination {
 
   val events: Table[Event] = Table[Event]("events")
 
-  type ErrorOrDecoded = Either[DynamoDBError.ItemError, Event]
+  type ErrorOrDecoded = Either[DynamoDBError.ItemError.DecodingError, Event]
 
   private def page(streamId: String, pageSize: Int, startKey: LastEvaluatedKey) =
     query(events, limit = pageSize).whereKey(Event.streamId.partitionKey === streamId).startKey(startKey)

@@ -113,11 +113,11 @@ object TableConfigs {
   val deleteQuery: DynamoDBQuery[Person, Unit] =
     deleteFrom(renamedFieldTable)(Person.firstName.partitionKey === "Ada")
 
-  val queryQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError, Person]]] =
+  val queryQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError.DecodingError, Person]]] =
     query(renamedFieldTable, limit = 20)
       .whereKey(Person.firstName.partitionKey === "Ada")
       .filter(Person.lastName.attributeExists)
 
-  val scanQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError, Person]]] =
+  val scanQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError.DecodingError, Person]]] =
     scan(renamedFieldTable, limit = 20).filter(Person.firstName.attributeExists)
 }

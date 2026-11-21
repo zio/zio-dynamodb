@@ -80,9 +80,9 @@ object Scalars {
   val deleteQuery: DynamoDBQuery[Widget, Unit] =
     deleteFrom(widgets)(Widget.id.partitionKey === "w-1")
 
-  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     query(widgets, limit = 20).whereKey(Widget.id.partitionKey === "w-1").filter(nGte)
 
-  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     scan(widgets, limit = 20).filter(sBetween && nLte)
 }
