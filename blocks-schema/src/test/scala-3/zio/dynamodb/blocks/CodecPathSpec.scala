@@ -205,7 +205,8 @@ object CodecPathSpec extends ZIOSpecDefault {
 
   opaque type Boxed = Packaging
   object Boxed:
-    given Schema[Boxed] = summon[Schema[Packaging]]
+    // Packaging's own given, by name: inside this object Boxed = Packaging, so summon could pick this given itself
+    given Schema[Boxed] = Packaging.derived$Schema
 
   final case class Widget(productSku: ProductSku, packaging: Boxed) derives Schema
 
