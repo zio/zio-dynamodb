@@ -7,12 +7,12 @@ addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
 val zioVersion        = "2.1.27"
 val zioPreludeVersion = "1.0.0-RC48"
-val zioBlocksVersion  = "0.0.55"
+val zioBlocksVersion  = "0.0.56"
 val awsSdkVersion     = "2.56.0"
 val catsEffectVersion = "3.7.1"
 val fs2Version        = "3.14.0"
 val scala213Version   = "2.13.18"
-val scala3Version     = "3.9.0" // Scala 3 LTS
+val scala3Version     = "3.3.9" // Scala 3.3 LTS
 
 ThisBuild / version       := "3.0.0-SNAPSHOT"
 ThisBuild / organization  := "dev.zio"
