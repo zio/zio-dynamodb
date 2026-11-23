@@ -24,10 +24,11 @@ The `zio-dynamodb-ce` module does this conversion: it builds the executor as a `
 Add the interop module next to the core module:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb"    % "@VERSION@",
-  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
-)
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
+
+// Cats Effect 3 interop: run queries as F[_] effects and scans as FS2 streams (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 ```
 
 The examples share these imports and a `Person` model stored in a `Person` table keyed by `id`:

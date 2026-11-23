@@ -19,6 +19,7 @@ The module does not support the binary (`B`) and binary set (`BS`) types yet: pa
 Add the module next to the core module in `build.sbt`:
 
 ```scala
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 

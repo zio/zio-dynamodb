@@ -14,6 +14,7 @@ We need Java 17 or newer, sbt, and Docker (to run DynamoDB Local).
 ZIO DynamoDB is published for Scala 2.13 and Scala 3. Add it to `build.sbt`:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

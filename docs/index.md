@@ -29,10 +29,8 @@ Under the hood, ZIO DynamoDB calls DynamoDB through [ZIO AWS](https://zio.dev/zi
 ZIO DynamoDB is published for Scala 2.13 and Scala 3 and runs on the JVM, Java 17 or newer. To use it, add the core module to `build.sbt`:
 
 ```scala
-libraryDependencies ++= Seq(
-  // Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
-  "dev.zio" %% "zio-dynamodb" % "@VERSION@"
-)
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 
 The core module brings in ZIO, ZIO Streams, ZIO Schema and the ZIO AWS DynamoDB client, so no other dependency is needed to talk to DynamoDB. Continue with [Getting Started](getting-started.md) to write and run a first program.
@@ -46,13 +44,11 @@ The other modules are optional. Each one depends on the core module.
 These modules run ZIO DynamoDB queries from code that does not use ZIO:
 
 ```scala
-libraryDependencies ++= Seq(
-  // Cats Effect 3 interop: run queries as F[_] effects and scans as FS2 streams (JVM)
-  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@",
+// Cats Effect 3 interop: run queries as F[_] effects and scans as FS2 streams (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 
-  // Future interop: run queries as Scala Futures, e.g. from a Play application (JVM)
-  "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
-)
+// Future interop: run queries as Scala Futures, e.g. from a Play application (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
 ```
 
 See [How to Use ZIO DynamoDB From Cats Effect](how-to/use-from-cats-effect.md) and [How to Use ZIO DynamoDB From Future-Based Code](how-to/use-from-future-code.md).
@@ -62,10 +58,8 @@ See [How to Use ZIO DynamoDB From Cats Effect](how-to/use-from-cats-effect.md) a
 This experimental module reads and writes the JSON form of DynamoDB items that the AWS CLI and Console use, which helps when debugging data mappings:
 
 ```scala
-libraryDependencies ++= Seq(
-  // DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
-)
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 
 See [ZIO DynamoDB JSON Module](reference/zio-dynamodb-json.md).

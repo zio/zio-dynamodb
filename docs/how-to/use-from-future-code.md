@@ -24,10 +24,11 @@ The `zio-dynamodb-future` module wraps all of this in one object, `DynamoDBExecu
 Add the interop module next to the core module:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb"        % "@VERSION@",
-  "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
-)
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
+
+// Future interop: run queries as Scala Futures, e.g. from a Play application (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
 ```
 
 The examples use a `Person` model stored in a `Person` table keyed by `id`:
