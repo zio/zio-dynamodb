@@ -3,14 +3,10 @@ id: architecture
 title: "Architecture"
 ---
 
-# Architecture
-
-In the below diagram you can see the different layers of library and its dependencies.
-
-- The user can choose to call the High Level Type Safe API which is based on types from Scala case classes (in green) or the Low Level Type Safe API (in blue) which is based on DynamoDB specific abstractions like `AttributeValue`. 
-- **High Level Type Safe API** has a dependency on [ZIO Schema](https://zio.dev/zio-schema/) for compile time type information that is used to automatically generate codecs and in turn calls the ...
-- **Low Level API** for query creation and execution, and which has in turn has a dependency on [ZIO AWS](https://zio.dev/zio-aws/), which in turn has a dependency on the AWS Java SDK.
+ZIO DynamoDB is built in layers, and each layer depends only on the one below it. The diagram shows the layers and the libraries they use:
 
 ![architecture diagram](architecture.png)
 
-Although there are two APIs, the High Level API is the recommended way to interact with the library as it provides a type safe way to interact with DynamoDB together with a huge amount of boilerplate reduction.
+The **High Level API** (green) works with our case classes and sealed traits. It uses [ZIO Schema](https://zio.dev/zio-schema/) to derive codecs at compile time and to generate typed `ProjectionExpression`s, and it translates every call into the Low Level API. The **Low Level API** (blue) works with DynamoDB abstractions such as `AttributeValue` and `Item`. It builds `DynamoDBQuery` values, and the `DynamoDBExecutor` runs them with [ZIO AWS](https://zio.dev/zio-aws/), which wraps the AWS SDK for Java v2.
+
+Both APIs produce the same `DynamoDBQuery` type, so they can be mixed in one program. The High Level API is the recommended way to use the library: it is type-safe and removes most of the boilerplate of encoding and decoding items. See [High Level API](high-level-api.md) and [Low Level API](low-level-api.md) for how each one works.

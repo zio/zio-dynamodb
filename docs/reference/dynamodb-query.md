@@ -3,61 +3,99 @@ id: dynamodb-query
 title: "DynamoDBQuery"
 ---
 
-When we use the Low or High Level API constructors to create a query we end up with the type `DynamoDBQuery` which is a sealed trait.
+`DynamoDBQuery[-In, +Out]` is a description of one or more DynamoDB requests that produces an `Out` when run. Both the High Level and the Low Level API constructors return it, so queries from both APIs combine freely. `In` is the model type a High Level query works on (`Any` for Low Level queries); it lets the compiler reject, for example, a filter on `Person` fields attached to a scan of `Order`s.
 
-One of the primary methods on this trait is `execute` which will run the query and return the result as a ZIO effect. 
+## Running a Query
+
+`DynamoDBQuery#execute` turns the description into a ZIO effect:
 
 ```scala
-def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = ???
+sealed trait DynamoDBQuery[-In, +Out] {
+  def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out]
+}
 ```
 
-The `execute` method requires a `DynamoDBExecutor` service in order to execute the query using the lower level ZIO AWS DynamoDB library.
+The effect needs a `DynamoDBExecutor` in its environment (see [DynamoDBExecutor](dynamodb-executor.md)) and fails with a [`DynamoDBError`](error-handling.md). When we run a query, `DynamoDBQuery#execute` splits a composite query (built with `DynamoDBQuery#zip` or `DynamoDBQuery.batch`) into its parts, then batches the parts that DynamoDB can batch and runs the others in parallel; see [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md) for the rules. It then hands each request to the `DynamoDBExecutor`, which converts it to a ZIO AWS request, sends it, and converts the response back to an `Item`.
 
-The `execute` method does the following:
+For High Level API queries, the codecs derived from the model's `Schema` convert between the model and the `Item`.
 
-- if the query type is a composite (`Zip`) then it will automatically batch or parallelise the queries - see 
-[Auto batching and parallelisation](auto-batching-and-parallelisation) for the exact rules
-- executes the query using the `DynamoDBExecutor` service, which:
-  - converts it to an underlying ZIO AWS DynamoDB query
-  - converts the ZIO AWS DynamoDB response back to an `Item` (type alias for an `AttrMap`)
+## Constructors
 
-When using the High Level API transformations are done between the Scala model and the `Item` type using the automatically
-generated codecs that make use of the `ZIO Schema` in implicit scope.
+The `DynamoDBQuery` companion object holds every constructor. They fall into these groups:
 
-The next sections cover the surface area exposed by `DynamoDBQuery`.
+| Group                     | High Level API                                       | Low Level API                                                  |
+| ------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| Single item               | `get`, `put`, `update`, `deleteFrom`                 | `getItem`, `putItem`, `updateItem`, `deleteItem`               |
+| Sum types (experimental)  | `getWithNarrow`, `putWithNarrow`                     |                                                                |
+| Scan and query            | `scanAll`, `scanSome`, `queryAll`, `querySome`       | `scanAllItem`, `scanSomeItem`, `queryAllItem`, `querySomeItem` |
+| Transactions              | `conditionCheck`                                     | `conditionCheck`                                               |
+| Tables                    | `createTable`, `deleteTable`, `describeTable`        | `createTable`, `deleteTable`, `describeTable`                  |
+| Batching                  | `batch`                                              | `batch`                                                        |
+| Pure values               | `succeed`, `fail`, `fromEither`, `apply`             | `succeed`, `fail`, `fromEither`, `apply`                       |
 
-## `DynamoDBQuery` Combinators and Operations
+The [High Level API](high-level-api/index.md) and [Low Level API](low-level-api/index.md) pages document the item constructors, [Table Management](table-management.md) the table constructors, and [How to Run Operations in a Transaction](../how-to/run-operations-in-a-transaction.md) `conditionCheck`.
 
-DynamoDBQuery Combinators | Alias | Description
----|-------|---
-map |       | map the result of a query with a function
-zip | `<*>`   | combine 2 queries together and returns a tuple - makes the resulting query eligible for automatic batching or parallelisation [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
-zipWith |       |does a `zip` and then immediately maps the result with a function
-zipLeft | `<*`    | a zip that ignores the result of the right query
-zipRight| `*>`    | a zip that ignores the result of the left query
+### Batching Many Queries
 
-DynamoDBQuery Functions | Description
----|---
-`def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]]`  | `DynamoDB.batch` automates the zipping of queries of the same type using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details. <br/><br/> Note that unprocessed items/keys are retried automatically and if they still fail a `BatchError.WriteError`/`BatchError.GetError` is returned both of which will contain a list of the unprocessed items/keys - see `withRetryPolicy` in the below section for overriding the default retry policy.
+`DynamoDBQuery.batch` builds one query per element of a collection and zips them together:
 
+```scala
+object DynamoDBQuery {
+  def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, Chunk[B]]
+}
+```
 
+The results come back in the order of `values`. When more than one of the zipped queries cannot be batched, `DynamoDBQuery#execute` fails with `DynamoDBError.BatchError.UnbatchableQueryError` instead of running them in parallel. Unprocessed items or keys are retried, and a `BatchError.WriteError` or `BatchError.GetError` lists the ones that still failed. See [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md).
 
-DynamoDBQuery Operations | Description
----|---
-capacity | sets the ReturnConsumedCapacity. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ReturnConsumedCapacity). Note capacity data in the response is ignored by the High Level Api
-consistency | sets the `ConsistencyMode` for read operations. Valid values are `Strong`and `Weak`(default) [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ConsistentRead)  
-filter | sets the `FilterExpression` - applies to `ScanSome`, `ScanAll`, `QuerySome`, `QueryAll`. Note the filter is applies **after** the read by DDB so no read units are saved, however latency costs are reduced.
-gsi | creates a Global Secondary Index - applies to a `CreateTable` query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html#DDB-CreateTable-request-GlobalSecondaryIndexes)
-indexName | sets the local secondary index or global secondary index name - applies to `ScanSome`, `ScanAll`, `QuerySome`, `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html#DDB-Scan-request-IndexName) 
-lsi | creates a local Secondary Index - applies to a `CreateTable` query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html#DDB-CreateTable-request-LocalSecondaryIndexes) 
-metrics | set `ReturnItemCollectionMetrics`, valid values are `None` (default) and `Size` - applies to PutItem, UpdateItem, Delete, Transaction. Note that metric data in the response is ignored by the High Level API. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html#DDB-PutItem-request-ReturnItemCollectionMetrics)
-parallel(N) | Applies only to `Scan` - sements and runs the query in parallel in DDB and merges the items in the response. N is level of parallelism. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Scan.html#Scan.ParallelScan). 
-returns | sets the `ReturnValues` - applies to `UpdateItem`, `DeleteItem`, `PutItem` (see [Crud Operations](reference/hi-level-api/crud-operations/index.md) reference section for each operation for more details). [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)
-selectAllAttributes, selectAllProjectedAttributes, selectSpecificAttributes, selectCount | Determines the attributes returned by Scan and Query [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-Select)    
-sortOrder | sets the sort order for `Query`'s [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ScanIndexForward) 
-startKey |Applies to `Query` and `Scan` and specifies the start key for the query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ExclusiveStartKey)
-transaction | executes the query in a transaction - see [Transactions Guide](../guides/transactions) for more details.
-where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteItem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
-whereKey | set the `KeyConditionExpr` applies to `QuerySome` and `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression) 
-withClientRequestToken | set the client request token` - applies to write transactions [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken)
-withRetryPolicy | override the default retry policy for a batched query - [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
+### Pure Values
+
+`DynamoDBQuery.succeed(a)` (also `DynamoDBQuery(a)`) and `DynamoDBQuery.fail(error)` lift a value or a `DynamoDBError` into a query without calling DynamoDB, and `DynamoDBQuery.fromEither` lifts an `Either[DynamoDBError.ItemError, A]`. They are useful as the neutral element when folding a list of queries:
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+
+val noWrites: DynamoDBQuery[Any, Unit] = DynamoDBQuery.succeed(())
+
+val writes: DynamoDBQuery[Any, Unit] =
+  List("1", "2").foldLeft(noWrites) { (acc, id) =>
+    acc.zipLeft(DynamoDBQuery.deleteItem("person", PrimaryKey("id" -> id)))
+  }
+```
+
+## Combinators
+
+These combinators compose queries. Queries combined with `DynamoDBQuery#zip` and its variants are eligible for automatic batching and parallel execution:
+
+| Combinator                       | Alias  | Description                                                                         |
+| -------------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `DynamoDBQuery#map`              |        | Transforms the result of a query with a function.                                   |
+| `DynamoDBQuery#zip`              | `<*>`  | Combines two queries and returns both results as a tuple.                           |
+| `DynamoDBQuery#zipWith`          |        | Zips two queries and combines their results with a function.                       |
+| `DynamoDBQuery#zipLeft`          | `<*`   | Zips two queries and keeps the result of the left one.                              |
+| `DynamoDBQuery#zipRight`         | `*>`   | Zips two queries and keeps the result of the right one.                             |
+| `DynamoDBQuery#transaction`      |        | Runs the query as one DynamoDB transaction; invalid actions fail at execution time. |
+| `DynamoDBQuery#safeTransaction`  |        | Like `transaction`, but returns `Either[DynamoDBError.TransactionError, DynamoDBQuery[Any, Out]]` so invalid actions are reported before execution. |
+
+## Request Options
+
+These methods set options on the request. Each one applies to the query types listed and leaves other query types unchanged, so applying an option to a query type that does not support it has no effect:
+
+| Method                                  | Applies to                                       | Description                                                                                                                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capacity(ReturnConsumedCapacity)`      | Item, scan, query, batch and transaction requests | Sets [ReturnConsumedCapacity](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ReturnConsumedCapacity): `Indexes`, `Total` or `None` (default). The capacity data in the response is not returned to us. |
+| `consistency(ConsistencyMode)`          | `get`, scans and queries                         | Sets [ConsistentRead](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ConsistentRead): `ConsistencyMode.Strong` or `ConsistencyMode.Weak` (default).                                     |
+| `filter(ConditionExpression)`           | Scans and queries                                | Sets the filter expression. DynamoDB applies it after reading, so it saves network traffic but not read capacity. See [Condition and Filter Expressions](condition-expressions.md).                                                       |
+| `indexName(String)`                     | Scans and queries                                | Reads from a local or global secondary index ([IndexName](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html#DDB-Scan-request-IndexName)).                                                                     |
+| `gsi(...)`, `lsi(...)`                  | `createTable`                                    | Adds a global or local secondary index to the table being created. See [Table Management](table-management.md).                                                                                                                           |
+| `metrics(ReturnItemCollectionMetrics)`  | `put`, `update`, `deleteFrom`, transactions      | Sets [ReturnItemCollectionMetrics](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html#DDB-PutItem-request-ReturnItemCollectionMetrics): `Size` or `None` (default). The metrics are not returned to us.         |
+| `parallel(n)`                           | `scanAll`                                        | Runs a [parallel scan](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Scan.html#Scan.ParallelScan) with `n` segments and merges the items into one stream, in no particular order.                                       |
+| `returns(ReturnValues)`                 | `put`, `update`, `deleteFrom`                    | Sets [ReturnValues](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues): `None` (default), `AllOld`, `UpdatedOld`, `AllNew` or `UpdatedNew`. See the [CRUD Operations](high-level-api/crud-operations/index.md) pages for which values each operation accepts. |
+| `selectAllAttributes`, `selectAllProjectedAttributes`, `selectSpecificAttributes`, `selectCount` | Scans and queries | Sets [Select](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-Select), which attributes a scan or query returns.                                                    |
+| `sortOrder(ascending: Boolean)`         | Queries                                          | Sets [ScanIndexForward](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ScanIndexForward); `true` (default) sorts by sort key ascending.                                                 |
+| `startKey(LastEvaluatedKey)`            | Scans and queries                                | Sets [ExclusiveStartKey](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ExclusiveStartKey), the key to continue from. See [How to Page Through Scan and Query Results](../how-to/page-through-results.md). |
+| `where(ConditionExpression)`            | `put`, `update`, `deleteFrom`                    | Sets the [condition expression](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html); the write fails when the condition is false.                                                     |
+| `whereKey(KeyConditionExpr)`            | Queries                                          | Sets the [key condition expression](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression). A query needs one. See [Primary Keys](high-level-api/primary-keys.md).       |
+| `withClientRequestToken(String)`        | Write transactions                               | Sets the [ClientRequestToken](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken) that makes a write transaction idempotent.                     |
+| `withRetryPolicy(Schedule)`             | `get`, `put`, `deleteFrom` (when batched)        | Replaces the retry policy for unprocessed items of the batch request the query ends up in. See [Auto Batching and Parallelisation](auto-batching-and-parallelisation.md#automatic-retry-of-unprocessed-items).                                                                 |
+
+On a composite query, each option is applied to every query inside it.

@@ -1,139 +1,95 @@
 ---
 id: zio-dynamodb-json
 title: "ZIO DynamoDB JSON Module"
+sidebar_label: "ZIO DynamoDB JSON"
 ---
 
-**`zio-dynamodb-json`** is a new experimental optional module designed for debugging and troubleshooting purposes.
-It renders a representation of the native DynamoDB types and data in a standard JSON format used in AWS console views
+`zio-dynamodb-json` is an experimental, optional module for debugging and troubleshooting. It renders DynamoDB items in the JSON format that the AWS CLI and Console use, and parses that format back. It uses the same codecs as the rest of the library, so it shows exactly how a value is stored. It works at the level of `AttributeValue`, so it serves both the High Level and the Low Level API.
 
-It uses the same codecs as the regular library and provides an accurate representation of how the data that would be stored in DynamoDB. 
-It works at the level of the AttributeValue type and so works with both the low level and high level APIs.
-Note ATM it does not support the Binary and Binary Set types.
+Typical uses are:
 
-Internally the module uses ZIO JSON and in particular it uses the AST which is not used by ZIO Json itself for efficiency reasons,
-hence the recommendations is not to use the module in production code.
+- Seeing how a case class is stored while designing a model.
+- Checking a model's mapping in a unit test.
+- Decoding an item copied from the AWS Console into a case class while investigating a production issue.
 
+The module does not support the binary (`B`) and binary set (`BS`) types yet: parsing them returns a `DecodingError`, and rendering a value that contains them throws a `NotImplementedError`. It builds a ZIO JSON AST, which ZIO JSON itself avoids for speed, so it is not meant for production code paths.
 
-Some example use cases include:
-- visualizing the Attribute Value representation of a case class during model development
-- can be used in unit tests to verify that DB mapping is as expected
-- production troubleshooting - grabbing DDB JSON from the AWS console in production and decoding it to a case class for debugging
+## Installation
 
-## Usage
-
-In your `build.sbt` file add the following line:
+Add the module next to the core module in `build.sbt`:
 
 ```scala
-// JSON support for ZIO DynamoDB
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 
-Add the following import to your code:
+Its API comes with one import:
 
-```scala
+```scala mdoc:silent
 import zio.dynamodb.json._
 ```
 
-## Methods
+## API
 
-Method | Description
---- | ---
-**`toJsonString`** // extension method | Converts a case class to a JSON string
-**`toJsonStringPretty`** // extension method | Converts a case class to a pretty printed JSON string
-**`def parse[A: Schema](jsonString: String): Either[DynamoDBError.ItemError, A]`** | takes a JSON string and returns an Either of an error or an `A` 
-**`def parseItem(json: String): Either[DynamoDBError.ItemError, AttrMap]`** | takes a JSON string and returns an Either of an error or an `Item` 
+The module adds these methods:
 
+| Method                                                                           | Description                                                                         |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `a.toJsonString[A2 >: A]`, `a.toJsonStringPretty[A2 >: A]`                       | Encodes a value that has a `Schema[A2]` to compact or pretty-printed DynamoDB JSON. |
+| `attrMap.toJsonString`, `attrMap.toJsonStringPretty`                             | Renders an `AttrMap` (an `Item`) as DynamoDB JSON.                                 |
+| `parse[A: Schema](json: String): Either[DynamoDBError.ItemError, A]`             | Decodes DynamoDB JSON into an `A`.                                                  |
+| `parseItem(json: String): Either[DynamoDBError.ItemError, AttrMap]`              | Decodes DynamoDB JSON into an `Item`.                                               |
 
+The type parameter of `toJsonString` picks the schema used for encoding. For a subtype of a sealed trait, `value.toJsonString[Trait]` encodes it the way `put[Trait]` stores it, with its discriminator (see [put](high-level-api/crud-operations/put.md#storing-a-top-level-sum-type)).
 
-## Visualizing the DB representation of a case class during model development
+## Visualizing How a Case Class Is Stored
 
-This can be accomplished by using either the `toJsonString` or `toJsonStringPretty` extension methods on a case class instance - eg:
+During model development, `toJsonStringPretty` shows the DynamoDB representation of a value:
 
-```scala
-final case class Person(
-  email: String,
-  hobbies: Map[String, List[String]],
-  friends: Set[String],
-  registrationDate: Instant
-)
+```scala mdoc
+import java.time.Instant
+
+import zio.schema.{ DeriveSchema, Schema }
+
+case class Person(email: String, hobbies: Map[String, List[String]], friends: Set[String], registrationDate: Instant)
 object Person {
   implicit val schema: Schema.CaseClass4[String, Map[String, List[String]], Set[String], Instant, Person] =
     DeriveSchema.gen[Person]
 }
-val person = Person("email", Map("sports" -> List("cricket", "football")), Set("John", "Tarlochan"), Instant.now)
+
+val person = Person("email", Map("sports" -> List("cricket", "football")), Set("John", "Tarlochan"), Instant.parse("2024-12-05T06:44:49Z"))
+
 println(person.toJsonStringPretty[Person])
 ```
-Console output:
-```json
-{
-  "registrationDate" : {
-    "S" : "2024-12-05T06:44:49.011916Z"
-  },
-  "friends" : {
-    "SS" : [
-      "John",
-      "Tarlochan"
-    ]
-  },
-  "hobbies" : {
-    "sports" : {
-      "L" : [
-        {
-          "S" : "cricket"
-        },
-        {
-          "S" : "football"
-        }
-      ]
-    }
-  },
-  "email" : {
-    "S" : "email"
-  }
-}
+
+:::note
+The rendered JSON writes nested maps, such as `hobbies` above, without the `"M"` type key that the AWS format uses (`"hobbies": { "M": { ... } }`). `parse` and `parseItem` accept both forms, but the AWS CLI does not accept the output for items with nested maps.
+:::
+
+[Creating Models](high-level-api/creating-models/index.md) describes the mapping of each Scala type, and [How to Customize How Sum Types Are Stored](../how-to/customize-sum-type-encoding.md) shows how annotations change it.
+
+## Decoding JSON From the AWS Console
+
+When investigating a production issue, we can copy an item's JSON from the AWS Console and decode it into a case class:
+
+```scala mdoc
+val json =
+  """{
+    "registrationDate": { "S": "2024-12-05T06:44:49Z" },
+    "friends": { "SS": ["John", "Tarlochan"] },
+    "hobbies": { "M": { "sports": { "L": [{ "S": "cricket" }, { "S": "football" }] } } },
+    "email": { "S": "email" }
+  }"""
+
+parse[Person](json)
 ```
 
-For a basic introduction to data modelling [Creating Models](reference/hi-level-api/creating-models/index.md) section.
+`parseItem` decodes the same JSON into an untyped `Item` instead:
 
-For details on how to customise data mappings please see the [Codec Customisation](guides/codec-customization.md) section.
-
-## Grabbing JSON from the AWS console and decoding it to a case class
-
-This can be useful in a production troubleshooting scenario where you have a JSON representation of a DynamoDB item 
-from the AWS console, and you want to decode it to a case class for local testing/debugging purposes.
-
-eg:
-
-```scala
-val json             =
-    """{
-        "registrationDate" : {
-          "S" : "2024-12-05T06:44:49.011916Z"
-        },
-        "friends" : {
-          "SS" : [
-          "John",
-          "Tarlochan"
-          ]
-        },
-        "hobbies" : {
-          "sports" : {
-          "L" : [
-        {
-          "S" : "cricket"
-        },
-        {
-          "S" : "football"
-        }
-          ]
-        }
-        },
-        "email" : {
-          "S" : "email"
-        }
-      }"""
-  val errorOrPerson = parse[Person](json) // ZIO DynamoDB Json parse method used here
-  println(
-    errorOrPerson
-  ) // Right(Person("email", Map("sports" -> List("cricket", "football")), Set("John", "Tarlochan"), 2024-12-05T06:44:49.011916Z))
+```scala mdoc
+parseItem("""{ "id": { "S": "1" }, "age": { "N": "42" } }""")
 ```
+
+## Testing Mappings
+
+Because `toJsonString` and `parse` are pure functions, they make simple unit tests for a model's mapping: assert that a value encodes to the JSON we expect, and that `parse` returns the original value. [How to Test Code That Uses DynamoDB](../how-to/test-dynamodb-code.md) shows where this fits among the other testing options.
