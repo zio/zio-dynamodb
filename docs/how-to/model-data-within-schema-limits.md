@@ -52,6 +52,7 @@ The derived schema has three cases, one per concrete class: `Billed` has disappe
 This guide only needs the core module:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

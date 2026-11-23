@@ -24,12 +24,17 @@ Because every query only needs a `DynamoDBExecutor` from the environment, we can
 The examples use the core module and, for mapping tests, the optional JSON module:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb"      % "@VERSION@",
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@" % Test,
-  "dev.zio" %% "zio-test"          % "@ZIO_VERSION@" % Test,
-  "dev.zio" %% "zio-test-sbt"      % "@ZIO_VERSION@" % Test
-)
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
+
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@" % Test
+
+// ZIO Test, for writing the test suites
+libraryDependencies += "dev.zio" %% "zio-test" % "@ZIO_VERSION@" % Test
+
+// Runs ZIO Test suites from sbt
+libraryDependencies += "dev.zio" %% "zio-test-sbt" % "@ZIO_VERSION@" % Test
 ```
 
 The code under test is a repository of people stored in a `people` table keyed by `id`:

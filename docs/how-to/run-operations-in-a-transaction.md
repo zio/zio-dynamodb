@@ -24,6 +24,7 @@ DynamoDB's `TransactWriteItems` and `TransactGetItems` APIs solve this, and in Z
 This guide only needs the core module:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

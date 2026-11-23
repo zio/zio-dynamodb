@@ -26,6 +26,7 @@ On a developer laptop or in CI that is rarely what you want: the tests would tou
 We need the core module, which brings in the ZIO AWS DynamoDB client and its Netty HTTP client:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

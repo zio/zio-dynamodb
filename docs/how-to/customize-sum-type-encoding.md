@@ -26,10 +26,11 @@ Writing such codecs by hand would mean converting every case to and from `Attrib
 The annotations are ZIO Schema's, from `zio.schema.annotation._`; ZIO DynamoDB's codecs read them. To see the stored form, we use the optional `zio-dynamodb-json` module, whose `toJsonString` renders a value with its DynamoDB types (see [ZIO DynamoDB JSON Module](../reference/zio-dynamodb-json.md)). Add it next to the core module:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb"      % "@VERSION@",
-  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
-)
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
+
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
+libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 
 Every example on this page defines a `TrafficLight` sealed trait and stores it in the `colour` field of a `Box`.

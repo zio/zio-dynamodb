@@ -67,6 +67,7 @@ docker compose -f docker-compose.yml up -d
 Then add the library to `build.sbt`; it brings ZIO, ZIO Schema and the ZIO AWS DynamoDB client with it:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

@@ -50,6 +50,7 @@ ZIO DynamoDB returns decoded case classes plus a `LastEvaluatedKey`, which is an
 We need the core module:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 
@@ -149,6 +150,7 @@ def history(id: String, resumeFrom: LastEvaluatedKey): ZStream[DynamoDBExecutor,
 A `LastEvaluatedKey` holds a `PrimaryKey`, which is an `AttrMap`. A web client needs it as a string. The optional `zio-dynamodb-json` module renders an `AttrMap` in DynamoDB JSON and parses it back:
 
 ```scala
+// DynamoDB JSON: render items and case classes as AWS DynamoDB JSON and parse them back (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 ```
 

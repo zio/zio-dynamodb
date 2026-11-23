@@ -54,6 +54,7 @@ With ZIO DynamoDB, the condition is a typed expression built from the model's ac
 Conditional writes are part of the core module:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 

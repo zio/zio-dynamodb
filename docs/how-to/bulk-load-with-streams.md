@@ -56,6 +56,7 @@ The ZIO DynamoDB helpers take a `ZStream` of input values and a function that tu
 The helpers are part of the core module:
 
 ```scala
+// Core: High Level and Low Level APIs, codecs and the DynamoDB executor (JVM)
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % "@VERSION@"
 ```
 
