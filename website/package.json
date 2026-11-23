@@ -1,5 +1,5 @@
 {
-  "name": "@zio.dev/zio-dynamodb-docs-website",
+  "name": "@zio.dev/zio-dynamodb",
   "version": "0.0.1",
   "scripts": {
     "docusaurus": "docusaurus",
