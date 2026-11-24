@@ -921,8 +921,10 @@ object DynamoDBQuery {
   }
 
   /**
-   * Low Level API: writes `item` to the table `tableName`, replacing any item with the same primary key. The result is
-   * `None` unless `returns(ReturnValues.AllOld)` asks for the replaced item.
+   * Low Level API: writes `item` to the table `tableName`, replacing any item with the same primary key.
+   * `returns(ReturnValues.AllOld)` asks for the replaced item. Without it, the result is `None` when the put is batched
+   * and with `DynamoDBExecutor.test`; a put sent on its own by `DynamoDBExecutor.live` currently returns `Some` of an
+   * empty `Item`.
    */
   def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
 
@@ -1009,8 +1011,10 @@ object DynamoDBQuery {
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
-   * Low Level API: deletes the item with primary key `key` from the table `tableName`. The result is `None` unless
-   * `returns(ReturnValues.AllOld)` asks for the deleted item.
+   * Low Level API: deletes the item with primary key `key` from the table `tableName`.
+   * `returns(ReturnValues.AllOld)` asks for the deleted item. Without it, the result is `None` when the delete is
+   * batched and with `DynamoDBExecutor.test`; a delete sent on its own by `DynamoDBExecutor.live` currently returns
+   * `Some` of an empty `Item`.
    */
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
