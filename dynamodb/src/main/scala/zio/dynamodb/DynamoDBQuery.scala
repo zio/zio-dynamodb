@@ -91,7 +91,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * counts as unbatched.
    *
    * Currently a query made with `DynamoDBQuery.fail`, or with `DynamoDBQuery.fromEither` from a `Left`, does not
-   * fail. The effect succeeds with the error as its result (also inside `zip`, `zipLeft` and `zipRight`), or dies with
+   * fail. The effect succeeds with the error as its result (also inside `zip`, where it is a tuple element), or
+   * dies with
    * a `java.lang.ClassCastException` when the query is mapped with `map`. Also, a
    * `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or `querySome` makes the effect die instead of
    * failing.
@@ -684,10 +685,10 @@ object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
   /**
-   * A query that is not built with `map` or `zip`: one DynamoDB operation, or, for `succeed` and `fail`, no request.
-   * One operation can send several requests: a scan or query that reads all pages sends one request per page (and
-   * one per segment after `parallel`), and a batch request resends unprocessed items. A `conditionCheck` sends
-   * nothing outside a transaction.
+   * A leaf of the query tree: one DynamoDB operation, or, for `succeed` and `fail`, no request. One operation can
+   * send several requests: a scan or query that reads all pages sends one request per page (a scan sends one per
+   * page of each segment after `parallel`), and a batch request resends unprocessed items. With
+   * `DynamoDBExecutor.live`, a `conditionCheck` sends nothing outside a transaction.
    */
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
 
@@ -704,7 +705,7 @@ object DynamoDBQuery {
 
   /**
    * A query meant to fail with `e` without calling DynamoDB. Currently `DynamoDBQuery#execute` does not fail but
-   * succeeds with `e` as its result (also inside `zip`, `zipLeft` and `zipRight`), and dies with a
+   * succeeds with `e` as its result (also inside `zip`, where it is a tuple element), and dies with a
    * `java.lang.ClassCastException` when the query is mapped with `map`.
    */
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
