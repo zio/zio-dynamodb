@@ -33,7 +33,7 @@ object KeyConditionExpr {
    */
   sealed trait PrimaryKeyExpr[-From] extends KeyConditionExpr[From] {
 
-    /** Returns the key as an [[AttrMap]] with one entry per key attribute, such as `AttrMap(id -> String(o1))`. */
+    /** Returns the key as an [[AttrMap]] with one entry per key attribute, such as `AttrMap(Map(id -> String(o1)))`. */
     def asAttrMap: AttrMap
   }
 
@@ -104,9 +104,10 @@ object KeyConditionExpr {
   }
 
   /**
-   * A sort key condition other than equality: `>`, `<`, `<>`, `<=`, `>=`, `between` or `beginsWith` on the sort key.
-   * Joined to a partition key condition with `&&`, it gives a key condition for a query, which can match several
-   * items.
+   * A sort key condition other than equality: `>`, `<`, `<=`, `>=`, `between` or `beginsWith` on the sort key. Joined to
+   * a partition key condition with `&&`, it gives a key condition for a query, which can match several items. The
+   * library also builds `<>`, which the DynamoDB documentation does not list among the sort key operators of a key
+   * condition.
    */
   sealed trait ExtendedSortKeyExpr[-From, +Sk] { self =>
 
