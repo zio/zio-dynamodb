@@ -12,8 +12,8 @@ import zio.{ UIO, ZIO }
  *  - Supported
  *    - CRUD operations GetItem, PutItem, DeleteItem, and gets, puts and deletes that are batched into BatchGetItem and
  *      BatchWriteItem requests
- *    - ScanSome, ScanAll, QuerySome, QueryAll: each returns the items of the table ordered by partition key, paged by
- *      the limit and the start key
+ *    - ScanSome, ScanAll, QuerySome, QueryAll: each returns the items of the table ordered by partition key;
+ *      ScanSome and QuerySome are paged by the limit and the start key, and ScanAll and QueryAll ignore the start key
  *  - Limited support
  *    - Primary Keys - each table is keyed by its partition key attribute only, so a get with a composite primary key
  *      (partition key and sort key) does not find an item stored by a put

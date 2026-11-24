@@ -721,8 +721,8 @@ case object DynamoDBExecutorImpl {
   implicit class ToZioAwsMap(item: AttrMap) {
 
     /**
-     * Converts the attribute map to the ZIO AWS form that DynamoDB requests take. Attributes holding an empty string,
-     * number or binary set are left out.
+     * Converts the attribute map to the ZIO AWS form that DynamoDB requests take. Attributes holding an empty string
+     * set, number set or binary set are left out; other empty values, such as an empty string, are kept.
      */
     def toZioAwsMap(): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] =
       item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
