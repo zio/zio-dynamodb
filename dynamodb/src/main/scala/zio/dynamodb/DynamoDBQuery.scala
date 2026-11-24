@@ -705,8 +705,8 @@ object DynamoDBQuery {
     Absolve(query)
 
   /**
-   * Returns `succeed` of the value for a `Right`, and `fail` of the error for a `Left`, so a `Left` has the current behaviour
-   * of `fail`: `DynamoDBQuery#execute` succeeds with the error as its result.
+   * Returns `succeed` of the value for a `Right`, and `fail` of the error for a `Left`, so a `Left` currently behaves like
+   * `fail`: `DynamoDBQuery#execute` succeeds with the error as its result.
    */
   def fromEither[A](or: Either[ItemError, A]): DynamoDBQuery[Any, A] =
     or match {
@@ -1030,7 +1030,7 @@ object DynamoDBQuery {
   /**
    * High Level API: scans the table `tableName` for one page of at most `limit` items, requesting the fields of `A`.
    * When executed will return a Tuple of `(Chunk[A], LastEvaluatedKey)`; pass the key to `startKey` to read the next
-   * page. Currently when an item does not decode as `A`, the effect dies with the
+   * page. Currently, when an item does not decode as `A`, the effect dies with the
    * `DynamoDBError.ItemError.DecodingError` instead of failing.
    */
   def scanSome[A: Schema](
@@ -1085,7 +1085,7 @@ object DynamoDBQuery {
   /**
    * High Level API: queries the table `tableName` for one page of at most `limit` items, requesting the fields of
    * `A`; set the key condition with `whereKey`. When executed will return a Tuple of `(Chunk[A], LastEvaluatedKey)`;
-   * pass the key to `startKey` to read the next page. Currently when an item does not decode as `A`, the effect
+   * pass the key to `startKey` to read the next page. Currently, when an item does not decode as `A`, the effect
    * dies with the `DynamoDBError.ItemError.DecodingError` instead of failing.
    */
   def querySome[A: Schema](

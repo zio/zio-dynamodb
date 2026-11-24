@@ -169,7 +169,7 @@ object ConditionExpression {
       LessThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
 
     /**
-     * Meant to build the condition `operand > that` for the operand `that`. Currently it builds `operand >= that`
+     * Meant to build the condition `operand > that` for the operand `that`. It currently builds `operand >= that`
      * instead, so `\$("a").size > \$("b").size` renders as `(size(#n0)) >= (size(#n1))`.
      */
     def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =

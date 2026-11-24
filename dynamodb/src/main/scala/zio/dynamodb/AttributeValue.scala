@@ -80,7 +80,7 @@ sealed trait AttributeValue { self =>
 
   /**
    * Meant to build the condition `value > size(path)` for the size of an untyped path, such as
-   * `AttributeValue(3) > \$("tags").size`. Currently it builds `value >= size(path)` instead.
+   * `AttributeValue(3) > \$("tags").size`. It currently builds `value >= size(path)` instead.
    */
   def >[From](that: Operand.Size[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), that)
@@ -109,7 +109,7 @@ sealed trait AttributeValue { self =>
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
   /**
-   * Meant to build the condition `value > path` for an untyped path. Currently it builds `value >= path` instead.
+   * Meant to build the condition `value > path` for an untyped path. It currently builds `value >= path` instead.
    */
   def >[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))

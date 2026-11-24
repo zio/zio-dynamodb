@@ -105,7 +105,7 @@ object syntax {
     /**
      * Runs `query` and returns its result as an `F` effect, converted by `ce`: a query that returns a `ZStream` gives
      * an `fs2.Stream`. A failed query fails the `F` with the `DynamoDBError`. Currently cancelling the returned `F`
-     * does not interrupt the running query, the cancellation waits until the query has finished.
+     * does not interrupt the running query: the cancellation waits until the query has finished.
      */
     def execute[Out](query: DynamoDBQuery[_, Out])(implicit ce: CatsCompatible[Out]): F[ce.Out] =
       F.uncancelable { poll =>

@@ -213,7 +213,7 @@ object FromAttributeValue {
 
   /**
    * Decodes an `AttributeValue.List` as a `Chunk` of `A`, decoding each element with the instance for `A`. Returns a
-   * `Left` when an element fails to decode, and a `Left` for other types. Currently summoning
+   * `Left` when an element fails to decode, and a `Left` for other types. Summoning
    * `FromAttributeValue[Iterable[Int]]` or `FromAttributeValue[Iterable[String]]` currently picks the `Set` instance,
    * which fails on an `AttributeValue.List`; call `iterableFromAttributeValue[A]` explicitly to get this instance.
    */
