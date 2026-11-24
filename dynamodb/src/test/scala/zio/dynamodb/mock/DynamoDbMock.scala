@@ -794,6 +794,34 @@ object DynamoDbMock extends Mock[DynamoDb] {
               AwsError,
               zio.aws.dynamodb.model.DescribeKinesisStreamingDestinationResponse.ReadOnly
             ]                                                                = proxy(DescribeKinesisStreamingDestination, request)
+
+            // added in zio-aws 7.59 - not used by zio-dynamodb, so not mocked
+            private def notMocked(name: String) = ZIO.dieMessage(s"DynamoDbMock: $name is not mocked")
+            def cancelBulkOperation(request: zio.aws.dynamodb.model.CancelBulkOperationRequest): IO[
+              AwsError,
+              zio.aws.dynamodb.model.CancelBulkOperationResponse.ReadOnly
+            ]                                   = notMocked("cancelBulkOperation")
+            def describeBulkOperation(request: zio.aws.dynamodb.model.DescribeBulkOperationRequest): IO[
+              AwsError,
+              zio.aws.dynamodb.model.DescribeBulkOperationResponse.ReadOnly
+            ]                                   = notMocked("describeBulkOperation")
+            def listBulkOperations(request: zio.aws.dynamodb.model.ListBulkOperationsRequest): ZStream[
+              Any,
+              AwsError,
+              zio.aws.dynamodb.model.BulkOperationSummary.ReadOnly
+            ]                                   = ZStream.fromZIO(notMocked("listBulkOperations"))
+            def listBulkOperationsPaginated(request: zio.aws.dynamodb.model.ListBulkOperationsRequest): IO[
+              AwsError,
+              zio.aws.dynamodb.model.ListBulkOperationsResponse.ReadOnly
+            ]                                   = notMocked("listBulkOperationsPaginated")
+            def searchVectors(request: zio.aws.dynamodb.model.SearchVectorsRequest): IO[
+              AwsError,
+              zio.aws.dynamodb.model.SearchVectorsResponse.ReadOnly
+            ]                                   = notMocked("searchVectors")
+            def startBulkPutItems(request: zio.aws.dynamodb.model.StartBulkPutItemsRequest): IO[
+              AwsError,
+              zio.aws.dynamodb.model.StartBulkPutItemsResponse.ReadOnly
+            ]                                   = notMocked("startBulkPutItems")
           }
         }
       }
