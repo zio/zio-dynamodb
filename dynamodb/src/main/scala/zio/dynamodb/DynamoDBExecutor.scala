@@ -47,7 +47,8 @@ object DynamoDBExecutor {
    * `DynamoDbException` fails the query with `DynamoDBError.AWSError`, and another non-fatal exception with
    * `DynamoDBError.UnknownNonFatalError`. Batch requests resend unprocessed items, by default
    * `Schedule.recurs(3) && Schedule.exponential(50.milliseconds).jittered(0, 10)`; `DynamoDBQuery#withRetryPolicy`
-   * replaces that policy.
+   * replaces that policy. For `scanAll` and `queryAll`, an error while reading pages fails the returned stream with
+   * the AWS SDK exception itself, not with a `DynamoDBError`.
    */
   val live: URLayer[DynamoDb, DynamoDBExecutor] =
     ZLayer.fromZIO(for {

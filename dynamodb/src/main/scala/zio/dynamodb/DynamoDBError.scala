@@ -11,7 +11,7 @@ import zio.NonEmptyChunk
  * `getMessage` returns `DynamoDBError#message`. The subtypes group the errors by cause:
  *
  *  - `DynamoDBError.ItemError`: an item was not found or could not be decoded
- *  - `DynamoDBError.AWSError`: DynamoDB or the AWS SDK rejected a request
+ *  - `DynamoDBError.AWSError`: DynamoDB rejected a request (an AWS SDK `DynamoDbException`)
  *  - `DynamoDBError.UnknownNonFatalError`: any other non-fatal exception raised by a request
  *  - `DynamoDBError.BatchError`: a batched query could not be batched, or left items unprocessed
  *  - `DynamoDBError.TransactionError`: a query cannot run as a transaction
