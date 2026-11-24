@@ -98,14 +98,18 @@ object syntax {
 
   /**
    * Runs a `DynamoDBQuery` as an `F` effect on `zio.Runtime.default`, using the wrapped `DynamoDBExecutor`. Create it
-   * with `DynamoDBExceutorF.of` or `DynamoDBExceutorF.ofCustomised`. The class name is spelt this way in the library.
+   * with `DynamoDBExceutorF.of` or `DynamoDBExceutorF.ofCustomised`, or with `new DynamoDBExceutorF[F](executor)` for an
+   * executor you already have. The class name is spelt this way in the library.
    */
   class DynamoDBExceutorF[F[_]](val dynamoDBExecutor: DynamoDBExecutor)(implicit F: Async[F]) {
 
     /**
      * Runs `query` and returns its result as an `F` effect, converted by `ce`: a query that returns a `ZStream` gives
-     * an `fs2.Stream`. A failed query fails the `F` with the `DynamoDBError`. Currently cancelling the returned `F`
-     * does not interrupt the running query: the cancellation waits until the query has finished.
+     * an `fs2.Stream`. It passes `query` to `DynamoDBExecutor#execute` directly, not through `DynamoDBQuery#execute`, so
+     * the parts of a zipped query run one after the other without batching, and with `DynamoDBExecutor.test` a zipped or
+     * mapped query, such as `get` of the High Level API, fails with a `java.lang.Exception`. A failed request fails the
+     * `F` with its `DynamoDBError`. Currently cancelling the returned `F` does not interrupt the running query: the
+     * cancellation waits until the query has finished.
      */
     def execute[Out](query: DynamoDBQuery[_, Out])(implicit ce: CatsCompatible[Out]): F[ce.Out] =
       F.uncancelable { poll =>

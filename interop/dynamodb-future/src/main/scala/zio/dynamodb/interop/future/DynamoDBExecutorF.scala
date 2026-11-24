@@ -25,7 +25,11 @@ class DynamoDBExecutorF private (
   implicit val unsafe: Unsafe
 ) {
 
-  /** Runs `query` on the owned runtime and returns a `CancelableFuture` of its result. A failed query fails the future with a `DynamoDBError`. */
+  /**
+   * Runs `query` with `DynamoDBQuery#execute` on the owned runtime and returns a `CancelableFuture` of its result. A
+   * failed request fails the future with its `DynamoDBError`. Currently a query built with `DynamoDBQuery.fail`
+   * completes the future successfully, with the error as its value.
+   */
   def execute[A](query: DynamoDBQuery[_, A]): CancelableFuture[A] = {
     val zio: ZIO[DynamoDBExecutor, Throwable, A] =
       query.execute
