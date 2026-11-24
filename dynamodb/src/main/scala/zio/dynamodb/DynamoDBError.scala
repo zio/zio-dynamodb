@@ -145,9 +145,10 @@ object DynamoDBError {
     }
 
     /**
-     * A query built with `DynamoDBQuery.batch` holds more than one query that cannot be batched, so `execute` sends
-     * nothing. `reasons` lists how each query was classified, such as `multiple GetItem's`, `PutItem has a condition
-     * expression` or `Query type UpdateItem not batchable`.
+     * A query built with `DynamoDBQuery.batch` holds more than one query that would run unbatched (a get or a write
+     * that is the only one of its kind counts as unbatched), so `execute` sends nothing. `reasons` lists how each
+     * query was classified, such as `multiple GetItem's`, `single GetItem`, `PutItem has a condition expression` or
+     * `Query type UpdateItem not batchable`.
      */
     final case class UnbatchableQueryError(reasons: Set[String]) extends BatchError {
 

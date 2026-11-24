@@ -84,10 +84,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   /**
    * Returns an effect that runs the query with the `DynamoDBExecutor` from the environment. A composite query is split
-   * into its parts: two or more gets that qualify are sent as one `BatchGetItem` request, two or more puts and deletes
-   * that qualify as one `BatchWriteItem` request, and the other parts run in parallel. On the query that
-   * `DynamoDBQuery.batch` returns, the effect fails with `DynamoDBError.BatchError.UnbatchableQueryError`, and sends
-   * nothing, when more than one part cannot be batched.
+   * into its parts: when there are two or more gets, the gets that qualify are sent as one `BatchGetItem` request
+   * (likewise for puts and deletes, as one `BatchWriteItem` request), and the other parts run in parallel. On the
+   * query that `DynamoDBQuery.batch` returns, the effect fails with `DynamoDBError.BatchError.UnbatchableQueryError`,
+   * and sends nothing, when more than one part would run unbatched; a get or a write that is the only one of its kind
+   * counts as unbatched.
    *
    * Currently a query made with `DynamoDBQuery.fail`, or with `DynamoDBQuery.fromEither` from a `Left`, does not
    * fail. The effect succeeds with the error as its result, or dies with a `java.lang.ClassCastException` when the
@@ -184,7 +185,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   /**
    * Sets `ReturnConsumedCapacity` (`Indexes`, `Total` or `None`, the default) on gets, puts, updates, deletes, scans,
-   * queries and transactions. The result of the query does not include the consumed capacity.
+   * queries and transactions. The result of the query does not include the consumed capacity. Currently a get, put
+   * or delete that `execute` batches is sent without it.
    */
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
     self match {
@@ -218,7 +220,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   /**
    * Sets the read consistency, `ConsistencyMode.Strong` or `ConsistencyMode.Weak` (the default), on gets, scans and
-   * queries.
+   * queries. Currently, when `DynamoDBQuery#execute` sends several gets as one batch get request, no consistent read
+   * flag is sent, so those reads are eventually consistent whatever the mode.
    */
   final def consistency(consistency: ConsistencyMode): DynamoDBQuery[In, Out] =
     self match {
@@ -299,7 +302,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   /**
    * Sets `ReturnItemCollectionMetrics` (`Size` or `None`, the default) on puts, updates, deletes and transactions. The
-   * result of the query does not include the metrics.
+   * result of the query does not include the metrics. Currently a put or delete that `execute` batches is sent
+   * without it.
    */
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
@@ -720,9 +724,11 @@ object DynamoDBQuery {
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
    * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
    * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
-   * one of the queries does not qualify for batching. Currently the check is lost once the returned query is
-   * changed, for example with `map` or an option setter such as `capacity` or `withRetryPolicy`; the queries then run
-   * without it, the unbatchable ones in parallel. For a full explanation of the batching rules please see
+   * one of the queries would run unbatched; a get or a write that is the only one of its kind counts as unbatched.
+   * Currently the check is lost once the returned query is changed, for example with `map` or an option setter such
+   * as `capacity` or `withRetryPolicy`; the queries then run without it, the unbatchable ones in parallel. Currently
+   * a batched get is also sent without its `consistency` and `capacity`, and a batched put or delete without its
+   * `capacity` and `metrics`. For a full explanation of the batching rules please see
    * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
@@ -748,9 +754,11 @@ object DynamoDBQuery {
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
    * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
    * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
-   * one of the queries does not qualify for batching. Currently the check is lost once the returned query is
-   * changed, for example with `map` or an option setter such as `capacity` or `withRetryPolicy`; the queries then run
-   * without it, the unbatchable ones in parallel. For a full explanation of the batching rules please see
+   * one of the queries would run unbatched; a get or a write that is the only one of its kind counts as unbatched.
+   * Currently the check is lost once the returned query is changed, for example with `map` or an option setter such
+   * as `capacity` or `withRetryPolicy`; the queries then run without it, the unbatchable ones in parallel. Currently
+   * a batched get is also sent without its `consistency` and `capacity`, and a batched put or delete without its
+   * `capacity` and `metrics`. For a full explanation of the batching rules please see
    * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
