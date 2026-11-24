@@ -376,12 +376,31 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 }
 
+/**
+ * Helpers of the live executor (`DynamoDBExecutor.live`) that check transactions and convert queries to ZIO AWS
+ * requests. User code runs queries with `DynamoDBQuery#execute` instead.
+ */
 case object DynamoDBExecutorImpl {
 
+  /**
+   * Whether a transaction reads (`TransactionType.Get`) or writes (`TransactionType.Write`).
+   */
   sealed trait TransactionType
+
+  /**
+   * The two kinds of `TransactionType`.
+   */
   object TransactionType {
+
+    /**
+     * A transaction of puts, updates, deletes and condition checks, sent as one `TransactWriteItems` request.
+     */
     case object Write extends TransactionType
-    case object Get   extends TransactionType
+
+    /**
+     * A transaction of gets, sent as one `TransactGetItems` request.
+     */
+    case object Get extends TransactionType
   }
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions
@@ -696,7 +715,15 @@ case object DynamoDBExecutorImpl {
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal)) })
 
+  /**
+   * Adds `toZioAwsMap` to an `AttrMap`.
+   */
   implicit class ToZioAwsMap(item: AttrMap) {
+
+    /**
+     * Converts the attribute map to the ZIO AWS form that DynamoDB requests take. Attributes holding an empty string
+     * set, number set or binary set are left out; other empty values, such as an empty string, are kept.
+     */
     def toZioAwsMap(): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] =
       item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
   }
@@ -808,6 +835,9 @@ case object DynamoDBExecutorImpl {
     )
   }
 
+  /**
+   * Builds the ZIO AWS `QueryRequest` for a query made with `DynamoDBQuery.queryAll` or `DynamoDBQuery.queryAllItem`.
+   */
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
       filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))

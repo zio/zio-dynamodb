@@ -16,19 +16,38 @@ import zio.ZLayer
 import software.amazon.awssdk.http.nio.netty.{ NettyNioAsyncHttpClient }
 import zio.aws.core.httpclient.Protocol
 
+/**
+ * Runs a `DynamoDBQuery` as a `Future`. It owns a ZIO runtime that holds a `DynamoDBExecutor` and the AWS client behind
+ * it. Create one with `DynamoDBExecutorF.make` and call `close` when it is no longer needed.
+ */
 class DynamoDBExecutorF private (
   runtime: zio.Runtime.Scoped[DynamoDBExecutor],
   implicit val unsafe: Unsafe
-)                        {
+) {
+
+  /**
+   * Runs `query` with `DynamoDBQuery#execute` on the owned runtime and returns a `CancelableFuture` of its result. A
+   * failed request fails the future with its `DynamoDBError`. Currently a query built with `DynamoDBQuery.fail`
+   * completes the future successfully, with the error as its value.
+   */
   def execute[A](query: DynamoDBQuery[_, A]): CancelableFuture[A] = {
     val zio: ZIO[DynamoDBExecutor, Throwable, A] =
       query.execute
     runtime.unsafe.runToFuture(zio)
   }
 
+  /** Shuts the owned runtime down. */
   def close(): Unit = runtime.shutdown0()
 }
+
+/** Constructors of [[DynamoDBExecutorF]]. */
 object DynamoDBExecutorF {
+
+  /**
+   * Builds the AWS client and the executor and starts the runtime that holds them, so it should be called once and the
+   * result shared. `protocol` selects the HTTP protocol of the Netty client, `buildNettyClient` adjusts the Netty HTTP
+   * client builder and `buildDynamoDbClient` adjusts the DynamoDB client builder.
+   */
   def make(
     protocol: Protocol = Protocol.Http11,
     buildNettyClient: NettyNioAsyncHttpClient.Builder => NettyNioAsyncHttpClient.Builder = identity,

@@ -32,14 +32,73 @@ import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
 
+/**
+ * A description of one or more DynamoDB requests that produces an `Out` when it runs. The constructors in the
+ * `DynamoDBQuery` companion object build it, for the High Level API (`get`, `put`, `update`, `deleteFrom`, `scanAll`,
+ * ...), which encodes and decodes a model type with its `Schema`, and for the Low Level API (`getItem`, `putItem`,
+ * ...), which works with `Item`s. `In` is the model type of a High Level query (`Any` for the Low Level API), so that
+ * the compiler rejects, for example, a filter on the fields of another model.
+ *
+ * Nothing runs until `execute` turns the query into a ZIO effect that needs a `DynamoDBExecutor`. Queries combined
+ * with `zip` and its variants, or with `DynamoDBQuery.batch`, run together: gets and writes that DynamoDB can batch
+ * are sent as `BatchGetItem` and `BatchWriteItem` requests, and the other queries run in parallel. The option setters
+ * (`where`, `filter`, `capacity`, `returns`, ...) apply to every query inside a composite query and leave the queries
+ * they do not apply to unchanged.
+ * {{{
+ * import zio._
+ * import zio.schema.{ DeriveSchema, Schema }
+ *
+ * final case class Person(id: String, name: String)
+ * object Person {
+ *   implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
+ *   val (id, name) = ProjectionExpression.accessors[Person]
+ * }
+ *
+ * val save: DynamoDBQuery[Person, Option[Person]] = DynamoDBQuery.put("people", Person("1", "Ann"))
+ * val load: DynamoDBQuery[Person, Either[DynamoDBError.ItemError, Person]] =
+ *   DynamoDBQuery.get("people")(Person.id.partitionKey === "1")
+ *
+ * val program: ZIO[DynamoDBExecutor, DynamoDBError, Either[DynamoDBError.ItemError, Person]] =
+ *   save.execute *> load.execute
+ * // with DynamoDBExecutor.test("people" -> "id"), program succeeds with Right(Person(1,Ann))
+ * }}}
+ *
+ * @see [[https://zio.dev/zio-dynamodb/reference/dynamodb-query/ DynamoDBQuery]]
+ */
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
+  /**
+   * Alias for `zipLeft`: runs both queries and keeps the result of this one.
+   */
   final def <*[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = zipLeft(that)
 
+  /**
+   * Alias for `zipRight`: runs both queries and keeps the result of `that`.
+   */
   final def *>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, B] = zipRight(that)
 
+  /**
+   * Alias for `zip`: runs both queries and returns both results.
+   */
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
+  /**
+   * Returns an effect that runs the query with the `DynamoDBExecutor` from the environment. A composite query is split
+   * into its parts: when there are two or more gets, the gets that qualify are sent as one `BatchGetItem` request
+   * (likewise for puts and deletes, as one `BatchWriteItem` request), and the other parts run in parallel. On the
+   * query that `DynamoDBQuery.batch` returns, the effect fails with `DynamoDBError.BatchError.UnbatchableQueryError`,
+   * and sends nothing, when more than one part would run unbatched; a get or a write that is the only one of its kind
+   * counts as unbatched.
+   *
+   * Currently a query made with `DynamoDBQuery.fail`, or with `DynamoDBQuery.fromEither` from a `Left`, does not
+   * fail. The effect succeeds with the error as its result (also inside `zip`, where it is a tuple element), or
+   * dies with
+   * a `java.lang.ClassCastException` when the query is mapped with `map`. Also, a
+   * `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or `querySome` makes the effect die instead of
+   * failing.
+   *
+   * @see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching]]
+   */
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
     val validateBatching = self match {
       case DynamoDBQuery.Map(Zip(_, _, _, validateBatching), _) =>
@@ -107,6 +166,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       result
   }
 
+  /**
+   * Reads from the secondary index `indexName`. Applies to scans and queries.
+   */
   final def indexName(indexName: String): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) => Zip(left.indexName(indexName), right.indexName(indexName), zippable)
@@ -123,6 +185,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets `ReturnConsumedCapacity` (`Indexes`, `Total` or `None`, the default) on gets, puts, updates, deletes, scans,
+   * queries and transactions. The result of the query does not include the consumed capacity. Currently a get, put
+   * or delete that `execute` batches is sent without it.
+   */
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) => Zip(left.capacity(capacity), right.capacity(capacity), zippable)
@@ -153,6 +220,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets the read consistency, `ConsistencyMode.Strong` or `ConsistencyMode.Weak` (the default), on gets, scans and
+   * queries. Currently, when `DynamoDBQuery#execute` sends several gets as one batch get request, no consistent read
+   * flag is sent, so those reads are eventually consistent whatever the mode.
+   */
   final def consistency(consistency: ConsistencyMode): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) => Zip(left.consistency(consistency), right.consistency(consistency), zippable)
@@ -172,10 +244,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   /**
-   * Note for `update(...)` ATM both ReturnValues.UpdatedNew and ReturnValues.UpdatedOld will potentially cause a decode error for the high level API
-   * if all the attributes are not updated as this will result in partial data being returned and hence a decode error so should not be use.
+   * Sets `ReturnValues`, the attributes that DynamoDB returns, on puts, updates and deletes. DynamoDB accepts only
+   * `ReturnValues.None` (the default) and `ReturnValues.AllOld` on puts and deletes. A put or delete with another value
+   * than `ReturnValues.None` is not batched.
    *
-   * If these are required then use the low level API for now.
+   * Note for `update(...)` ATM both ReturnValues.UpdatedNew and ReturnValues.UpdatedOld will potentially cause a decode
+   * error for the high level API if all the attributes are not updated, as this will result in partial data being
+   * returned; `update` then returns `None`, so they should not be used with it.
+   *
+   * If these are required then use the low level API (`updateItem`) for now.
    */
   def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
     self match {
@@ -191,6 +268,17 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets the condition of a put, update or delete, replacing an earlier one. When the condition is false, DynamoDB
+   * rejects the write and the query fails with a `DynamoDBError.AWSError` holding a
+   * `ConditionalCheckFailedException`. A put or delete with a condition is not batched.
+   * {{{
+   * import zio.dynamodb.ProjectionExpression.\$
+   *
+   * val insertOnly: DynamoDBQuery[Any, Option[Item]] =
+   *   DynamoDBQuery.putItem("people", Item("id" -> "1", "name" -> "Ann")).where(\$("id").notExists)
+   * }}}
+   */
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
     self match {
@@ -214,6 +302,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
   }
 
+  /**
+   * Sets `ReturnItemCollectionMetrics` (`Size` or `None`, the default) on puts, updates, deletes and transactions. The
+   * result of the query does not include the metrics. Currently a put or delete that `execute` batches is sent
+   * without it.
+   */
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) => Zip(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
@@ -230,6 +323,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets the exclusive start key of a scan or query: pass the `LastEvaluatedKey` that the previous page returned to
+   * read the next page.
+   */
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) =>
@@ -244,7 +341,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   /**
-   * Filter a Scan or a Query
+   * Filter a Scan or a Query: sets the filter expression, replacing an earlier one. DynamoDB applies it after reading
+   * the items, and returns only the items that match.
    */
   def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
@@ -269,10 +367,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   }
 
   /**
-   * Executes a DynamoDB Scan in parallel.
-   * There are no guarantees on order of returned items.
+   * Executes a DynamoDB Scan in parallel. Applies to `scanAll` and `scanAllItem`: when `n` is greater than 1, the
+   * table is scanned as `n` segments at the same time, and their items are merged into one stream. There are no
+   * guarantees on order of returned items.
    *
-   * @param n The number of parallel requests to make to DynamoDB
+   * @param n The number of segments, each read by its own scan requests
    */
   def parallel(n: Int): DynamoDBQuery[In, Out] =
     self match {
@@ -283,6 +382,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Adds a global secondary index with provisioned throughput (`readCapacityUnit` and `writeCapacityUnit`) to the
+   * table that a `createTable` query creates.
+   */
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -313,6 +416,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Adds a global secondary index without provisioned throughput, as on a `BillingMode.PayPerRequest` table, to the
+   * table that a `createTable` query creates.
+   */
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -339,6 +446,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Adds a local secondary index to the table that a `createTable` query creates. `projection` defaults to
+   * `ProjectionType.All`.
+   */
   def lsi(
     indexName: String,
     keySchema: KeySchema,
@@ -360,19 +471,52 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
-  def selectAllAttributes: DynamoDBQuery[In, Out]          = select(Select.AllAttributes)
-  def selectAllProjectedAttributes: DynamoDBQuery[In, Out] = select(Select.AllProjectedAttributes)
-  def selectSpecificAttributes: DynamoDBQuery[In, Out]     = select(Select.SpecificAttributes)
-  def selectCount: DynamoDBQuery[In, Out]                  = select(Select.Count)
+  /**
+   * Sets `Select` to `ALL_ATTRIBUTES` on a scan or query: DynamoDB returns every attribute of each item. The scan and
+   * query constructors already set it when no projection is given.
+   */
+  def selectAllAttributes: DynamoDBQuery[In, Out] = select(Select.AllAttributes)
 
   /**
-   * Adds a KeyConditionExpr to a DynamoDBQuery. Example:
+   * Sets `Select` to `ALL_PROJECTED_ATTRIBUTES` on a scan or query of an index: DynamoDB returns the attributes
+   * projected into the index.
+   */
+  def selectAllProjectedAttributes: DynamoDBQuery[In, Out] = select(Select.AllProjectedAttributes)
+
+  /**
+   * Sets `Select` to `SPECIFIC_ATTRIBUTES` on a scan or query: DynamoDB returns the attributes of the projections.
+   * The scan and query constructors already set it when projections are given.
+   */
+  def selectSpecificAttributes: DynamoDBQuery[In, Out] = select(Select.SpecificAttributes)
+
+  /**
+   * Sets `Select` to `COUNT` on a scan or query: DynamoDB returns the number of matching items instead of the items.
+   * The result of the query does not include that number.
+   */
+  def selectCount: DynamoDBQuery[In, Out] = select(Select.Count)
+
+  /**
+   * Adds a KeyConditionExpr to a DynamoDBQuery: sets the key condition of a query (`queryAll`, `querySome` and their
+   * Low Level forms), which DynamoDB requires. Example:
    * {{{
-   * // high level type safe API where "email" and "subject" keys are defined using ProjectionExpression.accessors[Student]
-   * val newQuery = query.whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths")
+   * import zio.dynamodb.ProjectionExpression.\$
+   * import zio.schema.{ DeriveSchema, Schema }
+   *
+   * final case class Student(email: String, subject: String)
+   * object Student {
+   *   implicit val schema: Schema.CaseClass2[String, String, Student] = DeriveSchema.gen[Student]
+   *   val (email, subject) = ProjectionExpression.accessors[Student]
+   * }
+   *
+   * // high level type safe API: "email" and "subject" are defined with ProjectionExpression.accessors[Student]
+   * val highLevel = DynamoDBQuery
+   *   .queryAll[Student]("student")
+   *   .whereKey(Student.email.partitionKey === "avi@gmail.com" && Student.subject.sortKey === "maths")
    *
    * // low level API
-   * val newQuery = query.whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
+   * val lowLevel = DynamoDBQuery
+   *   .queryAllItem("student")
+   *   .whereKey(\$("email").partitionKey === "avi@gmail.com" && \$("subject").sortKey === "maths")
    * }}}
    */
   def whereKey[From](keyConditionExpression: KeyConditionExpr[From]): DynamoDBQuery[In, Out] =
@@ -389,6 +533,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _            => self
     }
 
+  /**
+   * Sets the policy that retries the unprocessed items of the batch request that this get, put or delete joins when it
+   * is batched. A get, put or delete sent on its own does not use it. A batch request takes the first policy set by one
+   * of its queries, or else `Schedule.recurs(3) && Schedule.exponential(50.milliseconds).jittered(0, 10)`.
+   */
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) =>
@@ -403,6 +552,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets the sort key order of a query's results: ascending when `ascending` is `true` (the default), descending
+   * otherwise.
+   */
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
@@ -413,6 +566,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Sets the client request token of a query made with `transaction`; DynamoDB uses it to make a write transaction
+   * idempotent. Call it after `transaction`: on other queries it has no effect.
+   */
   def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable, _) =>
@@ -423,8 +580,21 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Returns a query that applies `f` to the result of this query.
+   */
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
 
+  /**
+   * Returns a query that runs this query and `that` together and returns both results, combined by `Zippable` into a
+   * flat tuple. When executed, gets and writes of both that qualify are batched and the other parts run in parallel.
+   * {{{
+   * val both: DynamoDBQuery[Any, (Option[Item], Option[Item])] =
+   *   DynamoDBQuery.getItem("people", PrimaryKey("id" -> "1")) zip
+   *     DynamoDBQuery.getItem("people", PrimaryKey("id" -> "2"))
+   * // sent as one BatchGetItem request; with only id 1 stored, the result is (Some(item1), None)
+   * }}}
+   */
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit
     z: Zippable[Out, B]
   ): DynamoDBQuery[In1, z.Out] =
@@ -435,10 +605,19 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatching)
 
+  /**
+   * Like `zip`, but keeps only the result of this query.
+   */
   final def zipLeft[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = (self zip that).map(_._1)
 
+  /**
+   * Like `zip`, but keeps only the result of `that`.
+   */
   final def zipRight[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, B] = (self zip that).map(_._2)
 
+  /**
+   * Like `zip`, but combines the two results with `f`.
+   */
   final def zipWith[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
@@ -461,8 +640,31 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                             => self
     }
 
+  /**
+   * Returns a query that runs this query as one DynamoDB transaction: a `TransactGetItems` request when it holds only
+   * gets, a `TransactWriteItems` request when it holds only puts, updates, deletes and condition checks. In a write
+   * transaction, the results of the puts, updates and deletes are `None`. When the query cannot run as a transaction,
+   * `execute` fails with a `DynamoDBError.TransactionError`; `safeTransaction` reports that before execution.
+   * {{{
+   * val transfer: DynamoDBQuery[Any, (Option[Item], Option[Item])] =
+   *   (DynamoDBQuery.putItem("accounts", Item("id" -> "a", "balance" -> 90)) zip
+   *     DynamoDBQuery.putItem("accounts", Item("id" -> "b", "balance" -> 110))).transaction
+   * }}}
+   *
+   * @see [[https://zio.dev/zio-dynamodb/guides/transactions/ Transactions]]
+   */
   final def transaction: DynamoDBQuery[In, Out] = Transaction(self).asInstanceOf[DynamoDBQuery[In, Out]]
 
+  /**
+   * Like `transaction`, but checks the query first: returns a `Left` with `DynamoDBError.TransactionError` when the
+   * query mixes gets with writes, or holds a query that cannot run in a transaction (such as a scan).
+   * {{{
+   * val checked: Either[DynamoDBError.TransactionError, DynamoDBQuery[Any, (Option[Item], Option[Item])]] =
+   *   (DynamoDBQuery.getItem("accounts", PrimaryKey("id" -> "a")) zip
+   *     DynamoDBQuery.putItem("accounts", Item("id" -> "b"))).safeTransaction
+   * // a Left holding DynamoDBError.TransactionError.MixedTransactionTypes
+   * }}}
+   */
   final def safeTransaction: Either[DynamoDBError.TransactionError, DynamoDBQuery[Any, Out]] = {
     val transaction = Transaction(self)
     DynamoDBExecutorImpl
@@ -475,19 +677,46 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
 }
 
+/**
+ * The constructors of `DynamoDBQuery`: High Level API queries that encode and decode a model type with its `Schema`,
+ * Low Level API queries on `Item`s, table operations, `batch`, and pure values.
+ */
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
+  /**
+   * A leaf of the query tree: one DynamoDB operation, or, for `succeed` and `fail`, no request. One operation can
+   * send several requests: a scan or query that reads all pages sends one request per page (a scan sends one per
+   * page of each segment after `parallel`), and a batch request resends unprocessed items. With
+   * `DynamoDBExecutor.live`, a `conditionCheck` sends nothing outside a transaction.
+   */
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
-  sealed trait Write[-In, +A]       extends Constructor[In, A]
 
+  /**
+   * A query that can join a `BatchWriteItem` request: a put or a delete. `deleteItem` returns it.
+   */
+  sealed trait Write[-In, +A] extends Constructor[In, A]
+
+  /**
+   * A query that returns `a` without calling DynamoDB. `a` is evaluated each time the query runs. It also serves as the
+   * starting value when folding a list of queries.
+   */
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
+  /**
+   * A query meant to fail with `e` without calling DynamoDB. Currently `DynamoDBQuery#execute` does not fail but
+   * succeeds with `e` as its result (also inside `zip`, where it is a tuple element), and dies with a
+   * `java.lang.ClassCastException` when the query is mapped with `map`.
+   */
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
   private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[ItemError, B]]): DynamoDBQuery[A, B] =
     Absolve(query)
 
+  /**
+   * Returns `succeed` of the value for a `Right`, and `fail` of the error for a `Left`, so a `Left` currently behaves
+   * like `fail`: `DynamoDBQuery#execute` succeeds with the error as its result.
+   */
   def fromEither[A](or: Either[ItemError, A]): DynamoDBQuery[Any, A] =
     or match {
       case Left(error)  => DynamoDBQuery.fail(error)
@@ -495,17 +724,26 @@ object DynamoDBQuery {
     }
 
   /**
+   * Deprecated: use `batch`, which returns the results as a `Chunk` instead of a `List`.
+   *
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
-   * results are zipped together using a strict version of the zip operation. When the `execute` method on query is
-   * invoked a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if the query does not qualify for batching.
-   * For a full explanation of the batching rules please see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation]]
+   * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
+   * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
+   * one of the queries would run unbatched; a get or a write that is the only one of its kind counts as unbatched.
+   * Currently the check is lost once the returned query is changed, for example with `map` or an option setter such
+   * as `capacity` or `withRetryPolicy`; the queries then run without it, the unbatchable ones in parallel. Currently
+   * a batched get is also sent without its `consistency` and `capacity`, and a batched put or delete without its
+   * `capacity` and `metrics`. For a full explanation of the batching rules please see
+   * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
-   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
-   * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
-   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
-   * allowed by the AWS API, or alternatively use `batch` to implement your own streaming functions.
+   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
+   * 25 writes or 100 gets per batch request) - if you want to perform a large number of reads and writes prefer the
+   * following utility functions - `zio.dynamodb.batchReadItemFromStream`, `zio.dynamodb.batchReadFromStream`,
+   * `zio.dynamodb.batchWriteFromStream` which work with ZStreams in a finite memory space and efficiently limit batch
+   * sizes to the maximum size allowed by the AWS API, or alternatively use `batch` to implement your own streaming
+   * functions.
    *
-   * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
+   * Note that if you need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
    */
   @deprecated("Use batch instead", since = "")
@@ -519,17 +757,33 @@ object DynamoDBQuery {
 
   /**
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
-   * results are zipped together using a strict version of the zip operation. When the `execute` method on query is
-   * invoked a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if the query does not qualify for batching.
-   * For a full explanation of the batching rules please see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation]]
+   * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
+   * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
+   * one of the queries would run unbatched; a get or a write that is the only one of its kind counts as unbatched.
+   * Currently the check is lost once the returned query is changed, for example with `map` or an option setter such
+   * as `capacity` or `withRetryPolicy`; the queries then run without it, the unbatchable ones in parallel. Currently
+   * a batched get is also sent without its `consistency` and `capacity`, and a batched put or delete without its
+   * `capacity` and `metrics`. For a full explanation of the batching rules please see
+   * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
-   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
-   * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
-   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
-   * allowed by the AWS API, or alternatively use `batch` to implement your own streaming functions.
+   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
+   * 25 writes or 100 gets per batch request) - if you want to perform a large number of reads and writes prefer the
+   * following utility functions - `zio.dynamodb.batchReadItemFromStream`, `zio.dynamodb.batchReadFromStream`,
+   * `zio.dynamodb.batchWriteFromStream` which work with ZStreams in a finite memory space and efficiently limit batch
+   * sizes to the maximum size allowed by the AWS API, or alternatively use `batch` to implement your own streaming
+   * functions.
    *
-   * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
+   * Note that if you need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
+   *
+   * The results come back in the order of `values`:
+   * {{{
+   * import zio._
+   *
+   * val people: DynamoDBQuery[Any, Chunk[Option[Item]]] =
+   *   DynamoDBQuery.batch(List("3", "2", "1"))(id => DynamoDBQuery.getItem("people", PrimaryKey("id" -> id)))
+   * // one BatchGetItem request; with ids 1 and 3 stored, the result is Chunk(Some(item3), None, Some(item1))
+   * }}}
    */
   def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, Chunk[B]] =
     values.reverse.foldLeft[DynamoDBQuery[In, Chunk[B]]](succeed(Chunk.empty)) { case (queryAcc, a) =>
@@ -538,6 +792,10 @@ object DynamoDBQuery {
       zip
     }
 
+  /**
+   * Low Level API: reads the item with primary key `key` from the table `tableName`. The result is `None` when no item
+   * has that key. With `projections`, DynamoDB returns only those attributes.
+   */
   def getItem(
     tableName: String,
     key: PrimaryKey,
@@ -545,6 +803,24 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
+  /**
+   * High Level API: reads the item that `primaryKeyExpr` identifies from the table `tableName`, requesting the fields
+   * of `From`, and decodes it. The result is a `Left` holding `DynamoDBError.ItemError.ValueNotFound` when no item has
+   * that key, or `DynamoDBError.ItemError.DecodingError` when the item does not decode as `From`; `zio.dynamodb.syntax`
+   * adds `maybeFound` to turn it into an `Option`.
+   * {{{
+   * import zio.schema.{ DeriveSchema, Schema }
+   *
+   * final case class Person(id: String, name: String)
+   * object Person {
+   *   implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
+   *   val (id, name) = ProjectionExpression.accessors[Person]
+   * }
+   *
+   * val ann: DynamoDBQuery[Person, Either[DynamoDBError.ItemError, Person]] =
+   *   DynamoDBQuery.get("people")(Person.id.partitionKey === "1")
+   * }}}
+   */
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
   ): DynamoDBQuery[From, Either[ItemError, From]] =
@@ -554,7 +830,8 @@ object DynamoDBQuery {
    * Sometimes we want to save top level sum types to DynamoDB and we want to retrieve them back as the subtype
    * with expressions in terms of the subtype as well.
    * `getWithNarrow` does a `get` with a safe narrow operation from type `From` to `To`.
-   * If the narrow fails it returns a Decoding error with details of the cast failure in the message.
+   * If the narrow fails it returns a Decoding error with details of the cast failure in the message, such as
+   * `failed to narrow - found type Unpaid but expected type Paid`.
    *
    * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a subtype.
    *
@@ -645,8 +922,29 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
+  /**
+   * Low Level API: writes `item` to the table `tableName`, replacing any item with the same primary key.
+   * `returns(ReturnValues.AllOld)` asks for the replaced item. Without it, the result is `None` when the put is batched
+   * and with `DynamoDBExecutor.test`; a put sent on its own by `DynamoDBExecutor.live` currently returns `Some` of an
+   * empty `Item`.
+   */
   def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
 
+  /**
+   * High Level API: encodes `a` with its `Schema` and writes it to the table `tableName`, replacing any item with the
+   * same primary key. The result is `None` unless `returns(ReturnValues.AllOld)` asks for the replaced item, and also
+   * when that item does not decode as `A`.
+   * {{{
+   * import zio.schema.{ DeriveSchema, Schema }
+   *
+   * final case class Person(id: String, name: String)
+   * object Person {
+   *   implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
+   * }
+   *
+   * val save: DynamoDBQuery[Person, Option[Person]] = DynamoDBQuery.put("people", Person("1", "Ann"))
+   * }}}
+   */
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
@@ -675,11 +973,33 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
+  /**
+   * High Level API: applies `action` to the item that `primaryKeyExpr` identifies in the table `tableName`; DynamoDB
+   * creates the item when it does not exist. The result is `None` unless `returns` asks for attributes that decode as
+   * `From`, such as `ReturnValues.AllNew`.
+   * {{{
+   * import zio.schema.{ DeriveSchema, Schema }
+   *
+   * final case class Person(id: String, name: String)
+   * object Person {
+   *   implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
+   *   val (id, name) = ProjectionExpression.accessors[Person]
+   * }
+   *
+   * val rename: DynamoDBQuery[Person, Option[Person]] =
+   *   DynamoDBQuery.update("people")(Person.id.partitionKey === "1")(Person.name.set("Bob"))
+   * }}}
+   */
   def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
 
+  /**
+   * Low Level API: applies `action` to the item with primary key `key` in the table `tableName`; DynamoDB creates the
+   * item when it does not exist. The result is `None` unless `returns` asks for attributes, which it then holds as
+   * DynamoDB returned them.
+   */
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),
@@ -692,8 +1012,18 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
+  /**
+   * Low Level API: deletes the item with primary key `key` from the table `tableName`.
+   * `returns(ReturnValues.AllOld)` asks for the deleted item. Without it, the result is `None` when the delete is
+   * batched and with `DynamoDBExecutor.test`; a delete sent on its own by `DynamoDBExecutor.live` currently returns
+   * `Some` of an empty `Item`.
+   */
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
+  /**
+   * High Level API: deletes the item that `primaryKeyExpr` identifies from the table `tableName`. The result is `None`
+   * unless `returns(ReturnValues.AllOld)` asks for the deleted item, and also when that item does not decode as `From`.
+   */
   def deleteFrom[From: Schema](
     tableName: String
   )(
@@ -702,7 +1032,9 @@ object DynamoDBQuery {
     deleteItem(tableName, primaryKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
-   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
+   * Low Level API: scans the table `tableName` for one page of at most `limit` items. When executed will return a
+   * Tuple of `(Chunk[Item], LastEvaluatedKey)`; pass the key to `startKey` to read the next page. With `projections`,
+   * DynamoDB returns only those attributes.
    */
   def scanSomeItem(tableName: String, limit: Int, projections: ProjectionExpression[_, _]*): ScanSome =
     ScanSome(
@@ -713,7 +1045,10 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
+   * High Level API: scans the table `tableName` for one page of at most `limit` items, requesting the fields of `A`.
+   * When executed will return a Tuple of `(Chunk[A], LastEvaluatedKey)`; pass the key to `startKey` to read the next
+   * page. Currently, when an item does not decode as `A`, the effect dies with the
+   * `DynamoDBError.ItemError.DecodingError` instead of failing.
    */
   def scanSome[A: Schema](
     tableName: String,
@@ -729,7 +1064,8 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a ZStream of Item
+   * Low Level API: scans the whole table `tableName`. When executed will return a ZStream of Item, which reads the
+   * pages as it is consumed. With `projections`, DynamoDB returns only those attributes.
    */
   def scanAllItem(tableName: String, projections: ProjectionExpression[_, _]*): ScanAll =
     ScanAll(
@@ -739,7 +1075,9 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a ZStream of A
+   * High Level API: scans the whole table `tableName`, requesting the fields of `A`. When executed will return a
+   * ZStream of A, which reads the pages as it is consumed; an item that does not decode as `A` fails the stream with a
+   * `java.lang.IllegalStateException`.
    */
   def scanAll[A: Schema](
     tableName: String
@@ -749,7 +1087,9 @@ object DynamoDBQuery {
     ) // TODO: think about error model
 
   /**
-   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
+   * Low Level API: queries the table `tableName` for one page of at most `limit` items; set the key condition with
+   * `whereKey`. When executed will return a Tuple of `(Chunk[Item], LastEvaluatedKey)`; pass the key to `startKey` to
+   * read the next page. With `projections`, DynamoDB returns only those attributes.
    */
   def querySomeItem(tableName: String, limit: Int, projections: ProjectionExpression[_, _]*): QuerySome =
     QuerySome(
@@ -760,7 +1100,10 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
+   * High Level API: queries the table `tableName` for one page of at most `limit` items, requesting the fields of
+   * `A`; set the key condition with `whereKey`. When executed will return a Tuple of `(Chunk[A], LastEvaluatedKey)`;
+   * pass the key to `startKey` to read the next page. Currently, when an item does not decode as `A`, the effect
+   * dies with the `DynamoDBError.ItemError.DecodingError` instead of failing.
    */
   def querySome[A: Schema](
     tableName: String,
@@ -776,7 +1119,9 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a ZStream of Item
+   * Low Level API: queries the table `tableName` for every matching item; set the key condition with `whereKey`. When
+   * executed will return a ZStream of Item, which reads the pages as it is consumed. With `projections`, DynamoDB
+   * returns only those attributes.
    */
   def queryAllItem(tableName: String, projections: ProjectionExpression[_, _]*): QueryAll =
     QueryAll(
@@ -786,7 +1131,9 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a ZStream of A
+   * High Level API: queries the table `tableName` for every matching item, requesting the fields of `A`; set the key
+   * condition with `whereKey`. When executed will return a ZStream of A, which reads the pages as it is consumed; an
+   * item that does not decode as `A` fails the stream with a `java.lang.IllegalStateException`.
    */
   def queryAll[A: Schema](
     tableName: String
@@ -796,6 +1143,11 @@ object DynamoDBQuery {
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
+  /**
+   * Creates the table `tableName` with the primary key `keySchema`, the billing mode, at least one attribute
+   * definition (one for each key attribute), and optional server-side encryption and tags. Add secondary indexes with
+   * `gsi` and `lsi`.
+   */
   def createTable(
     tableName: String,
     keySchema: KeySchema,
@@ -812,6 +1164,11 @@ object DynamoDBQuery {
       tags = tags
     )
 
+  /**
+   * A check, for a write transaction, that `conditionExpression` holds for the item with primary key `primaryKey`: the
+   * whole transaction fails when it does not. Zip it with the writes and call `transaction`; executed outside a
+   * transaction, it sends nothing to DynamoDB.
+   */
   def conditionCheck(
     tableName: String,
     primaryKey: PrimaryKey
@@ -822,10 +1179,16 @@ object DynamoDBQuery {
       conditionExpression
     )
 
+  /**
+   * Deletes the table `tableName` and its items.
+   */
   def deleteTable(
     tableName: String
   ): DeleteTable = DeleteTable(tableName = TableName(tableName))
 
+  /**
+   * Returns the ARN, status, size in bytes and item count of the table `tableName`.
+   */
   def describeTable(
     tableName: String
   ): DescribeTable = DescribeTable(tableName = TableName(tableName))
@@ -997,20 +1360,66 @@ object DynamoDBQuery {
     tableName: TableName
   ) extends Constructor[Any, DescribeTableResponse]
 
+  /**
+   * The status of a table, as `describeTable` reports it: one case for each value of DynamoDB's `TableStatus`.
+   */
   sealed trait TableStatus
+
+  /**
+   * The cases of `TableStatus`.
+   */
   object TableStatus {
-    case object Creating                          extends TableStatus
-    case object Updating                          extends TableStatus
-    case object Deleting                          extends TableStatus
-    case object Active                            extends TableStatus
+
+    /**
+     * The table is being created.
+     */
+    case object Creating extends TableStatus
+
+    /**
+     * The table or one of its indexes is being updated.
+     */
+    case object Updating extends TableStatus
+
+    /**
+     * The table is being deleted.
+     */
+    case object Deleting extends TableStatus
+
+    /**
+     * The table is ready for use.
+     */
+    case object Active extends TableStatus
+
+    /**
+     * DynamoDB cannot access the AWS KMS key that encrypts the table.
+     */
     case object InaccessibleEncryptionCredentials extends TableStatus
-    case object Archiving                         extends TableStatus
-    case object Archived                          extends TableStatus
-    case object ReplicationNotAuthorized          extends TableStatus
-    case object unknownToSdkVersion               extends TableStatus
+
+    /**
+     * The table is being archived.
+     */
+    case object Archiving extends TableStatus
+
+    /**
+     * The table has been archived.
+     */
+    case object Archived extends TableStatus
+
+    /**
+     * DynamoDB is not authorized to replicate the table.
+     */
+    case object ReplicationNotAuthorized extends TableStatus
+
+    /**
+     * A status that the version of the AWS SDK in use does not know.
+     */
+    case object unknownToSdkVersion extends TableStatus
   }
 
   // TODO: (adam) Add more fields here, this was for some basic testing initially
+  /**
+   * The result of `describeTable`: the table's ARN, its status, its size in bytes and its number of items.
+   */
   final case class DescribeTableResponse(
     tableArn: String,
     tableStatus: TableStatus,
@@ -1066,7 +1475,14 @@ object DynamoDBQuery {
     totalSegments: Int = 1
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
+  /**
+   * Holds `ScanAll.Segment`, a segment of a parallel scan.
+   */
   object ScanAll {
+
+    /**
+     * Segment `number` (counted from 0) of the `total` segments of a parallel scan (see `DynamoDBQuery#parallel`).
+     */
     final case class Segment(number: Int, total: Int)
   }
 
@@ -1153,6 +1569,9 @@ object DynamoDBQuery {
     type Old = Either[ItemError, B]
   }
 
+  /**
+   * Same as `succeed`: a query that returns `a` without calling DynamoDB.
+   */
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
   private[dynamodb] def batched[In](

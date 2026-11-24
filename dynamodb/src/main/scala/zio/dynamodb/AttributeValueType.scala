@@ -1,6 +1,17 @@
 package zio.dynamodb
 
+/**
+ * The type of a DynamoDB attribute value. It is the type argument of the `attribute_type` condition function (for
+ * example `isNumber` on a [[ProjectionExpression]]) and, for the primitive types, the key type of an
+ * [[AttributeDefinition]].
+ */
 sealed trait AttributeValueType { self =>
+
+  /**
+   * Returns the placeholder of the DynamoDB type code of this type, for example `:v0` for the code `N`, adding the
+   * code to the alias map as a value unless it is already there. The codes are `B`, `N`, `S`, `BOOL`, `BS`, `L`, `M`,
+   * `NS`, `NULL` and `SS`.
+   */
   def render: AliasMapRender[String] =
     self match {
       case valueType: PrimitiveValueType => valueType.render
@@ -13,6 +24,11 @@ sealed trait AttributeValueType { self =>
       case AttributeValueType.StringSet  => AliasMapRender.getOrInsert(AttributeValue.String("SS"))
     }
 }
+
+/**
+ * The types that can be the type of a key attribute: `Binary`, `Number` and `String`. An [[AttributeDefinition]] takes
+ * one of these.
+ */
 sealed trait PrimitiveValueType extends AttributeValueType { self =>
   override def render: AliasMapRender[String] =
     self match {
@@ -22,17 +38,36 @@ sealed trait PrimitiveValueType extends AttributeValueType { self =>
     }
 }
 
+/** The attribute value types of DynamoDB. */
 object AttributeValueType {
   // primitive types
-  case object Binary    extends PrimitiveValueType
-  case object Number    extends PrimitiveValueType
-  case object String    extends PrimitiveValueType
+  /** Binary data, with the type code `B`. */
+  case object Binary extends PrimitiveValueType
+
+  /** A number, with the type code `N`. */
+  case object Number extends PrimitiveValueType
+
+  /** A string, with the type code `S`. */
+  case object String extends PrimitiveValueType
   // non primitive types
-  case object Bool      extends AttributeValueType
+  /** A boolean, with the type code `BOOL`. */
+  case object Bool   extends AttributeValueType
+
+  /** A set of binary values, with the type code `BS`. */
   case object BinarySet extends AttributeValueType
-  case object List      extends AttributeValueType
-  case object Map       extends AttributeValueType
+
+  /** A list of values, with the type code `L`. */
+  case object List extends AttributeValueType
+
+  /** A map of attribute names to values, with the type code `M`. */
+  case object Map extends AttributeValueType
+
+  /** A set of numbers, with the type code `NS`. */
   case object NumberSet extends AttributeValueType
-  case object Null      extends AttributeValueType
+
+  /** The null value, with the type code `NULL`. */
+  case object Null extends AttributeValueType
+
+  /** A set of strings, with the type code `SS`. */
   case object StringSet extends AttributeValueType
 }

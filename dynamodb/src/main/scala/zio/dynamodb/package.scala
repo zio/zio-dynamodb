@@ -4,36 +4,78 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
 
+/**
+ * The core types of ZIO DynamoDB, and the streaming batch helpers `batchWriteFromStream`, `batchReadItemFromStream`
+ * and `batchReadFromStream`.
+ */
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
+
+  /**
+   * A condition that filters the items of a scan or query (`DynamoDBQuery#filter`). It is the same type as
+   * `ConditionExpression`.
+   */
   type FilterExpression[-From] = ConditionExpression[From]
-  type LastEvaluatedKey        = Option[PrimaryKey]
-  type PrimaryKey              = AttrMap
+
+  /**
+   * The primary key at which a page of scan or query results ended, or `None` after the last page. Pass it to
+   * `DynamoDBQuery#startKey` to read the next page.
+   */
+  type LastEvaluatedKey = Option[PrimaryKey]
+
+  /**
+   * The primary key of an item: an `AttrMap` that holds the partition key attribute and, for a table with a composite
+   * primary key, the sort key attribute.
+   */
+  type PrimaryKey = AttrMap
+
+  /**
+   * Builds a `PrimaryKey`, for example `PrimaryKey("id" -> "1")`. It is the `AttrMap` companion object.
+   */
   val PrimaryKey = AttrMap
+
+  /**
+   * An item as the Low Level API sees it: an `AttrMap` from attribute names to `AttributeValue`s.
+   */
   type Item = AttrMap
+
+  /**
+   * Builds an `Item`, for example `Item("id" -> "1", "name" -> "Ann")`. It is the `AttrMap` companion object.
+   */
   val Item = AttrMap
 
-  type Encoder[A]  = A => AttributeValue
+  /**
+   * A function that encodes an `A` as an `AttributeValue`, such as the one `Codec.encoder` derives from a `Schema`.
+   */
+  type Encoder[A] = A => AttributeValue
+
+  /**
+   * A function that decodes an `AttributeValue` as an `A`, or returns a `DynamoDBError.ItemError`, such as the one
+   * `Codec.decoder` derives from a `Schema`.
+   */
   type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
   /**
-   * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
-   * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
+   * Reads `stream` and uses function `f` for creating a BatchWrite request that is executed for side effects. Stream is
+   * batched into groups of up to 25 items, each combined with `DynamoDBQuery.batch` into a BatchWriteItem and executed
+   * using the `DynamoDBExecutor` service provided in the environment, at most `mPar` groups at a time.
    *
-   * Note that if function `f` returns a `PutItem` or `DeleteItem` that contains a `ConditionExpression` then the entire
-   * aggregated chunk of up to 25 items _will not be batched!_ (this is a limitation of AWS BatchWriteItem) - instead they
-   * will be executed in parallel.
+   * Note that if function `f` returns a `PutItem` or `DeleteItem` that contains a `ConditionExpression` then the
+   * aggregated chunk _will not be batched!_ (this is a limitation of AWS BatchWriteItem): when a chunk holds more than
+   * one such write, the stream fails with `DynamoDBError.BatchError.UnbatchableQueryError`. Writes that DynamoDB
+   * leaves unprocessed after the retries fail the stream with `DynamoDBError.BatchError.WriteError`.
    *
-   * @param stream
+   * @param stream The elements to write
    * @param mPar Level of parallelism for the stream processing
    * @param f Function that takes an `A` and returns a PutItem or DeleteItem
    * @tparam R Environment
-   * @tparam A
+   * @tparam A Input stream element type
+   * @tparam In The input type of the queries that `f` returns
    * @tparam B Type of DynamoDBQuery returned by `f`
-   * @return A stream of results from the `DynamoDBQuery` write's
+   * @return A stream of results from the `DynamoDBQuery` write's, in the order of `stream`
    */
   def batchWriteFromStream[R, A, In, B](
     stream: ZStream[R, Throwable, A],
@@ -54,19 +96,20 @@ package object dynamodb {
       .flattenChunks
 
   /**
-   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
-   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service.
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem
+   * request. Stream is batched into groups of up to 100 items in a BatchGetItem and executed using the provided
+   * `DynamoDBExecutor` service, at most `mPar` groups at a time.
    *
-   * Returns a tuple of (A, Option[B]) where the option is None if the item is not found - this enables "LEFT outer
+   * Returns a tuple of `(A, Option[Item])` where the option is None if the item is not found - this enables "LEFT outer
    * join" like functionality
    *
-   * @param tableName
-   * @param stream
+   * @param tableName The table to read from
+   * @param stream The elements whose items to read
    * @param mPar Level of parallelism for the stream processing
    * @param pk Function to determine the primary key
    * @tparam R Environment
-   * @tparam A
-   * @return A stream of (A, Option[Item])
+   * @tparam A Input stream element type
+   * @return A stream of (A, Option[Item]), in the order of `stream`
    */
   def batchReadItemFromStream[R, A](
     tableName: String,
@@ -93,20 +136,21 @@ package object dynamodb {
       .flattenChunks
 
   /**
-   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
-   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem
+   * request. Stream is batched into groups of up to 100 items in a BatchGetItem and executed using the provided
+   * `DynamoDBExecutor` service, at most `mPar` groups at a time.
    *
-   * Returns a tuple of (A, Option[B]) where the option is None if the item is not found - this enables "LEFT outer
-   * join" like functionality
+   * Returns a tuple of `(A, Option[From])` where the option is None if the item is not found - this enables "LEFT outer
+   * join" like functionality. An item that cannot be decoded as `From` gives a `Left`.
    *
-   * @param tableName
-   * @param stream
+   * @param tableName The table to read from
+   * @param stream The elements whose items to read
    * @param mPar Level of parallelism for the stream processing
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A Input stream element type
    * @tparam From implicit Schema[From] where From is the type of the element in the returned stream
-   * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
+   * @return stream of `Either[DynamoDBError.ItemError.DecodingError, (A, Option[From])]`, in the order of `stream`
    */
   def batchReadFromStream[R, A, From: Schema](
     tableName: String,

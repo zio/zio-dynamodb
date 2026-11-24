@@ -8,37 +8,114 @@ import scala.collection.immutable.Set
 import scala.collection.immutable.{ Map => SMap }
 import scala.util.Try
 
+/**
+ * A DynamoDB attribute value: a string, number, binary, boolean, null, list, map, or a set of strings, numbers or
+ * binaries. It is the low level form of the data the executor sends to and reads from DynamoDB, and the form that
+ * [[ToAttributeValue]] and [[FromAttributeValue]] convert to and from.
+ *
+ * `AttributeValue(a)` converts a single value with its [[ToAttributeValue]] instance, `AttributeValue.encode(a)` encodes
+ * a whole value with its zio-schema `Schema`, and `decode` goes back.
+ *
+ * {{{
+ * import zio.schema.{ DeriveSchema, Schema }
+ *
+ * final case class Point(x: Int, y: Int)
+ * object Point {
+ *   implicit val schema: Schema.CaseClass2[Int, Int, Point] = DeriveSchema.gen[Point]
+ * }
+ *
+ * val n: AttributeValue    = AttributeValue(42)             // Number(42)
+ * val tags: AttributeValue = AttributeValue(Set("a", "b"))  // StringSet(Set(a, b))
+ * val p: AttributeValue    = AttributeValue.encode(Point(1, 2))
+ * // Map(Map(String(x) -> Number(1), String(y) -> Number(2)))
+ * val back = p.decode[Point] // Right(Point(1,2))
+ * val item = p.toAttrMap     // Right(AttrMap(Map(x -> Number(1), y -> Number(2))))
+ * }}}
+ *
+ * @see [[https://zio.dev/zio-dynamodb/reference/low-level-api/attribute-value/ AttributeValue]]
+ */
 sealed trait AttributeValue { self =>
+
+  /**
+   * The Scala type a value was converted from. `AttributeValue(a)` returns an `AttributeValue.WithScalaType[A]`, which
+   * fixes it to the type of `a`; for other values it is abstract.
+   */
   type ScalaType
 
+  /**
+   * Returns this value as an [[AttrMap]] when it is a map, or a `DecodingError` otherwise (for example
+   * `Error getting AttrMap value. Expected AttributeValue.Map but found AttributeValue.Number`).
+   */
   def toAttrMap: Either[ItemError, AttrMap] =
     FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(self)
 
+  /** Decodes this value into an `A` with the codec derived from `schema`, or returns the `ItemError` that stopped it. */
   def decode[A](implicit schema: Schema[A]): Either[ItemError, A] = Codec.decoder(schema)(self)
 
-  def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)
-  def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   = NotEqual(ValueOperand(self), that)
-  def <[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                    =
+  /**
+   * Builds the condition `value = size(path)`. Currently the size operand must have this value's `ScalaType` as its
+   * attribute type, so `AttributeValue(3) === Person.tags.size` does not compile; write `Person.tags.size === 3`.
+   */
+  def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] = Equals(ValueOperand(self), that)
+
+  /**
+   * Builds the condition `value <> size(path)`. Currently the size operand must have this value's `ScalaType` as its
+   * attribute type, so a number value does not compile with it; write `path.size <> n`.
+   */
+  def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] = NotEqual(ValueOperand(self), that)
+
+  /**
+   * Builds the condition `value < size(path)`. Currently the size operand must have this value's `ScalaType` as its
+   * attribute type, so a number value does not compile with it; write `path.size > n`.
+   */
+  def <[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] =
     LessThan(ValueOperand(self), that)
-  def <=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   =
+
+  /**
+   * Builds the condition `value <= size(path)`. Currently the size operand must have this value's `ScalaType` as
+   * its attribute type, so a number value does not compile with it; write `path.size >= n`.
+   */
+  def <=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] =
     LessThanOrEqual(ValueOperand(self), that)
+
+  /**
+   * Meant to build the condition `value > size(path)` for the size of an untyped path, such as
+   * `AttributeValue(3) > \$("tags").size`. It currently builds `value >= size(path)` instead.
+   */
   def >[From](that: Operand.Size[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), that)
 
+  /**
+   * Builds the condition `value >= size(path)`. Currently the size operand must have this value's `ScalaType` as
+   * its attribute type, so a number value does not compile with it; write `path.size <= n`.
+   */
   def >=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), that)
 
+  /** Builds the condition `value = path` for an untyped path, such as `AttributeValue(3) === \$("count")`. */
   def ===[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     Equals(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <>[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
+
+  /** Builds the condition `value <> path` for an untyped path. */
+  def <>[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     NotEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]   =
+
+  /** Builds the condition `value < path` for an untyped path. */
+  def <[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     LessThan(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
+
+  /** Builds the condition `value <= path` for an untyped path. */
+  def <=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]   =
+
+  /**
+   * Meant to build the condition `value > path` for an untyped path. It currently builds `value >= path` instead.
+   */
+  def >[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
+
+  /** Builds the condition `value >= path` for an untyped path. */
+  def >=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
   private[dynamodb] final val showType: String =
@@ -56,10 +133,15 @@ sealed trait AttributeValue { self =>
     }
 }
 
+/**
+ * Builds [[AttributeValue]] values from Scala values: `apply` with a [[ToAttributeValue]] instance, and `encode` with a
+ * zio-schema `Schema`.
+ */
 object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
+  /** An [[AttributeValue]] whose `ScalaType` is `X`, the type `AttributeValue.apply` returns. */
   type WithScalaType[X] = AttributeValue { type ScalaType = X }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
@@ -193,10 +275,23 @@ object AttributeValue {
     val empty: StringSet = StringSet(Set.empty)
   }
 
+  /**
+   * Converts `a` with its [[ToAttributeValue]] instance: `AttributeValue(42)` is `Number(42)` and
+   * `AttributeValue(Set("a", "b"))` is `StringSet(Set(a, b))`.
+   */
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]
 
+  /**
+   * Encodes `a` with the codec derived from `schema`: a case class becomes a map with one entry per field, except that
+   * a field holding `None` is left out, and a `None` on its own becomes `Null`.
+   */
   def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
 
+  /**
+   * The [[ToAttributeValue]] of `AttributeValue` itself, which returns the value unchanged, so an `AttributeValue` can
+   * be passed where a convertible value is expected. It applies to values typed as `AttributeValue`, not to the
+   * `AttributeValue.WithScalaType[A]` that `AttributeValue(a)` returns.
+   */
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = scala.Predef.identity(_)
 }

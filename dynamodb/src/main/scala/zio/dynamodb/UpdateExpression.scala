@@ -40,19 +40,56 @@ delete-action ::=
 -------------------------------------------------------------
  */
 
-// Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
-// if this turns out to be a problem we could change the internal implementation
+/**
+ * The update expression of an `UpdateItem` request: the actions to apply to an item of type `A`. The query builders
+ * `DynamoDBQuery.update` and `DynamoDBQuery.updateItem` wrap the action they are given in one, so it is rarely built by
+ * hand.
+ *
+ * Actions come from the operators of a [[ProjectionExpression]] (`set`, `setIfNotExists`, `append`, `prepend`,
+ * `remove`, `add`, `addSet`, `deleteFromSet`) and are combined with `+`. The rendered expression groups them by kind,
+ * in the order `SET`, `REMOVE`, `ADD`, `DELETE`; actions of the same kind keep the order they were added in.
+ *
+ * {{{
+ * import zio.schema.{ DeriveSchema, Schema }
+ *
+ * final case class Product(sku: String, price: Int, stock: Int, labels: Set[String])
+ * object Product {
+ *   implicit val schema: Schema.CaseClass4[String, Int, Int, Set[String], Product] = DeriveSchema.gen[Product]
+ *   val (sku, price, stock, labels) = ProjectionExpression.accessors[Product]
+ * }
+ *
+ * val restock: UpdateExpression.Action[Product] =
+ *   Product.price.set(1299) + Product.stock.add(50) + Product.labels.deleteFromSet(Set("sold-out"))
+ *
+ * val query = DynamoDBQuery.update("products")(Product.sku.partitionKey === "sku-42")(restock)
+ * }}}
+ */
 final case class UpdateExpression[-A](action: Action[A]) extends Renderable { self =>
+
+  /**
+   * Renders the action as the text of a DynamoDB update expression, such as `set #n0 = :v1 add #n2 :v3`. Attribute
+   * names are replaced by `#n` aliases and values by `:v` placeholders.
+   */
   def render: AliasMapRender[String] =
     action.render
 }
 
+/** Holds the action and set operand types of an [[UpdateExpression]]. */
 object UpdateExpression {
 
+  /**
+   * One update action on an item of type `From` (`SET`, `REMOVE`, `ADD` or `DELETE` on one path), or several actions
+   * joined with `+`. The update operators of [[ProjectionExpression]] return them.
+   */
   sealed trait Action[-From] { self =>
 
+    /** Returns an action that applies both this action and `that`. */
     def +[A1 <: From](that: RenderableAction[A1]): Action[A1]
 
+    /**
+     * Renders this action as the text of an update expression. Several actions are grouped by kind, in the order `set`,
+     * `remove`, `add`, `delete`, with the actions of each kind separated by commas.
+     */
     def render: AliasMapRender[String] = {
       def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =
         chunk.foldLeft(AliasMapRender.empty.map(_ => "")) { case (acc, action) =>
@@ -95,6 +132,10 @@ object UpdateExpression {
       }
     }
 
+    /**
+     * Splits `actions` by kind and returns the `SET`, `REMOVE`, `ADD` and `DELETE` actions, in that order, each in the
+     * order they appear in `actions`.
+     */
     def collectActions(actions: Chunk[RenderableAction[_]]) = {
       val sets    = ChunkBuilder.make[Action.SetAction[_, _]]()
       val removes = ChunkBuilder.make[Action.RemoveAction[_]]()
@@ -112,9 +153,16 @@ object UpdateExpression {
 
   }
 
+  /**
+   * A single update action on one path: `SET`, `REMOVE`, `ADD` or `DELETE`. Combine actions with `+`.
+   */
   sealed trait RenderableAction[-A] extends Action[A] { self =>
     override def +[A1 <: A](that: RenderableAction[A1]): Action[A1] = Actions(Chunk(self, that))
 
+    /**
+     * Renders this action without its keyword, such as `#n0 = :v1` for a `SET` or `#n0 :v1` for an `ADD`, so that
+     * several actions of one kind can share one keyword.
+     */
     def miniRender: AliasMapRender[String] =
       self match {
         case Action.SetAction(path, operand)  =>
@@ -136,6 +184,8 @@ object UpdateExpression {
       }
 
   }
+
+  /** The kinds of [[UpdateExpression.Action]]. */
   object Action {
 
     private[dynamodb] final case class Actions[A](actions: Chunk[RenderableAction[A]]) extends Action[A] { self =>
@@ -168,12 +218,20 @@ object UpdateExpression {
         extends RenderableAction[A]
   }
 
+  /**
+   * The value on the right of a `SET` action: a value, a path, `list_append(...)`, `if_not_exists(...)`, or the sum or
+   * difference of two operands.
+   */
   sealed trait SetOperand[-To] { self =>
     import SetOperand._
 
+    /** Returns the operand `this + that`. */
     def +[A <: To](that: SetOperand[A]): SetOperand[A] = Plus(self, that)
+
+    /** Returns the operand `this - that`. */
     def -[A <: To](that: SetOperand[A]): SetOperand[A] = Minus(self, that)
 
+    /** Renders this operand as the text of an update expression, such as `list_append(#n0, :v1)`. */
     def render: AliasMapRender[String] =
       self match {
         case Minus(left, right)                                                   =>
@@ -202,6 +260,8 @@ object UpdateExpression {
       }
 
   }
+
+  /** The kinds of [[UpdateExpression.SetOperand]]. */
   object SetOperand {
 
     private[dynamodb] final case class Minus[A](left: SetOperand[A], right: SetOperand[A]) extends SetOperand[A]

@@ -18,19 +18,33 @@ import zio.stream.interop.fs2z._
 
 import scala.concurrent.Future
 
+/**
+ * Cats Effect and FS2 interop for running a `DynamoDBQuery` as an `F[_]` effect: the `DynamoDBExceutorF` executor, the
+ * `executeToF` method on queries, and FS2 versions of the streaming batch helpers.
+ */
 object syntax {
 
+  /**
+   * Converts the result type of a ZIO DynamoDB query to its Cats Effect counterpart. There is an instance for
+   * `ZStream[Any, Throwable, A]`, which becomes an `fs2.Stream[F, A]`, and an instance for any other type, which stays
+   * as it is.
+   */
   trait CatsCompatible[ZioType] {
+
+    /** The Cats Effect type that `ZioType` is converted to. */
     type Out
 
+    /** Converts a ZIO result to its Cats Effect counterpart. */
     def toCats(a: ZioType): Out
   }
 
+  /** A natural transformation from `F` to `zio.Task` that runs the `F` effect on the given `Dispatcher`. */
   def toZioFunctionK[F[_]](implicit d: Dispatcher[F]): FunctionK[F, zio.Task] =
     new FunctionK[F, zio.Task] {
       def apply[A](t: F[A]): zio.Task[A] = toZioEffect(t)
     }
 
+  /** Runs `t` on the given `Dispatcher` and returns a `zio.Task` that completes with its result. */
   def toZioEffect[F[_], A](t: F[A])(implicit d: Dispatcher[F]): zio.Task[A] =
     ZIO.uninterruptibleMask { restore =>
       val future = d.unsafeToFuture(t)
@@ -38,9 +52,13 @@ object syntax {
       restore(zio)
     }
 
+  /** Instances of [[CatsCompatible]]. */
   object CatsCompatible extends CatsCompatibleLowPriority {
+
+    /** A [[CatsCompatible]] for `A` whose `Out` is `Out0`. */
     type Aux[A, Out0] = CatsCompatible[A] { type Out = Out0 }
 
+    /** A natural transformation from `zio.Task` to `F` that runs the task on `zio.Runtime.default`. */
     final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
       new FunctionK[zio.Task, F] {
         def apply[A](t: zio.Task[A]): F[A] = toEffect[F, A](t)
@@ -55,6 +73,7 @@ object syntax {
         }
       }
 
+    /** Converts a `ZStream[Any, Throwable, A]` to an `fs2.Stream[F, A]`. */
     implicit def zioStreamCatsCompatible[F[_], A](implicit
       F: Async[F]
     ): CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[F, A]] =
@@ -65,7 +84,10 @@ object syntax {
       }
   }
 
+  /** Lower-priority instances of [[CatsCompatible]]. */
   trait CatsCompatibleLowPriority {
+
+    /** Leaves a result of type `A` as it is. */
     implicit def catsCompatible[A]: CatsCompatible.Aux[A, A] =
       new CatsCompatible[A] {
         type Out = A
@@ -74,7 +96,21 @@ object syntax {
       }
   }
 
+  /**
+   * Runs a `DynamoDBQuery` as an `F` effect on `zio.Runtime.default`, using the wrapped `DynamoDBExecutor`. Create it
+   * with `DynamoDBExceutorF.of` or `DynamoDBExceutorF.ofCustomised`, or with `new DynamoDBExceutorF[F](executor)` for
+   * an executor you already have. The class name is spelt this way in the library.
+   */
   class DynamoDBExceutorF[F[_]](val dynamoDBExecutor: DynamoDBExecutor)(implicit F: Async[F]) {
+
+    /**
+     * Runs `query` and returns its result as an `F` effect, converted by `ce`: a query that returns a `ZStream` gives
+     * an `fs2.Stream`. It passes `query` to `DynamoDBExecutor#execute` directly, not through `DynamoDBQuery#execute`,
+     * so the parts of a zipped query run one after the other without batching, and with `DynamoDBExecutor.test` a
+     * zipped or mapped query, such as `get` of the High Level API, fails with a `java.lang.Exception`. A failed request
+     * fails the `F` with its `DynamoDBError`. Currently cancelling the returned `F` does not interrupt the running
+     * query: the cancellation waits until the query has finished.
+     */
     def execute[Out](query: DynamoDBQuery[_, Out])(implicit ce: CatsCompatible[Out]): F[ce.Out] =
       F.uncancelable { poll =>
         F.delay(
@@ -87,10 +123,19 @@ object syntax {
       }
   }
 
+  /** Constructors of [[DynamoDBExceutorF]]. */
   object DynamoDBExceutorF {
 
+    /**
+     * A `Resource` that builds a `DynamoDBExceutorF` with the default AWS SDK client settings, and closes the client
+     * when the resource is released.
+     */
     def of[F[_]: Async]: Resource[F, DynamoDBExceutorF[F]] = ofCustomised(identity)
 
+    /**
+     * Like `of`, but passes the AWS SDK `DynamoDbAsyncClientBuilder` through `customization` before the client is
+     * built, for example to set an endpoint override.
+     */
     def ofCustomised[F[_]: Async](
       customization: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder
     ): Resource[F, DynamoDBExceutorF[F]] = {
@@ -109,15 +154,21 @@ object syntax {
     }
   }
 
+  /** Adds `executeToF` to a `DynamoDBQuery`. */
   implicit class DynamoDBQueryOps[F[_], In, Out](query: DynamoDBQuery[In, Out]) {
 
+    /**
+     * Runs this query with the implicit `DynamoDBExceutorF` and returns its result as an `F` effect. See
+     * `DynamoDBExceutorF#execute`.
+     */
     def executeToF(implicit exF: DynamoDBExceutorF[F], ce: CatsCompatible[Out]): F[ce.Out] =
       exF.execute(query)
   }
 
   /**
    * Applies function `f: A => DynamoDBQuery[In, B]` to an input stream of `A`, where function f is a write operation
-   * ie put or delete
+   * ie put or delete. The elements are grouped into chunks of up to 25, and up to `mPar` chunks are processed in
+   * parallel. Returns a stream of the results of the writes.
    */
   def batchWriteFromStreamF[F[_], A, In, B](
     fs2StreamIn: fs2.Stream[F, A],
@@ -142,7 +193,9 @@ object syntax {
 
   /**
    * Applies function `pk: A => KeyConditionExpr.PrimaryKeyExpr[From]` to an input stream of `A` and returns a stream of
-   * `Either[DynamoDBError.DecodingError, (A, Option[From])]` where `From` has an associated Schema
+   * `Either[DynamoDBError.ItemError.DecodingError, (A, Option[From])]` where `From` has an associated Schema. The
+   * elements are grouped into chunks of up to 100, and up to `mPar` chunks are processed in parallel. The `Option` is
+   * `None` when no item is found for the key.
    */
   def batchReadFromStreamF[F[_], A, From: Schema](
     tableName: String,
@@ -169,8 +222,9 @@ object syntax {
   }
 
   /**
-   * Applies function `pk: A => PrimaryKey` to an input stream of `A` and returns a stream of `(A, Option[Item])`.
-   * Note this uses the lower level API so returns a type unsafe Item.
+   * Applies function `pk: A => PrimaryKey` to an input stream of `A` and returns a stream of `(A, Option[Item])`. Note
+   * this uses the lower level API so returns a type unsafe Item. The elements are grouped into chunks of up to 100, and
+   * up to `mPar` chunks are processed in parallel. The `Option` is `None` when no item is found for the key.
    */
   def batchReadItemFromStreamF[F[_], A](
     tableName: String,
