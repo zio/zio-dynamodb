@@ -30,8 +30,8 @@ package object json {
      * Encodes this value with the `Schema[A2]` and renders it as DynamoDB JSON on one line. Choosing a supertype as
      * `A2` selects that type's schema, so for a case of a sealed trait `value.toJsonString[Trait]` includes the
      * discriminator that `put[Trait]` stores. Throws a `java.lang.Exception` with a message that starts with the words
-     * error encoding when the value does not encode to an item, for example for an `Int` or a `List[Int]`. A value with a
-     * binary field, such as a `Chunk[Byte]`, throws a `scala.NotImplementedError`.
+     * error encoding when the value does not encode to an item, for example for an `Int` or a `List[Int]`. A value
+     * with a binary field, such as a `Chunk[Byte]`, throws a `scala.NotImplementedError`.
      */
     def toJsonString[A2 >: A](implicit ev: Schema[A2]): String =
       Encoder.attributeValueToJsonString(toItem[A2](a).toAttributeValue)
