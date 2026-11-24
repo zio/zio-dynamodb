@@ -141,7 +141,8 @@ trait ToAttributeValueLowPriorityImplicits1 {
 
   /**
    * Encodes a value with the DynamoDB encoder derived from the implicit `Schema[A]`. A case class with a schema is
-   * encoded as an `AttributeValue.Map` that has one entry per field.
+   * encoded as an `AttributeValue.Map` with one entry per field, except that a field holding `None` is left out of the
+   * map. A `None` on its own is encoded as `AttributeValue.Null`.
    */
   implicit def schemaToAttributeValue[A](implicit schema: Schema[A]): ToAttributeValue[A] =
     (a: A) => {
