@@ -2,6 +2,8 @@ package zio.dynamodb
 
 /** How a table is charged: [[BillingMode.PayPerRequest]] or provisioned capacity from [[BillingMode.provisioned]]. */
 sealed trait BillingMode
+
+/** The billing modes of a table. */
 object BillingMode {
   private[dynamodb] final case class Provisioned(pt: ProvisionedThroughput) extends BillingMode
 

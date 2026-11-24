@@ -6,6 +6,7 @@ package zio.dynamodb
  */
 sealed trait ReturnValues
 
+/** The values of `ReturnValues`. */
 object ReturnValues {
 
   /** Returns nothing. */

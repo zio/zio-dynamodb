@@ -6,6 +6,7 @@ package zio.dynamodb
  */
 sealed trait ReturnItemCollectionMetrics
 
+/** The values of `ReturnItemCollectionMetrics`. */
 object ReturnItemCollectionMetrics {
 
   /** Returns no statistics (`NONE`). */

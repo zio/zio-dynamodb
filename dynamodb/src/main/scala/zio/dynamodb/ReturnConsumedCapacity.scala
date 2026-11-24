@@ -6,6 +6,7 @@ package zio.dynamodb
  */
 sealed trait ReturnConsumedCapacity
 
+/** The values of `ReturnConsumedCapacity`. */
 object ReturnConsumedCapacity {
 
   /** Returns the consumed capacity of the table and of each index the request used (`INDEXES`). */

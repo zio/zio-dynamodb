@@ -2,6 +2,8 @@ package zio.dynamodb
 
 /** The attributes that a secondary index copies from its table: `KeysOnly`, `Include` or `All`. */
 sealed trait ProjectionType
+
+/** The projection types of a secondary index. */
 object ProjectionType {
 
   /** Projects only the key attributes of the table and the index. */

@@ -7,6 +7,7 @@ package zio.dynamodb
  */
 sealed trait Select
 
+/** The values of `Select`. */
 object Select {
 
   /** Returns all the attributes of the items. */
