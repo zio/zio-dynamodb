@@ -283,8 +283,8 @@ object AttributeValue {
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]
 
   /**
-   * Encodes `a` with the codec derived from `schema`: a case class becomes a map with one entry per field, and `None`
-   * becomes `Null`.
+   * Encodes `a` with the codec derived from `schema`: a case class becomes a map with one entry per field, except that
+   * a field holding `None` is left out, and a `None` on its own becomes `Null`.
    */
   def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
 
