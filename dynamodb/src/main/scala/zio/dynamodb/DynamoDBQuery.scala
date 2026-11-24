@@ -720,9 +720,9 @@ object DynamoDBQuery {
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
    * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
    * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
-   * one of the queries does not qualify for batching. The check is lost once the returned query is changed, for
-   * example with `map` or an option setter such as `capacity`: the queries then run without it, the unbatchable ones
-   * in parallel. For a full explanation of the batching rules please see
+   * one of the queries does not qualify for batching. Currently the check is lost once the returned query is
+   * changed, for example with `map` or an option setter such as `capacity` or `withRetryPolicy`; the queries then run
+   * without it, the unbatchable ones in parallel. For a full explanation of the batching rules please see
    * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
@@ -748,9 +748,9 @@ object DynamoDBQuery {
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
    * results are zipped together using a strict version of the zip operation. When the `execute` method is invoked on
    * the returned query, a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if more than
-   * one of the queries does not qualify for batching. The check is lost once the returned query is changed, for
-   * example with `map` or an option setter such as `capacity`: the queries then run without it, the unbatchable ones
-   * in parallel. For a full explanation of the batching rules please see
+   * one of the queries does not qualify for batching. Currently the check is lost once the returned query is
+   * changed, for example with `map` or an option setter such as `capacity` or `withRetryPolicy`; the queries then run
+   * without it, the unbatchable ones in parallel. For a full explanation of the batching rules please see
    * [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching and Parallelisation]]
    *
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API (at most
