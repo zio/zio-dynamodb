@@ -5,8 +5,8 @@ import scala.annotation.implicitNotFound
 
 /**
  * Evidence that `beginsWith` can be applied to a sort key of type `X` with a prefix of type `A`. Instances exist when
- * both types are `String`, `Option[String]`, a subtype of `Iterable[Byte]` or a subtype of `Option[Iterable[Byte]]`
- * (and `X` equals `A` in each case), and when either type is `ProjectionExpression.Unknown`.
+ * both types are `String`, `Option[String]`, a subtype of `Iterable[Byte]` or a subtype of `Option[Iterable[Byte]]`,
+ * and when either type is `ProjectionExpression.Unknown`.
  */
 @implicitNotFound(
   "Field of type ${X} has 'beginsWith' argument of type ${A} - they must be the same type and be a string or a byte array"
