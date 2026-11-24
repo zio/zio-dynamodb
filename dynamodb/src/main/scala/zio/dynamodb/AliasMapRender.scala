@@ -1,6 +1,11 @@
 package zio.dynamodb
 
 private[dynamodb] trait Renderable {
+
+  /**
+   * Renders this expression as DynamoDB expression text, with `#n` aliases for attribute names and `:v` placeholders
+   * for values.
+   */
   def render: AliasMapRender[String]
 }
 

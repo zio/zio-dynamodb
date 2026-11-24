@@ -10,16 +10,37 @@ package zio.dynamodb
  * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
  */
 sealed trait KeyConditionExpr[-From] extends Renderable { self =>
+
+  /**
+   * Renders this key condition as the text of a DynamoDB key condition expression, such as `#n1 = :v0 AND #n3 > :v2`.
+   * Key names are replaced by `#n` aliases and values by `:v` placeholders.
+   */
   def render: AliasMapRender[String]
 }
 
+/**
+ * The kinds of [[KeyConditionExpr]]. They are built with the `===` operator of a partition key and the operators of a
+ * sort key (`partitionKey` and `sortKey` on a [[ProjectionExpression]]), joined with `&&`.
+ */
 object KeyConditionExpr {
+
+  /** A type that no method of the library uses. */
   type SortKeyNotUsed
 
+  /**
+   * A key condition that names exactly one item: the partition key equals a value, optionally with the sort key equal
+   * to a value. `get`, `update` and `deleteFrom` of `DynamoDBQuery` take one.
+   */
   sealed trait PrimaryKeyExpr[-From] extends KeyConditionExpr[From] {
+
+    /** Returns the key as an [[AttrMap]] with one entry per key attribute, such as `AttrMap(id -> String(o1))`. */
     def asAttrMap: AttrMap
   }
 
+  /**
+   * Returns the `#n` alias of the top level attribute `primaryKeyName`, adding it to the alias map when it is not
+   * there yet.
+   */
   def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
     // note primary keys must be scalar values, they can't be nested
     AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](ProjectionExpression.Root, primaryKeyName))
@@ -82,7 +103,14 @@ object KeyConditionExpr {
 
   }
 
+  /**
+   * A sort key condition other than equality: `>`, `<`, `<>`, `<=`, `>=`, `between` or `beginsWith` on the sort key.
+   * Joined to a partition key condition with `&&`, it gives a key condition for a query, which can match several
+   * items.
+   */
   sealed trait ExtendedSortKeyExpr[-From, +Sk] { self =>
+
+    /** Renders this sort key condition as text, such as `#n1 < :v0` or `begins_with(#n1, :v0)`. */
     def miniRender: AliasMapRender[String] =
       self match {
         case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
@@ -124,6 +152,8 @@ object KeyConditionExpr {
       }
 
   }
+
+  /** The kinds of [[KeyConditionExpr.ExtendedSortKeyExpr]]. */
   object ExtendedSortKeyExpr {
     private[dynamodb] final case class GreaterThan[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]

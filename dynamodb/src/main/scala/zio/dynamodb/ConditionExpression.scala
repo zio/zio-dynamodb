@@ -37,15 +37,47 @@ function ::=
     | size (path)
  */
 
+/**
+ * A condition on the attributes of an item of type `From`. DynamoDB checks it before a put, update or delete (pass it to
+ * `where`), and uses it to drop items from the result of a query or scan (pass it to `filter`).
+ *
+ * Conditions are built from the operators of a [[ProjectionExpression]]: comparisons (`===`, `<>`, `<`, `<=`, `>`,
+ * `>=`), `between`, `in`, and the functions `exists`, `notExists`, `beginsWith`, `contains`, `size` and the `isX` type
+ * checks. Combine them with `&&`, `||` and `!`.
+ *
+ * {{{
+ * import zio.schema.{ DeriveSchema, Schema }
+ *
+ * final case class Account(id: String, balance: Int, status: String)
+ * object Account {
+ *   implicit val schema: Schema.CaseClass3[String, Int, String, Account] = DeriveSchema.gen[Account]
+ *   val (id, balance, status) = ProjectionExpression.accessors[Account]
+ * }
+ *
+ * val canDebit: ConditionExpression[Account] =
+ *   Account.balance >= 100 && (Account.status === "open" || Account.status === "overdrawn")
+ *
+ * val createOnly = DynamoDBQuery.put("accounts", Account("acc-7", 250, "open")).where(!Account.id.exists)
+ * }}}
+ */
 sealed trait ConditionExpression[-From] extends Renderable { self =>
   import ConditionExpression._
 
+  /** Returns the condition `(this) AND (that)`, which holds when both conditions hold. */
   def &&[From1 <: From](that: ConditionExpression[From1]): ConditionExpression[From1] =
     And(self, that)
+
+  /** Returns the condition `(this) OR (that)`, which holds when at least one of the conditions holds. */
   def ||[From1 <: From](that: ConditionExpression[From1]): ConditionExpression[From1] =
     Or(self, that)
-  def unary_![From1 <: From]: ConditionExpression[From1]                              = Not(self)
 
+  /** Returns the condition `NOT (this)`, which holds when this condition does not hold. */
+  def unary_![From1 <: From]: ConditionExpression[From1] = Not(self)
+
+  /**
+   * Renders this condition as the text of a DynamoDB condition expression. Attribute names are replaced by `#n` aliases
+   * and values by `:v` placeholders, which the render collects so that the executor can send them with the request.
+   */
   def render: AliasMapRender[String] =
     self match {
       case between: Between[_]         =>
@@ -101,39 +133,77 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 }
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
+/**
+ * Holds the operand type of [[ConditionExpression]]. Conditions themselves are built with the operators of
+ * [[ProjectionExpression]] and of [[AttributeValue]].
+ */
 object ConditionExpression {
+
+  /**
+   * One side of a comparison: a path, a value or a `size(path)`. The `size` method of a [[ProjectionExpression]]
+   * returns one, so its operators build conditions such as `Customer.tags.size > 1`.
+   */
   private[dynamodb] sealed trait Operand[-From, +To] { self =>
+
+    /** Builds the condition `operand BETWEEN minValue AND maxValue`. */
     def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[From] =
       Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
-    def in(values: Set[AttributeValue]): ConditionExpression[From]                             = In(self.asInstanceOf[Operand[From, To]], values)
 
+    /** Builds the condition `operand IN (v1, v2, ...)`, which holds when this operand equals one of `values`. */
+    def in(values: Set[AttributeValue]): ConditionExpression[From] = In(self.asInstanceOf[Operand[From, To]], values)
+
+    /** Builds the condition `operand = that`, which compares this operand with the operand `that`. */
     def ===[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
-    def <>[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
+
+    /** Builds the condition `operand <> that`, which compares this operand with the operand `that`. */
+    def <>[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       NotEqual(self.asInstanceOf[Operand[From, To2]], that)
-    def <[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]   =
+
+    /** Builds the condition `operand < that`, which compares this operand with the operand `that`. */
+    def <[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       LessThan(self.asInstanceOf[Operand[From2, To2]], that)
-    def <=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
+
+    /** Builds the condition `operand <= that`, which compares this operand with the operand `that`. */
+    def <=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       LessThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
-    def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]   =
-      GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
-    def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
+
+    /**
+     * Meant to build the condition `operand > that` for the operand `that`. Currently it builds `operand >= that`
+     * instead, so `\$("a").size > \$("b").size` renders as `(size(#n0)) >= (size(#n1))`.
+     */
+    def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
 
+    /** Builds the condition `operand >= that`, which compares this operand with the operand `that`. */
+    def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
+      GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
+
+    /** Builds the condition `operand = that`, which compares this operand with the value `that`. */
     def ===[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <>[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
+
+    /** Builds the condition `operand <> that`, which compares this operand with the value `that`. */
+    def <>[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       NotEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]   =
+
+    /** Builds the condition `operand < that`, which compares this operand with the value `that`. */
+    def <[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       LessThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
+
+    /** Builds the condition `operand <= that`, which compares this operand with the value `that`. */
+    def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       LessThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
-    def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
+    /** Builds the condition `operand > that`, which compares this operand with the value `that`. */
+    def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
+
+    /** Builds the condition `operand >= that`, which compares this operand with the value `that`. */
     def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
+    /** Renders this operand as the text of a condition expression: a `#n` alias, a `:v` placeholder or `size(#n)`. */
     def render: AliasMapRender[String] =
       self match {
         case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.getOrInsert(op.pe)
@@ -142,6 +212,7 @@ object ConditionExpression {
       }
   }
 
+  /** The kinds of condition operand: a path, a value, or the size of a path. */
   object Operand {
 
     private[dynamodb] final case class ProjectionExpressionOperand[From](pe: ProjectionExpression[From, _])
