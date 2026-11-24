@@ -91,8 +91,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * counts as unbatched.
    *
    * Currently a query made with `DynamoDBQuery.fail`, or with `DynamoDBQuery.fromEither` from a `Left`, does not
-   * fail. The effect succeeds with the error as its result, or dies with a `java.lang.ClassCastException` when the
-   * query was mapped. Also, a `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or
+   * fail. The effect succeeds with the error as its result (also inside `zip`, `zipLeft` and `zipRight`), or dies with
+   * a `java.lang.ClassCastException` when the query is mapped with `map`. Also, a `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or
    * `querySome` makes the effect die instead of failing.
    *
    * @see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching]]
@@ -683,8 +683,10 @@ object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
   /**
-   * A query that maps to a single request (or, for `succeed` and `fail`, to no request), as opposed to the queries
-   * that `map` and `zip` build.
+   * A query that is not built with `map` or `zip`: one DynamoDB operation, or, for `succeed` and `fail`, no request.
+   * One operation can send several requests: a scan or query that reads all pages sends one request per page (and
+   * one per segment after `parallel`), and a batch request resends unprocessed items. A `conditionCheck` sends
+   * nothing outside a transaction.
    */
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
 
@@ -701,7 +703,8 @@ object DynamoDBQuery {
 
   /**
    * A query meant to fail with `e` without calling DynamoDB. Currently `DynamoDBQuery#execute` does not fail but
-   * succeeds with `e` as its result, and dies with a `java.lang.ClassCastException` once the query is mapped.
+   * succeeds with `e` as its result (also inside `zip`, `zipLeft` and `zipRight`), and dies with a
+   * `java.lang.ClassCastException` when the query is mapped with `map`.
    */
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
@@ -709,8 +712,8 @@ object DynamoDBQuery {
     Absolve(query)
 
   /**
-   * Returns `succeed` of the value for a `Right`, and `fail` of the error for a `Left`, so a `Left` currently behaves like
-   * `fail`: `DynamoDBQuery#execute` succeeds with the error as its result.
+   * Returns `succeed` of the value for a `Right`, and `fail` of the error for a `Left`, so a `Left` currently behaves
+   * like `fail`: `DynamoDBQuery#execute` succeeds with the error as its result.
    */
   def fromEither[A](or: Either[ItemError, A]): DynamoDBQuery[Any, A] =
     or match {
