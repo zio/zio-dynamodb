@@ -92,8 +92,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    *
    * Currently a query made with `DynamoDBQuery.fail`, or with `DynamoDBQuery.fromEither` from a `Left`, does not
    * fail. The effect succeeds with the error as its result (also inside `zip`, `zipLeft` and `zipRight`), or dies with
-   * a `java.lang.ClassCastException` when the query is mapped with `map`. Also, a `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or
-   * `querySome` makes the effect die instead of failing.
+   * a `java.lang.ClassCastException` when the query is mapped with `map`. Also, a
+   * `DynamoDBError.ItemError.DecodingError` of the High Level `scanSome` or `querySome` makes the effect die instead of
+   * failing.
    *
    * @see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation/ Auto Batching]]
    */
