@@ -46,7 +46,10 @@ object SortKey {
         ToAttributeValue[To].toAttributeValue(value)
       )
 
-    /** Builds the key condition `key <> value`. */
+    /**
+     * Builds the key condition `key <> value`. The library builds this condition, but the DynamoDB documentation does
+     * not list `<>` among the sort key operators of a key condition.
+     */
     def <>[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To] =
@@ -126,7 +129,10 @@ object SortKey {
         ToAttributeValue[To].toAttributeValue(value)
       )
 
-    /** Builds the key condition `key <> value`. */
+    /**
+     * Builds the key condition `key <> value`. The library builds this condition, but the DynamoDB documentation does
+     * not list `<>` among the sort key operators of a key condition.
+     */
     def <>(
       value: To
     ): ExtendedSortKeyExpr[From, To] =
@@ -163,7 +169,7 @@ object SortKey {
 
     /**
      * Builds the key condition `begins_with(key, prefix)`. The code does not compile unless the key type is a `String`,
-     * an `Option[String]` or a byte collection, and the prefix has the same type.
+     * an `Option[String]`, a byte collection such as `Chunk[Byte]`, or an `Option` of a byte collection.
      */
     def beginsWith(
       prefix: To

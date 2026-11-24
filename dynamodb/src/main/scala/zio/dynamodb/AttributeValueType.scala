@@ -8,8 +8,9 @@ package zio.dynamodb
 sealed trait AttributeValueType { self =>
 
   /**
-   * Adds the DynamoDB type code of this type to the alias map as a value and returns its placeholder, for example `:v0`
-   * for the code `N`. The codes are `B`, `N`, `S`, `BOOL`, `BS`, `L`, `M`, `NS`, `NULL` and `SS`.
+   * Returns the placeholder of the DynamoDB type code of this type, for example `:v0` for the code `N`, adding the
+   * code to the alias map as a value unless it is already there. The codes are `B`, `N`, `S`, `BOOL`, `BS`, `L`, `M`,
+   * `NS`, `NULL` and `SS`.
    */
   def render: AliasMapRender[String] =
     self match {

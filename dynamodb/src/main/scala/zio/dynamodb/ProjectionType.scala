@@ -10,8 +10,8 @@ object ProjectionType {
   case object KeysOnly extends ProjectionType
 
   /**
-   * Projects the key attributes and the listed non-key attributes. The number of attributes is not checked here;
-   * DynamoDB applies its own limit.
+   * Projects the key attributes and the listed non-key attributes. This library does not check the number of
+   * attributes; DynamoDB applies its own limit.
    */
   final case class Include private (nonKeyAttributes: NonEmptySet[String]) extends ProjectionType
 
